@@ -1,0 +1,27 @@
+<idea-plugin>
+    <id>com.drostwades.errorsound</id>
+    <name>Error Sound Alert</name>
+    <vendor email="jkjitendra725@gmail.com" url="https://github.com/jkjitendra">jkjitendra</vendor>
+
+    <description>
+        <![CDATA[
+        Plays a short sound when a Run/Debug process terminates with a non-zero exit code.
+        Users can choose a built-in 1-second tone or a custom sound file.
+        ]]>
+    </description>
+
+    <depends>com.intellij.modules.platform</depends>
+
+    <projectListeners>
+        <listener class="com.drostwades.errorsound.AlertOnErrorExecutionListener"
+                  topic="com.intellij.execution.ExecutionListener"/>
+    </projectListeners>
+
+    <extensions defaultExtensionNs="com.intellij">
+        <applicationConfigurable
+                id="com.drostwades.errorsound.settings"
+                displayName="Error Sound Alert"
+                parentId="tools"
+                instance="com.drostwades.errorsound.ErrorSoundConfigurable"/>
+    </extensions>
+</idea-plugin>
