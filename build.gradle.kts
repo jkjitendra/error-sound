@@ -4,7 +4,7 @@ plugins {
 }
 
 group = "com.drostwades"
-version = "1.0.1"
+version = "1.0.2"
 
 repositories {
     mavenCentral()
@@ -47,6 +47,10 @@ tasks {
 
         changeNotes.set(
             """
+            <b>1.0.2</b>
+            <ul>
+              <li>Add plugin icon for Marketplace and IDE plugin manager</li>
+            </ul>
             <b>1.0.1</b>
             <ul>
               <li>Replace deprecated ProcessAdapter with ProcessListener interface</li>
