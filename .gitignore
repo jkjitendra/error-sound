@@ -1,0 +1,23 @@
+# Gradle
+.gradle/
+build/
+out/
+
+# IntelliJ
+.idea/
+*.iml
+
+# macOS
+.DS_Store
+
+# Signing keys — never commit these
+*.pem
+*.pk8
+*.crt
+*.chain
+*.p12
+*.keystore
+
+# Environment / secrets
+.env
+local.properties
