@@ -1,7 +1,7 @@
 package com.drostwades.errorsound
 
 import com.intellij.execution.ExecutionListener
-import com.intellij.execution.process.ProcessAdapter
+import com.intellij.execution.process.ProcessListener
 import com.intellij.execution.process.ProcessEvent
 import com.intellij.execution.process.ProcessHandler
 import com.intellij.execution.runners.ExecutionEnvironment
@@ -16,7 +16,7 @@ class AlertOnErrorExecutionListener : ExecutionListener {
     override fun processStarted(executorId: String, env: ExecutionEnvironment, handler: ProcessHandler) {
         val outputBuffer = StringBuilder()
         val detectedKind = AtomicReference(ErrorKind.NONE)
-        handler.addProcessListener(object : ProcessAdapter() {
+        handler.addProcessListener(object : ProcessListener {
             override fun onTextAvailable(event: ProcessEvent, outputType: com.intellij.openapi.util.Key<*>) {
                 val text = event.text ?: return
                 // Capture all available output keys; some runners use non-STDOUT/STDERR keys.

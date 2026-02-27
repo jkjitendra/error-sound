@@ -4,7 +4,7 @@ plugins {
 }
 
 group = "com.drostwades"
-version = "1.0.0"
+version = "1.0.1"
 
 repositories {
     mavenCentral()
@@ -47,6 +47,13 @@ tasks {
 
         changeNotes.set(
             """
+            <b>1.0.1</b>
+            <ul>
+              <li>Replace deprecated ProcessAdapter with ProcessListener interface</li>
+              <li>Replace deprecated FileChooserDescriptorFactory.createSingleFileDescriptor() with direct FileChooserDescriptor constructor</li>
+              <li>Replace scheduled-for-removal addBrowseFolderListener 4-arg overload with current 2-arg API</li>
+            </ul>
+            <b>1.0.0</b>
             <ul>
               <li>Initial release</li>
               <li>Alert on failed Run/Debug process exits</li>
