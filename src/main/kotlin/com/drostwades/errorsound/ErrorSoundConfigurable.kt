@@ -1,6 +1,7 @@
 package com.drostwades.errorsound
 
-import com.intellij.openapi.fileChooser.FileChooserDescriptorFactory
+import com.intellij.openapi.fileChooser.FileChooserDescriptor
+import com.intellij.openapi.ui.TextBrowseFolderListener
 import com.intellij.openapi.options.Configurable
 import com.intellij.openapi.ui.ComboBox
 import com.intellij.openapi.ui.TextFieldWithBrowseButton
@@ -63,10 +64,12 @@ class ErrorSoundConfigurable : Configurable {
         val root = JPanel(BorderLayout())
 
         customPathField.addBrowseFolderListener(
-            "Choose Sound File",
-            "Select a WAV, AIFF, or AU file.",
-            null,
-            FileChooserDescriptorFactory.createSingleFileDescriptor()
+            TextBrowseFolderListener(
+                FileChooserDescriptor(true, false, false, false, false, false).apply {
+                    title = "Choose Sound File"
+                    description = "Select a WAV, AIFF, or AU file."
+                }
+            )
         )
         customPathField.textField.document.addDocumentListener(object : DocumentListener {
             override fun insertUpdate(e: DocumentEvent?) = onCustomPathChanged()
