@@ -61,4 +61,13 @@ object ErrorClassifier {
 
         return ErrorKind.NONE
     }
+
+    @Suppress("UNUSED_PARAMETER")
+    fun detectTerminal(command: String, exitCode: Int): ErrorKind {
+        // Exit code 0 = success, no alert
+        if (exitCode == 0) return ErrorKind.NONE
+        // Exit code 127 = "command not found" in bash/zsh
+        // Any other non-zero exit = generic shell error
+        return ErrorKind.GENERIC
+    }
 }
