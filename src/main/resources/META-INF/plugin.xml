@@ -11,6 +11,7 @@
     </description>
 
     <depends>com.intellij.modules.platform</depends>
+    <depends optional="true" config-file="terminal-features.xml">org.jetbrains.plugins.terminal</depends>
 
     <projectListeners>
         <listener class="com.drostwades.errorsound.AlertOnErrorExecutionListener"
@@ -23,5 +24,7 @@
                 displayName="Error Sound Alert"
                 parentId="tools"
                 instance="com.drostwades.errorsound.ErrorSoundConfigurable"/>
+        <consoleFilterProvider
+                implementation="com.drostwades.errorsound.ErrorConsoleFilterProvider"/>
     </extensions>
 </idea-plugin>
