@@ -4,7 +4,7 @@ plugins {
 }
 
 group = "com.drostwades"
-version = "1.0.2"
+version = "1.0.3"
 
 repositories {
     mavenCentral()
@@ -17,7 +17,7 @@ kotlin {
 intellij {
     version.set("2024.1")
     type.set("IC")
-    plugins.set(emptyList())
+    plugins.set(listOf("org.jetbrains.plugins.terminal"))
 }
 
 tasks {
@@ -47,6 +47,12 @@ tasks {
 
         changeNotes.set(
             """
+            <b>1.0.3</b>
+            <ul>
+              <li>Console error detection: plays alert when exceptions, errors, build failures, or stack traces appear in any console output (Run/Debug, Test, Gradle, Terminal)</li>
+              <li>Smart debounce: prevents repeated alerts when multiple error lines appear in quick succession</li>
+              <li>Improved compatibility with IntelliJ 2025.x terminal</li>
+            </ul>
             <b>1.0.2</b>
             <ul>
               <li>Add plugin icon for Marketplace and IDE plugin manager</li>
