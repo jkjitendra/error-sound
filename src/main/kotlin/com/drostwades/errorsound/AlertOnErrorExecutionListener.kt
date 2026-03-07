@@ -40,7 +40,7 @@ class AlertOnErrorExecutionListener : ExecutionListener {
                 }
 
                 val settings = AlertSettings.getInstance().state
-                if (!settings.enabled) {
+                if (!AlertMonitoring.shouldMonitor(settings, errorKind)) {
                     return
                 }
 

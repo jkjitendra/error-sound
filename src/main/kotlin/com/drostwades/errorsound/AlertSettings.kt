@@ -12,6 +12,15 @@ class AlertSettings : PersistentStateComponent<AlertSettings.State> {
 
     data class State(
         var enabled: Boolean = true,
+
+        // Monitoring filter flags (sidebar panel controls)
+        var monitorConfiguration: Boolean = true,
+        var monitorCompilation: Boolean = true,
+        var monitorTestFailure: Boolean = true,
+        var monitorNetwork: Boolean = true,
+        var monitorException: Boolean = true,
+        var monitorGeneric: Boolean = true,
+
         var volumePercent: Int = 80,
         var soundSource: String = SoundSource.BUNDLED.name,
         var builtInSoundId: String = BuiltInSounds.default.id,
