@@ -26,5 +26,12 @@
                 instance="com.drostwades.errorsound.ErrorSoundConfigurable"/>
         <consoleFilterProvider
                 implementation="com.drostwades.errorsound.ErrorConsoleFilterProvider"/>
+
+        <toolWindow
+                id="Error Monitor"
+                icon="/icons/errorMonitor.svg"
+                anchor="right"
+                secondary="true"
+                factoryClass="com.drostwades.errorsound.ErrorSoundToolWindowFactory"/>
     </extensions>
 </idea-plugin>
