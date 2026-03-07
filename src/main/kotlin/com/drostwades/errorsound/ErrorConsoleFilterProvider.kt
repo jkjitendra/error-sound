@@ -35,14 +35,12 @@ private class ErrorDetectionFilter : Filter {
 
     override fun applyFilter(line: String, entireLength: Int): Filter.Result? {
         val settings = AlertSettings.getInstance().state
-        if (!settings.enabled) return null
+        if (!errorPattern.containsMatchIn(line)) return null
 
-        if (errorPattern.containsMatchIn(line)) {
-            val errorKind = ErrorClassifier.detect(line, 1)
-            if (errorKind != ErrorKind.NONE) {
-                ErrorSoundPlayer.play(settings, errorKind)
-            }
-        }
+        val errorKind = ErrorClassifier.detect(line, 1)
+        if (!AlertMonitoring.shouldMonitor(settings, errorKind)) return null
+
+        ErrorSoundPlayer.play(settings, errorKind)
         // Return null — we only want the sound side-effect, not to modify the line
         return null
     }
