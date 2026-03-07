@@ -528,10 +528,8 @@ class AlertOnTerminalCommandListener : ProjectActivity {
         log.warn("ErrorSound: [Event] command='$command' exitCode=$exitCode")
 
         val settings = AlertSettings.getInstance().state
-        if (!settings.enabled) return
-
         val errorKind = ErrorClassifier.detectTerminal(command, exitCode)
-        if (errorKind == ErrorKind.NONE) return
+        if (!AlertMonitoring.shouldMonitor(settings, errorKind)) return
 
         log.warn("ErrorSound: [Event] PLAYING SOUND for '$command' exitCode=$exitCode")
         ErrorSoundPlayer.play(settings, errorKind)
