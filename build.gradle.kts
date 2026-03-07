@@ -4,7 +4,7 @@ plugins {
 }
 
 group = "com.drostwades"
-version = "1.0.3"
+version = "1.0.4"
 
 repositories {
     mavenCentral()
@@ -39,6 +39,7 @@ tasks {
               <li>Per-error-type sounds, or one global sound for all errors</li>
               <li>Configurable volume (0–100%) and alert duration (1–10 seconds)</li>
               <li>Instant preview from the settings panel</li>
+              <li><b>Error Monitor</b> sidebar panel: enable/disable monitoring, filter by error type, and apply presets without leaving your editor</li>
             </ul>
             <h3>Supported IDEs</h3>
             <p>All IntelliJ-based IDEs (IntelliJ IDEA, PyCharm, WebStorm, GoLand, etc.) version 2024.1+.</p>
@@ -47,6 +48,15 @@ tasks {
 
         changeNotes.set(
             """
+            <b>1.0.4</b>
+            <ul>
+              <li>New <b>Error Monitor</b> sidebar tool window (right panel) with custom icon and dark theme support</li>
+              <li>Master toggle to enable/disable monitoring and per-error-type filters (Configuration, Compilation, Test failure, Network, Exception, Generic)</li>
+              <li>Quick actions: Select all, Clear all; Presets: All, Build only, Runtime only</li>
+              <li>Live status indicator showing active/paused state and enabled type count</li>
+              <li>Quick-access button to open sound settings from the sidebar</li>
+              <li>Works across all IntelliJ Platform IDEs (IDEA, PyCharm, WebStorm, GoLand, CLion, DataGrip, etc.)</li>
+            </ul>
             <b>1.0.3</b>
             <ul>
               <li>Console error detection: plays alert when exceptions, errors, build failures, or stack traces appear in any console output (Run/Debug, Test, Gradle, Terminal)</li>
