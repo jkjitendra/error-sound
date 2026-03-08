@@ -3,6 +3,9 @@
 build/
 out/
 
+# IntelliJ Platform Gradle Plugin cache
+.intellijPlatform/
+
 # IntelliJ
 .idea/
 *.iml
@@ -17,6 +20,9 @@ out/
 *.chain
 *.p12
 *.keystore
+
+# Kotlin
+.kotlin/
 
 # Environment / secrets
 .env

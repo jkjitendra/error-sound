@@ -1,32 +1,44 @@
+import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+import org.jetbrains.kotlin.gradle.dsl.KotlinVersion
+
 plugins {
-    id("org.jetbrains.intellij") version "1.17.4"
-    kotlin("jvm") version "1.9.24"
+    id("org.jetbrains.intellij.platform") version "2.12.0"
+    kotlin("jvm") version "2.3.10"
 }
 
 group = "com.drostwades"
-version = "1.0.4"
+version = "1.1.0"
 
 repositories {
     mavenCentral()
+
+    intellijPlatform {
+        defaultRepositories()
+    }
 }
 
 kotlin {
-    jvmToolchain(17)
+    jvmToolchain(21)
 }
 
-intellij {
-    version.set("2024.1")
-    type.set("IC")
-    plugins.set(listOf("org.jetbrains.plugins.terminal"))
+dependencies {
+    intellijPlatform {
+        create("IC", "2024.3")
+
+        bundledPlugins(listOf("org.jetbrains.plugins.terminal"))
+
+        pluginVerifier()
+    }
 }
 
-tasks {
-    patchPluginXml {
-        sinceBuild.set("241")
-        untilBuild.set("253.*")
+intellijPlatform {
+    pluginConfiguration {
+        ideaVersion {
+            sinceBuild = "243"
+            untilBuild = provider { null }
+        }
 
-        pluginDescription.set(
-            """
+        description = """
             <p>
               Error Sound Alert plays an audio alert the moment a Run/Debug process exits with an error,
               so you can stay focused on other work and only look up when something goes wrong.
@@ -42,12 +54,16 @@ tasks {
               <li><b>Error Monitor</b> sidebar panel: enable/disable monitoring, filter by error type, and apply presets without leaving your editor</li>
             </ul>
             <h3>Supported IDEs</h3>
-            <p>All IntelliJ-based IDEs (IntelliJ IDEA, PyCharm, WebStorm, GoLand, etc.) version 2024.1+.</p>
-            """.trimIndent()
-        )
+            <p>All IntelliJ-based IDEs (IntelliJ IDEA, PyCharm, WebStorm, GoLand, etc.) version 2024.3+.</p>
+        """.trimIndent()
 
-        changeNotes.set(
-            """
+        changeNotes = """
+            <b>1.1.0</b> — <i>Breaking: requires IDE 2024.3+</i>
+            <ul>
+              <li>Migrated to IntelliJ Platform Gradle Plugin 2.12.0, Gradle 9.0, Kotlin 2.3.10, Java 21</li>
+              <li>Raised minimum IDE version to 2024.3 (build 243) for Kotlin 2.x stdlib compatibility</li>
+              <li>Removed upper IDE version cap for forward compatibility with future IDE releases</li>
+            </ul>
             <b>1.0.4</b>
             <ul>
               <li>New <b>Error Monitor</b> sidebar tool window (right panel) with custom icon and dark theme support</li>
@@ -79,24 +95,33 @@ tasks {
               <li>Alert on failed Run/Debug process exits</li>
               <li>Configurable audio source and volume</li>
             </ul>
-            """.trimIndent()
-        )
+        """.trimIndent()
     }
 
-    signPlugin {
-        certificateChain.set(System.getenv("CERTIFICATE_CHAIN"))
-        privateKey.set(System.getenv("PRIVATE_KEY"))
-        password.set(System.getenv("PRIVATE_KEY_PASSWORD"))
+    signing {
+        certificateChain = providers.environmentVariable("CERTIFICATE_CHAIN")
+        privateKey = providers.environmentVariable("PRIVATE_KEY")
+        password = providers.environmentVariable("PRIVATE_KEY_PASSWORD")
     }
 
-    publishPlugin {
-        token.set(System.getenv("PUBLISH_TOKEN"))
+    publishing {
+        token = providers.environmentVariable("PUBLISH_TOKEN")
     }
 
+    pluginVerification {
+        ides {
+            recommended()
+        }
+    }
+}
+
+tasks {
     withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile> {
-        kotlinOptions {
-            jvmTarget = "17"
-            freeCompilerArgs = listOf("-Xjvm-default=all")
+        compilerOptions {
+            jvmTarget.set(JvmTarget.JVM_21)
+            apiVersion.set(KotlinVersion.KOTLIN_2_0)
+            languageVersion.set(KotlinVersion.KOTLIN_2_0)
+            freeCompilerArgs.add("-Xjvm-default=all")
         }
     }
 }
