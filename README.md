@@ -10,7 +10,7 @@
 
 ## Overview
 
-**Error Sound Alert** listens to every Run/Debug process in your IDE. The moment one terminates with a non-zero exit code or emits recognisable error output, it plays a short audio alert. No more staring at the progress bar — just listen for the sound.
+**Error Sound Alert** listens to every Run/Debug process and Terminal command in your IDE. The moment one terminates with a non-zero exit code or emits recognisable error output, it plays a short audio alert. No more staring at the progress bar — just listen for the sound.
 
 ---
 
@@ -19,6 +19,8 @@
 | Feature | Details |
 |---|---|
 | Smart error detection | Classifies errors as Configuration, Compilation, Test Failure, Network, Exception, or Generic |
+| Error Monitor panel | Handy sidebar tool window to quickly toggle active error categories with presets |
+| Terminal support | Monitors both Run/Debug processes and built-in Terminal commands |
 | 7 built-in sounds | Boom, Faaa, Huh, Punch, Yeah Boy, Yooo, Dog Laughing |
 | Custom audio support | Point to any local WAV / AIFF / AU file |
 | Per-kind sounds | Assign a different sound to each error category |
@@ -57,14 +59,23 @@ All IntelliJ-based IDEs — IntelliJ IDEA, PyCharm, WebStorm, GoLand, Rider, and
 
 ## Configuration
 
-Open **Settings / Preferences → Tools → Error Sound Alert**
+Open **Settings / Preferences → Tools → Error Sound Alert** to configure audio specifics.
+
+### Error Monitor Tool Window (New!)
+
+A handy sidebar panel (View → Tool Windows → Error Monitor) to quickly turn on or off monitoring for specific error types without opening settings. Supports one-click presets:
+- **All**: Enable all error types
+- **Build Only**: Focus on Configuration, Compilation, and Test Failures
+- **Runtime Only**: Focus on Network, Exception, and Generic errors
+
+### Audio Settings
 
 | Option | Description |
 |---|---|
 | Enable / Disable | Master toggle for all alerts |
 | Sound source | **Built-in** (bundled WAV) or **Custom** (local file path) |
 | Global sound mode | One sound for all error types |
-| Per-kind sounds | Individual sound + enable/disable per error category |
+| Per-kind sounds | Individual sound per error category |
 | Custom file path | Absolute path to a WAV / AIFF / AU file |
 | Volume | 0 – 100% |
 | Alert duration | 1 – 10 seconds |
@@ -101,13 +112,13 @@ Output: `build/distributions/error-sound-<version>.zip`
 
 ## How it works
 
-1. The plugin registers an `ExecutionListener` via `<projectListeners>` in `plugin.xml`
-2. When a Run/Debug process starts, a `ProcessAdapter` is attached to capture all output
-3. Each output chunk is scanned in real time by `ErrorClassifier` for known error patterns
-4. On process termination, the full buffered output and exit code are re-evaluated
-5. If an error is detected and the plugin is enabled, `ErrorSoundPlayer` plays the configured sound asynchronously
-6. If the clip is shorter than the alert duration, it loops until time expires
-7. Fallback chain: custom file → built-in WAV → generated 880 Hz tone → system beep
+1. The plugin registers process output listeners (`ExecutionListener`, console filters) and terminal command listeners (`TerminalCommandFinishedEvent`).
+2. As a process runs or a terminal command executes, its output is scanned in real time for known error patterns.
+3. On process termination, the final exit code and detected errors are evaluated.
+4. The requested error type is checked against the active settings in the **Error Monitor** panel (`AlertMonitoring`).
+5. If approved, `ErrorSoundPlayer` plays the configured sound asynchronously.
+6. If the clip is shorter than the alert duration, it loops until time expires.
+7. Fallback chain: custom file → built-in WAV → generated 880 Hz tone → system beep.
 
 ---
 
@@ -115,12 +126,16 @@ Output: `build/distributions/error-sound-<version>.zip`
 
 ```
 src/main/kotlin/com/drostwades/errorsound/
+├── AlertMonitoring.kt                # Centralized rule gate for error filtering
 ├── AlertOnErrorExecutionListener.kt  # Process lifecycle listener
+├── AlertOnTerminalCommandListener.kt # Terminal command lifecycle listener
 ├── AlertSettings.kt                  # Persistent settings state
 ├── BuiltInSounds.kt                  # Built-in sound registry
+├── ErrorConsoleFilterProvider.kt     # Log analyzer for error spotting
 ├── ErrorKind.kt                      # Error enum + classifier
-├── ErrorSoundConfigurable.kt         # Settings UI panel
-└── ErrorSoundPlayer.kt               # Audio playback engine
+├── ErrorSoundConfigurable.kt         # Main settings UI panel
+├── ErrorSoundPlayer.kt               # Audio playback engine
+└── ErrorSoundToolWindowFactory.kt    # Error Monitor sidebar panel
 
 src/main/resources/
 ├── META-INF/plugin.xml               # Plugin manifest
