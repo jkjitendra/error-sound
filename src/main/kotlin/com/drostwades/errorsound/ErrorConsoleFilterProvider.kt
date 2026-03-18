@@ -11,10 +11,10 @@ import com.intellij.openapi.project.Project
  */
 class ErrorConsoleFilterProvider : ConsoleFilterProvider {
     override fun getDefaultFilters(project: Project): Array<Filter> =
-        arrayOf(ErrorDetectionFilter())
+        arrayOf(ErrorDetectionFilter(project))
 }
 
-private class ErrorDetectionFilter : Filter {
+private class ErrorDetectionFilter(private val project: Project) : Filter {
 
     // Patterns that reliably indicate an error in console output
     private val errorPattern = Regex(
@@ -34,13 +34,15 @@ private class ErrorDetectionFilter : Filter {
     )
 
     override fun applyFilter(line: String, entireLength: Int): Filter.Result? {
-        val settings = AlertSettings.getInstance().state
         if (!errorPattern.containsMatchIn(line)) return null
 
+        val settings = AlertSettings.getInstance().state
         val errorKind = ErrorClassifier.detect(line, 1)
-        if (!AlertMonitoring.shouldMonitor(settings, errorKind)) return null
 
-        ErrorSoundPlayer.play(settings, errorKind)
+        // Key: project identity + error kind — stable across many console lines from the same project
+        val key = "console:${project.locationHash}:$errorKind"
+        AlertDispatcher.tryAlert(key, settings, errorKind)
+
         // Return null — we only want the sound side-effect, not to modify the line
         return null
     }
