@@ -16,6 +16,7 @@ class AlertOnErrorExecutionListener : ExecutionListener {
     override fun processStarted(executorId: String, env: ExecutionEnvironment, handler: ProcessHandler) {
         val outputBuffer = StringBuilder()
         val detectedKind = AtomicReference(ErrorKind.NONE)
+        val handlerKey = System.identityHashCode(handler)
         handler.addProcessListener(object : ProcessListener {
             override fun onTextAvailable(event: ProcessEvent, outputType: com.intellij.openapi.util.Key<*>) {
                 val text = event.text ?: return
@@ -40,14 +41,13 @@ class AlertOnErrorExecutionListener : ExecutionListener {
                 }
 
                 val settings = AlertSettings.getInstance().state
-                if (!AlertMonitoring.shouldMonitor(settings, errorKind)) {
-                    return
-                }
 
                 log.debug(
                     "Error process detected. executorId=$executorId, profile=${env.runProfile.name}, exitCode=$exitCode, kind=$errorKind"
                 )
-                ErrorSoundPlayer.play(settings, errorKind)
+                // Key is stable per run: one handler instance per run configuration launch
+                val key = "exec:$handlerKey:$errorKind"
+                AlertDispatcher.tryAlert(key, settings, errorKind)
             }
         })
     }
