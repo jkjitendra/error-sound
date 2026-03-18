@@ -18,7 +18,7 @@ object ErrorSoundPlayer {
     private const val SAMPLE_RATE = 44_100f
     private const val DEFAULT_TONE_HZ = 880.0
     private const val DEFAULT_TONE_SECONDS = 1.0
-    private const val DEBOUNCE_MS = 3000L
+    private const val DEBOUNCE_MS = 250L  // last-resort guard; AlertEventGate owns real throttling
 
     private val log = Logger.getInstance(ErrorSoundPlayer::class.java)
     private val executor = AppExecutorUtil.createBoundedApplicationPoolExecutor("ErrorSoundPlayer", 1)
@@ -26,12 +26,13 @@ object ErrorSoundPlayer {
     private var previewToken: Long = 0
     private var previewClip: Clip? = null
     private var previewThread: Thread? = null
-    @Volatile private var lastPlayTime = 0L
+    private val lastPlayTime = java.util.concurrent.atomic.AtomicLong(0L)
 
     fun play(settings: AlertSettings.State, errorKind: ErrorKind = ErrorKind.GENERIC) {
         val now = System.currentTimeMillis()
-        if (now - lastPlayTime < DEBOUNCE_MS) return
-        lastPlayTime = now
+        val prev = lastPlayTime.get()
+        if (now - prev < DEBOUNCE_MS) return
+        if (!lastPlayTime.compareAndSet(prev, now)) return  // another caller won the race
         executor.submit {
             runCatching {
                 if (!isErrorKindEnabled(settings, errorKind)) {
