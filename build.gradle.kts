@@ -7,7 +7,7 @@ plugins {
 }
 
 group = "com.drostwades"
-version = "1.1.0"
+version = "1.1.1"
 
 repositories {
     mavenCentral()
@@ -26,8 +26,6 @@ dependencies {
         create("IC", "2024.3")
 
         bundledPlugins(listOf("org.jetbrains.plugins.terminal"))
-
-        pluginVerifier()
     }
 }
 
@@ -41,6 +39,7 @@ intellijPlatform {
         description = """
             <p>
               Error Sound Alert plays an audio alert the moment a Run/Debug process exits with an error,
+              a recognisable error pattern appears in console output, or a terminal command fails —
               so you can stay focused on other work and only look up when something goes wrong.
             </p>
             <h3>Features</h3>
@@ -58,6 +57,12 @@ intellijPlatform {
         """.trimIndent()
 
         changeNotes = """
+            <b>1.1.1</b>
+            <ul>
+              <li>Fixed duplicate alert sounds by improving event deduplication and cooldown handling</li>
+              <li>Improved console error detection and alert dispatch reliability</li>
+              <li>Improved terminal command failure detection for newer IDE versions</li>
+            </ul>
             <b>1.1.0</b> — <i>Breaking: requires IDE 2024.3+</i>
             <ul>
               <li>Migrated to IntelliJ Platform Gradle Plugin 2.12.0, Gradle 9.0, Kotlin 2.3.10, Java 21</li>
