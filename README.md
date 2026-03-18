@@ -1,6 +1,6 @@
 # Error Sound Alert
 
-> An IntelliJ Platform plugin that plays an audio alert the moment a Run/Debug process exits with an error — so you can stay focused and only look up when something goes wrong.
+> An IntelliJ Platform plugin that plays an audio alert the moment a Run/Debug process exits with an error, a recognisable error pattern appears in console output, or a terminal command fails — so you can stay focused and only look up when something goes wrong.
 
 [![JetBrains Marketplace](https://img.shields.io/badge/JetBrains-Marketplace-orange?logo=jetbrains)](https://plugins.jetbrains.com/plugin/com.drostwades.errorsound)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
@@ -10,7 +10,7 @@
 
 ## Overview
 
-**Error Sound Alert** listens to every Run/Debug process and Terminal command in your IDE. The moment one terminates with a non-zero exit code or emits recognisable error output, it plays a short audio alert. No more staring at the progress bar — just listen for the sound.
+**Error Sound Alert** listens to every Run/Debug process, console output, and Terminal command in your IDE. The moment a process terminates with a non-zero exit code, a recognisable error pattern appears in console output, or a terminal command fails, it plays a short audio alert. No more staring at the progress bar — just listen for the sound.
 
 ---
 
@@ -36,7 +36,7 @@
 
 All IntelliJ-based IDEs — IntelliJ IDEA, PyCharm, WebStorm, GoLand, Rider, and more.
 
-**Compatibility:** Build `241` (2024.1) through `253.*` (2025.3)
+**Compatibility:** Build `243` (2024.3)+
 
 ---
 
@@ -95,7 +95,7 @@ A handy sidebar panel (View → Tool Windows → Error Monitor) to quickly turn 
 
 ## Build
 
-**Prerequisites:** JDK 17+
+**Prerequisites:** JDK 21+
 
 ```bash
 # Clone the repository
@@ -112,11 +112,11 @@ Output: `build/distributions/error-sound-<version>.zip`
 
 ## How it works
 
-1. The plugin registers process output listeners (`ExecutionListener`, console filters) and terminal command listeners (`TerminalCommandFinishedEvent`).
+1. The plugin registers process output listeners (`ExecutionListener`, console filters) and terminal command listeners.
 2. As a process runs or a terminal command executes, its output is scanned in real time for known error patterns.
-3. On process termination, the final exit code and detected errors are evaluated.
-4. The requested error type is checked against the active settings in the **Error Monitor** panel (`AlertMonitoring`).
-5. If approved, `ErrorSoundPlayer` plays the configured sound asynchronously.
+3. On process termination (or console line match, or terminal command completion), the detection path builds a stable deduplication key and calls **`AlertDispatcher.tryAlert`**.
+4. `AlertDispatcher` checks **`AlertMonitoring`** (is this error category enabled?) and **`AlertEventGate`** (is this a duplicate within the cooldown window?).
+5. If both pass, `ErrorSoundPlayer` plays the configured sound asynchronously.
 6. If the clip is shorter than the alert duration, it loops until time expires.
 7. Fallback chain: custom file → built-in WAV → generated 880 Hz tone → system beep.
 
@@ -126,6 +126,8 @@ Output: `build/distributions/error-sound-<version>.zip`
 
 ```
 src/main/kotlin/com/drostwades/errorsound/
+├── AlertDispatcher.kt                # Single choke-point: routes all alerts through monitoring + gate + player
+├── AlertEventGate.kt                 # Deduplication gate — per-source and global cooldowns
 ├── AlertMonitoring.kt                # Centralized rule gate for error filtering
 ├── AlertOnErrorExecutionListener.kt  # Process lifecycle listener
 ├── AlertOnTerminalCommandListener.kt # Terminal command lifecycle listener

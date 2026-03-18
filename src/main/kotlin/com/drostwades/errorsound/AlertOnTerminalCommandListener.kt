@@ -17,7 +17,7 @@ import java.util.concurrent.atomic.AtomicReference
  * Listens to IntelliJ terminal command completions and plays a sound on errors.
  *
  * Uses ONLY reflection for terminal plugin classes — zero direct imports from the
- * terminal plugin — so the class loads and compiles against IntelliJ 2024.1 while
+ * terminal plugin — so the class loads and compiles against IntelliJ 2024.3 while
  * supporting both Classic and Reworked 2025 terminal engines at runtime.
  *
  * Entry point: ToolWindowManagerListener fires when the Terminal tool window is shown,
@@ -36,14 +36,14 @@ class AlertOnTerminalCommandListener : ProjectActivity {
     private val blockListenerRegistered = AtomicBoolean(false)
 
     override suspend fun execute(project: Project) {
-        log.warn("ErrorSound: terminal listener ProjectActivity starting")
+        log.debug("ErrorSound: terminal listener ProjectActivity starting")
 
-        val proxy = buildListenerProxy()
+        val proxy = buildListenerProxy(project)
         if (proxy == null) {
             log.warn("ErrorSound: NO listener interfaces found — terminal sound alerts disabled")
             return
         }
-        log.warn("ErrorSound: listener proxy built OK")
+        log.debug("ErrorSound: listener proxy built OK")
 
         // Listen for terminal tool window activation — this fires when the user opens
         // the terminal, guaranteeing the terminal infrastructure is ready.
@@ -52,13 +52,13 @@ class AlertOnTerminalCommandListener : ProjectActivity {
             object : ToolWindowManagerListener {
                 override fun toolWindowShown(toolWindow: com.intellij.openapi.wm.ToolWindow) {
                     if (toolWindow.id == "Terminal") {
-                        log.warn("ErrorSound: Terminal tool window shown, attaching listeners")
+                        log.debug("ErrorSound: Terminal tool window shown, attaching listeners")
                         attachAll(project, proxy)
                     }
                 }
             }
         )
-        log.warn("ErrorSound: registered ToolWindowManagerListener for Terminal show events")
+        log.debug("ErrorSound: registered ToolWindowManagerListener for Terminal show events")
 
         // Also try immediately in case the terminal is already open at startup
         attachAll(project, proxy)
@@ -80,7 +80,7 @@ class AlertOnTerminalCommandListener : ProjectActivity {
             "org.jetbrains.plugins.terminal.TerminalToolWindowManager"
         )
         if (managerClass == null) {
-            log.warn("ErrorSound: [Block] TerminalToolWindowManager class NOT found")
+            log.debug("ErrorSound: [Block] TerminalToolWindowManager class NOT found — classic terminal not present")
             return
         }
 
@@ -94,7 +94,7 @@ class AlertOnTerminalCommandListener : ProjectActivity {
         // Register setup handler for future tabs (once only)
         if (blockListenerRegistered.compareAndSet(false, true)) {
             val consumer = java.util.function.Consumer<Any> { widget ->
-                log.warn("ErrorSound: [Block] setupHandler fired for widget: ${widget.javaClass.name}")
+                log.debug("ErrorSound: [Block] setupHandler fired for widget: ${widget.javaClass.name}")
                 tryAttachBlockWidget(widget, project, proxy)
             }
             manager.javaClass.getMethod(
@@ -102,7 +102,7 @@ class AlertOnTerminalCommandListener : ProjectActivity {
                 java.util.function.Consumer::class.java,
                 Disposable::class.java
             ).invoke(manager, consumer, project as Disposable)
-            log.warn("ErrorSound: [Block] registered setup handler")
+            log.debug("ErrorSound: [Block] registered setup handler")
         }
 
         // Hook already-open terminal widgets
@@ -110,7 +110,7 @@ class AlertOnTerminalCommandListener : ProjectActivity {
             @Suppress("UNCHECKED_CAST")
             val widgets = manager.javaClass.getMethod("getTerminalWidgets")
                 .invoke(manager) as? Set<Any?>
-            log.warn("ErrorSound: [Block] existing widgets: ${widgets?.size ?: "null"}")
+            log.debug("ErrorSound: [Block] existing widgets: ${widgets?.size ?: "null"}")
             widgets?.forEach { w ->
                 if (w != null) tryAttachBlockWidget(w, project, proxy)
             }
@@ -162,7 +162,7 @@ class AlertOnTerminalCommandListener : ProjectActivity {
                 }
             }
             if (!attached) return false
-            log.warn("ErrorSound: [Block] ATTACHED listener to ${widget.javaClass.simpleName}")
+            log.debug("ErrorSound: [Block] ATTACHED listener to ${widget.javaClass.simpleName}")
             true
         } catch (e: Throwable) {
             log.warn("ErrorSound: [Block] attach exception: ${e.javaClass.simpleName}: ${e.message}")
@@ -178,7 +178,7 @@ class AlertOnTerminalCommandListener : ProjectActivity {
             "com.intellij.terminal.frontend.toolwindow.TerminalToolWindowTabsManager"
         )
         if (tabsManagerClass == null) {
-            log.warn("ErrorSound: [Reworked] TerminalToolWindowTabsManager class NOT found")
+            log.debug("ErrorSound: [Reworked] TerminalToolWindowTabsManager class NOT found — reworked terminal not present")
             return
         }
 
@@ -188,7 +188,7 @@ class AlertOnTerminalCommandListener : ProjectActivity {
             log.warn("ErrorSound: [Reworked] could not get TerminalToolWindowTabsManager instance")
             return
         }
-        log.warn("ErrorSound: [Reworked] tabsManager: ${tabsManager.javaClass.name}")
+        log.debug("ErrorSound: [Reworked] tabsManager: ${tabsManager.javaClass.name}")
 
         // Register listener for future tabs (once only)
         if (reworkedListenerRegistered.compareAndSet(false, true)) {
@@ -208,9 +208,9 @@ class AlertOnTerminalCommandListener : ProjectActivity {
                 if (method.name == "tabAdded" && args?.size == 1) {
                     try {
                         val tab = args[0] ?: return@newProxyInstance null
-                        log.warn("ErrorSound: [Reworked] tabAdded: ${tab.javaClass.name}")
+                        log.debug("ErrorSound: [Reworked] tabAdded: ${tab.javaClass.name}")
                         val view = tab.javaClass.getMethod("getView").invoke(tab) ?: return@newProxyInstance null
-                        log.warn("ErrorSound: [Reworked] tab view: ${view.javaClass.name}")
+                        log.debug("ErrorSound: [Reworked] tab view: ${view.javaClass.name}")
                         scheduleReworkedViewAttach(view, project, proxy)
                     } catch (e: Throwable) {
                         log.warn("ErrorSound: [Reworked] tabAdded error: ${e.javaClass.simpleName}: ${e.message}")
@@ -221,7 +221,7 @@ class AlertOnTerminalCommandListener : ProjectActivity {
 
             tabsManager.javaClass.getMethod("addListener", Disposable::class.java, listenerInterface)
                 .invoke(tabsManager, project as Disposable, tabsListenerProxy)
-            log.warn("ErrorSound: [Reworked] registered tabs listener")
+            log.debug("ErrorSound: [Reworked] registered tabs listener")
         }
 
         // Hook already-open tabs
@@ -229,7 +229,7 @@ class AlertOnTerminalCommandListener : ProjectActivity {
             @Suppress("UNCHECKED_CAST")
             val tabs = tabsManager.javaClass.getMethod("getTabs")
                 .invoke(tabsManager) as? List<Any?>
-            log.warn("ErrorSound: [Reworked] existing tabs: ${tabs?.size ?: "null"}")
+            log.debug("ErrorSound: [Reworked] existing tabs: ${tabs?.size ?: "null"}")
             tabs?.forEach { tab ->
                 if (tab != null) try {
                     val view = tab.javaClass.getMethod("getView").invoke(tab) ?: return@forEach
@@ -252,11 +252,11 @@ class AlertOnTerminalCommandListener : ProjectActivity {
         try {
             val svc = project.getService(serviceClass)
             if (svc != null) {
-                log.warn("ErrorSound: got service via project.getService(): ${svc.javaClass.name}")
+                log.debug("ErrorSound: got service via project.getService(): ${svc.javaClass.name}")
                 return svc
             }
         } catch (e: Throwable) {
-            log.warn("ErrorSound: project.getService() failed: ${e.javaClass.simpleName}: ${e.message}")
+            log.debug("ErrorSound: project.getService() failed: ${e.javaClass.simpleName}: ${e.message}")
         }
 
         // Strategy 2: Static getInstance(Project) method
@@ -264,11 +264,11 @@ class AlertOnTerminalCommandListener : ProjectActivity {
             val method = serviceClass.getMethod("getInstance", Project::class.java)
             val svc = method.invoke(null, project)
             if (svc != null) {
-                log.warn("ErrorSound: got service via getInstance(): ${svc.javaClass.name}")
+                log.debug("ErrorSound: got service via getInstance(): ${svc.javaClass.name}")
                 return svc
             }
         } catch (e: Throwable) {
-            log.warn("ErrorSound: getInstance() failed: ${e.javaClass.simpleName}: ${e.message}")
+            log.debug("ErrorSound: getInstance() failed: ${e.javaClass.simpleName}: ${e.message}")
         }
 
         return null
@@ -278,7 +278,7 @@ class AlertOnTerminalCommandListener : ProjectActivity {
         registerReworkedCompletionHook(view, project, proxy)
 
         if (tryAttachReworkedViewNow(view, project, proxy)) {
-            log.warn("ErrorSound: [Reworked] attached immediately to ${view.javaClass.simpleName}")
+            log.debug("ErrorSound: [Reworked] attached immediately to ${view.javaClass.simpleName}")
             return
         }
 
@@ -291,12 +291,12 @@ class AlertOnTerminalCommandListener : ProjectActivity {
         val task = Runnable {
             val attempt = attempts.incrementAndGet()
             if (attempt > maxAttempts) {
-                log.warn("ErrorSound: [Reworked] gave up after $maxAttempts attempts for ${view.javaClass.simpleName}")
+                log.warn("ErrorSound: [Reworked] gave up attaching after $maxAttempts attempts for ${view.javaClass.simpleName}")
                 futureRef.get()?.cancel(false)
                 return@Runnable
             }
             if (tryAttachReworkedViewNow(view, project, proxy)) {
-                log.warn("ErrorSound: [Reworked] attached on attempt $attempt")
+                log.debug("ErrorSound: [Reworked] attached on attempt $attempt")
                 futureRef.get()?.cancel(false)
             }
         }
@@ -328,7 +328,7 @@ class AlertOnTerminalCommandListener : ProjectActivity {
                         return kotlin.Unit
                     }
                     if (tryAttachReworkedViewNow(view, project, proxy)) {
-                        log.warn("ErrorSound: [Reworked] attached from deferred completion callback")
+                        log.debug("ErrorSound: [Reworked] attached from deferred completion callback")
                     } else {
                         log.warn("ErrorSound: [Reworked] deferred completed but attach still failed")
                     }
@@ -337,7 +337,7 @@ class AlertOnTerminalCommandListener : ProjectActivity {
             }
 
             invokeOnCompletion.invoke(deferred, completionHandler)
-            log.warn("ErrorSound: [Reworked] registered deferred completion hook for ${view.javaClass.simpleName}")
+            log.debug("ErrorSound: [Reworked] registered deferred completion hook for ${view.javaClass.simpleName}")
         } catch (e: Throwable) {
             log.warn("ErrorSound: [Reworked] register completion hook failed: ${e.javaClass.simpleName}: ${e.message}")
         }
@@ -351,7 +351,7 @@ class AlertOnTerminalCommandListener : ProjectActivity {
             val shellIntegration = getShellIntegration(view)
             if (shellIntegration == null) return false
 
-            log.warn("ErrorSound: [Reworked] shellIntegration: ${shellIntegration.javaClass.name}")
+            log.debug("ErrorSound: [Reworked] shellIntegration: ${shellIntegration.javaClass.name}")
 
             // Find listener registration method — try several names
             val addMethod = shellIntegration.javaClass.methods.firstOrNull { m ->
@@ -369,7 +369,7 @@ class AlertOnTerminalCommandListener : ProjectActivity {
                 return false
             }
 
-            log.warn("ErrorSound: [Reworked] ${addMethod.name} params: ${addMethod.parameterTypes.map { it.name }.joinToString()}")
+            log.debug("ErrorSound: [Reworked] ${addMethod.name} params: ${addMethod.parameterTypes.map { it.name }.joinToString()}")
             val attached = try {
                 addMethod.invoke(shellIntegration, project as Disposable, proxy)
                 true
@@ -384,7 +384,7 @@ class AlertOnTerminalCommandListener : ProjectActivity {
             }
             if (!attached) return false
             hookedViews[key] = true
-            log.warn("ErrorSound: [Reworked] ATTACHED command execution listener!")
+            log.debug("ErrorSound: [Reworked] ATTACHED command execution listener")
             true
         } catch (e: Throwable) {
             log.warn("ErrorSound: [Reworked] tryAttach exception: ${e.javaClass.simpleName}: ${e.message}")
@@ -403,7 +403,7 @@ class AlertOnTerminalCommandListener : ProjectActivity {
                 try {
                     val result = deferred.javaClass.getMethod("getCompleted").invoke(deferred)
                     if (result != null) return result
-                    log.warn("ErrorSound: [Reworked] getCompleted() returned null")
+                    log.debug("ErrorSound: [Reworked] getCompleted() returned null")
                 } catch (e: Throwable) {
                     val cause = if (e is java.lang.reflect.InvocationTargetException) e.targetException else e
                     log.warn("ErrorSound: [Reworked] getCompleted() failed on ${deferred.javaClass.name}: ${cause.javaClass.simpleName}: ${cause.message}")
@@ -416,7 +416,7 @@ class AlertOnTerminalCommandListener : ProjectActivity {
             try {
                 val result = view.javaClass.getMethod(methodName).invoke(view)
                 if (result != null) {
-                    log.warn("ErrorSound: [Reworked] got shell integration via view.$methodName()")
+                    log.debug("ErrorSound: [Reworked] got shell integration via view.$methodName()")
                     return result
                 }
             } catch (_: Throwable) {}
@@ -431,7 +431,7 @@ class AlertOnTerminalCommandListener : ProjectActivity {
                 try {
                     val result = m.invoke(view)
                     if (result != null) {
-                        log.warn("ErrorSound: [Reworked] got shell integration via view.${m.name}()")
+                        log.debug("ErrorSound: [Reworked] got shell integration via view.${m.name}()")
                         return result
                     }
                 } catch (_: Throwable) {}
@@ -446,7 +446,7 @@ class AlertOnTerminalCommandListener : ProjectActivity {
                     field.isAccessible = true
                     val result = field.get(view)
                     if (result != null) {
-                        log.warn("ErrorSound: [Reworked] got shell integration via field '$fieldName'")
+                        log.debug("ErrorSound: [Reworked] got shell integration via field '$fieldName'")
                         return result
                     }
                 } catch (_: Throwable) {}
@@ -463,7 +463,7 @@ class AlertOnTerminalCommandListener : ProjectActivity {
 
     // ── Dynamic proxy listener ────────────────────────────────────────────────
 
-    private fun buildListenerProxy(): Any? {
+    private fun buildListenerProxy(project: Project): Any? {
         val interfaces = mutableListOf<Class<*>>()
 
         // Block terminal — try 2025.x package first, fall back to 2024.x
@@ -473,23 +473,23 @@ class AlertOnTerminalCommandListener : ProjectActivity {
         )
         for (name in blockCandidates) {
             val cls = tryLoad(name)
-            log.warn("ErrorSound: [Proxy] tryLoad($name) → ${cls?.name ?: "NOT FOUND"}")
+            log.debug("ErrorSound: [Proxy] tryLoad($name) → ${cls?.name ?: "NOT FOUND"}")
             if (cls != null) { interfaces += cls; break }
         }
 
         // Reworked 2025 terminal
         val reworkedName = "org.jetbrains.plugins.terminal.view.shellIntegration.TerminalCommandExecutionListener"
         val reworkedCls = tryLoad(reworkedName)
-        log.warn("ErrorSound: [Proxy] tryLoad($reworkedName) → ${reworkedCls?.name ?: "NOT FOUND"}")
+        log.debug("ErrorSound: [Proxy] tryLoad($reworkedName) → ${reworkedCls?.name ?: "NOT FOUND"}")
         reworkedCls?.let { interfaces += it }
 
-        log.warn("ErrorSound: [Proxy] interfaces: ${interfaces.map { it.name }}")
+        log.debug("ErrorSound: [Proxy] interfaces: ${interfaces.map { it.name }}")
         if (interfaces.isEmpty()) return null
 
         // Log declared methods on each interface so we know what to handle
         for (iface in interfaces) {
             val methods = iface.methods.map { "${it.name}(${it.parameterCount})" }
-            log.warn("ErrorSound: [Proxy] ${iface.simpleName} declares: $methods")
+            log.debug("ErrorSound: [Proxy] ${iface.simpleName} declares: $methods")
         }
 
         val loader = interfaces.first().classLoader
@@ -504,13 +504,13 @@ class AlertOnTerminalCommandListener : ProjectActivity {
                 }
             }
 
-            log.warn("ErrorSound: [Event] method=$name argCount=${args?.size ?: 0} argTypes=${args?.map { it?.javaClass?.name }}")
+            log.debug("ErrorSound: [Event] method=$name argCount=${args?.size ?: 0}")
 
             // Handle any method that looks like a command-finished callback
             if (args?.size == 1 && args[0] != null &&
                 (name.contains("finish", ignoreCase = true) || name.contains("complet", ignoreCase = true) || name.contains("command", ignoreCase = true))
             ) {
-                try { handleCommandFinished(args[0]!!) } catch (e: Throwable) {
+                try { handleCommandFinished(args[0]!!, project) } catch (e: Throwable) {
                     log.warn("ErrorSound: [Event] handleCommandFinished error: ${e.javaClass.simpleName}: ${e.message}")
                 }
             }
@@ -518,29 +518,31 @@ class AlertOnTerminalCommandListener : ProjectActivity {
         }
     }
 
-    private fun handleCommandFinished(event: Any) {
+    private fun handleCommandFinished(event: Any, project: Project) {
         val result = extractCommandAndExitCode(event)
         if (result == null) {
             log.warn("ErrorSound: [Event] could not extract command/exitCode from ${event.javaClass.name}")
             return
         }
         val (command, exitCode) = result
-        log.warn("ErrorSound: [Event] command='$command' exitCode=$exitCode")
+        log.debug("ErrorSound: [Event] command='$command' exitCode=$exitCode")
 
         val settings = AlertSettings.getInstance().state
         val errorKind = ErrorClassifier.detectTerminal(command, exitCode)
-        if (!AlertMonitoring.shouldMonitor(settings, errorKind)) return
+        if (errorKind == ErrorKind.NONE) return
 
-        log.warn("ErrorSound: [Event] PLAYING SOUND for '$command' exitCode=$exitCode")
-        ErrorSoundPlayer.play(settings, errorKind)
+        log.debug("ErrorSound: [Event] dispatching alert for '$command' exitCode=$exitCode kind=$errorKind")
+        // Key: project + command + exit code + kind — stable for repeated identical commands
+        val key = "terminal:${project.locationHash}:${command.trim()}:$exitCode:$errorKind"
+        AlertDispatcher.tryAlert(key, settings, errorKind)
     }
 
     private fun extractCommandAndExitCode(event: Any): Pair<String, Int>? {
-        log.warn("ErrorSound: [Event] event class: ${event.javaClass.name}")
+        log.debug("ErrorSound: [Event] event class: ${event.javaClass.name}")
         val eventMethods = event.javaClass.methods
             .filter { it.parameterCount == 0 && it.name.startsWith("get") }
             .map { "${it.name}() → ${it.returnType.simpleName}" }
-        log.warn("ErrorSound: [Event] event getters: $eventMethods")
+        log.debug("ErrorSound: [Event] event getters: $eventMethods")
 
         // Block terminal: CommandFinishedEvent → getCommand(), getExitCode()
         return try {
@@ -551,11 +553,11 @@ class AlertOnTerminalCommandListener : ProjectActivity {
             // Reworked terminal: TerminalCommandFinishedEvent → getCommandBlock()
             try {
                 val block = event.javaClass.getMethod("getCommandBlock").invoke(event) ?: return null
-                log.warn("ErrorSound: [Event] commandBlock class: ${block.javaClass.name}")
+                log.debug("ErrorSound: [Event] commandBlock class: ${block.javaClass.name}")
                 val blockMethods = block.javaClass.methods
                     .filter { it.parameterCount == 0 && it.name.startsWith("get") }
                     .map { "${it.name}() → ${it.returnType.simpleName}" }
-                log.warn("ErrorSound: [Event] block getters: $blockMethods")
+                log.debug("ErrorSound: [Event] block getters: $blockMethods")
                 val exitCode = block.javaClass.getMethod("getExitCode").invoke(block) as? Int ?: return null
                 val command = try {
                     block.javaClass.getMethod("getExecutedCommand").invoke(block) as? String ?: ""
