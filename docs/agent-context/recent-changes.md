@@ -4,6 +4,29 @@ Engineering-significant changes to the codebase. Not a full changelog — focuse
 
 ---
 
+## v1.2.0 — Success Sounds
+
+### ErrorKind.SUCCESS
+- **New enum value** `SUCCESS` added to `ErrorKind`
+- `AlertOnErrorExecutionListener.processTerminated()` converts `NONE` + exit code 0 → `SUCCESS`
+- SUCCESS kept out of chunk-priority model; conversion happens post-classification only
+
+### New Settings Fields
+- `monitorSuccess: Boolean = false` — success monitoring OFF by default
+- `successSoundEnabled: Boolean = false` — success sound OFF by default
+- `successSoundId: String = "yeah_boy"` — default success sound
+
+### UI Updates
+- **Settings panel:** Success sound row (enable checkbox + sound combo), separated from error kinds
+- **Error Monitor tool window:** SUCCESS checkbox under "Success" separator section
+- Status label shows success state (e.g., "Active · 6 error + success enabled")
+
+### Scope Boundaries
+- Terminal success sounds not included (terminal detection unchanged)
+- Console filter unaffected (only triggers on error patterns)
+
+---
+
 ## v1.1.1 — Deduplication & Dispatch Overhaul
 
 ### AlertDispatcher Introduction
@@ -74,4 +97,4 @@ Engineering-significant changes to the codebase. Not a full changelog — focuse
 - Improved terminal compatibility with 2025.x reworked terminal engine
 
 ---
-*Last updated from code scan: 2026-03-18*
+*Last updated from code scan: 2026-03-19*
