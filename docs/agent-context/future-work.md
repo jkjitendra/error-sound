@@ -4,23 +4,7 @@ Suggested features and safe extension points for future development.
 
 ---
 
-## 1. Success / Completion Sounds
-
-**Description:** Play a distinct sound when a process exits with code 0, especially after a long build.
-
-**Where it belongs:**
-- Add `ErrorKind.SUCCESS` (or introduce a separate `AlertKind` enum)
-- Modify `AlertOnErrorExecutionListener.processTerminated()` to handle exitCode == 0
-- Add success sound settings to `AlertSettings.State`
-- Add UI controls to `ErrorSoundConfigurable`
-
-**Files changed:** `ErrorKind.kt`, `AlertOnErrorExecutionListener.kt`, `AlertSettings.kt`, `ErrorSoundConfigurable.kt`, `ErrorSoundToolWindowFactory.kt`
-
-**Risks:** Must not trigger on every short process exit (e.g., lint checks). Needs a duration threshold.
-
----
-
-## 2. Execution Duration Threshold / Focus Mode
+## 1. Execution Duration Threshold / Focus Mode
 
 **Description:** Only play alert if the process ran longer than `X` seconds (user configurable).
 
@@ -36,7 +20,7 @@ Suggested features and safe extension points for future development.
 
 ---
 
-## 3. Snooze / Mute / Do Not Disturb
+## 2. Snooze / Mute / Do Not Disturb
 
 **Description:** Temporary mute (e.g., "Mute for 1 hour") via toolbar button. Could also auto-mute when IDE is in Presentation Mode.
 
@@ -51,7 +35,7 @@ Suggested features and safe extension points for future development.
 
 ---
 
-## 4. Visual Notifications
+## 3. Visual Notifications
 
 **Description:** Pair audio alert with a brief IntelliJ notification (balloon/toast) showing what failed.
 
@@ -66,7 +50,7 @@ Suggested features and safe extension points for future development.
 
 ---
 
-## 5. Custom Regex Error Rules
+## 4. Custom Regex Error Rules
 
 **Description:** Let users define custom error patterns in settings, with assigned ErrorKind or custom sounds.
 
@@ -81,7 +65,7 @@ Suggested features and safe extension points for future development.
 
 ---
 
-## 6. Exit-Code-Specific Terminal Sounds
+## 5. Exit-Code-Specific Terminal Sounds
 
 **Description:** Map specific terminal exit codes (e.g., 137 = OOM, 130 = SIGINT) to distinct sounds.
 
@@ -96,7 +80,7 @@ Suggested features and safe extension points for future development.
 
 ---
 
-## 7. Per-Project Settings
+## 6. Per-Project Settings
 
 **Description:** Override global settings per-project (e.g., loud sounds for critical projects, muted for noisy ones).
 
@@ -110,4 +94,4 @@ Suggested features and safe extension points for future development.
 **Risks:** High — significant architectural change. Must handle settings merge carefully. Consider incremental approach (project-level enable/disable first).
 
 ---
-*Last updated from code scan: 2026-03-18*
+*Last updated from code scan: 2026-03-19*
