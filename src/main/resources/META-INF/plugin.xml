@@ -5,8 +5,9 @@
 
     <description>
         <![CDATA[
-        Plays a short sound when a Run/Debug process terminates with a non-zero exit code.
-        Users can choose a built-in 1-second tone or a custom sound file.
+        Plays a short audio alert when a Run/Debug process fails, and optionally when it succeeds.
+        Also monitors console output and terminal commands for errors.
+        Supports built-in sounds, custom audio files, and optional success alerts.
         ]]>
     </description>
 
