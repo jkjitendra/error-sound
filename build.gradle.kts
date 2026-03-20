@@ -7,7 +7,7 @@ plugins {
 }
 
 group = "com.drostwades"
-version = "1.1.1"
+version = "1.1.2"
 
 repositories {
     mavenCentral()
@@ -41,6 +41,7 @@ intellijPlatform {
               Error Sound Alert plays an audio alert the moment a Run/Debug process exits with an error,
               a recognisable error pattern appears in console output, or a terminal command fails —
               so you can stay focused on other work and only look up when something goes wrong.
+              Optionally, play a distinct sound when a process completes successfully.
             </p>
             <h3>Features</h3>
             <ul>
@@ -48,6 +49,7 @@ intellijPlatform {
               <li>Supports custom audio files (WAV, AIFF, AU)</li>
               <li>Smart error classification: configuration, compilation, test failure, network, exception</li>
               <li>Per-error-type sounds, or one global sound for all errors</li>
+              <li><b>Success sounds:</b> optional alert on successful process completion (off by default)</li>
               <li>Configurable volume (0–100%) and alert duration (1–10 seconds)</li>
               <li>Instant preview from the settings panel</li>
               <li><b>Error Monitor</b> sidebar panel: enable/disable monitoring, filter by error type, and apply presets without leaving your editor</li>
@@ -57,6 +59,12 @@ intellijPlatform {
         """.trimIndent()
 
         changeNotes = """
+            <b>1.1.2</b>
+              <ul>
+                <li>Added optional success alerts for Run/Debug process completions (off by default)</li>
+                <li>Added per-success sound selection in settings</li>
+                <li>Added success monitoring toggle in the Error Monitor tool window</li>
+              </ul>
             <b>1.1.1</b>
             <ul>
               <li>Fixed duplicate alert sounds by improving event deduplication and cooldown handling</li>
