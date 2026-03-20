@@ -8,6 +8,7 @@ enum class ErrorKind {
     NETWORK,
     EXCEPTION,
     GENERIC,
+    SUCCESS,
 }
 
 object ErrorClassifier {

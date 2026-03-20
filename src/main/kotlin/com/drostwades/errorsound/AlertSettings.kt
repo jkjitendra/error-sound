@@ -20,6 +20,7 @@ class AlertSettings : PersistentStateComponent<AlertSettings.State> {
         var monitorNetwork: Boolean = true,
         var monitorException: Boolean = true,
         var monitorGeneric: Boolean = true,
+        var monitorSuccess: Boolean = false,
 
         var volumePercent: Int = 80,
         var soundSource: String = SoundSource.BUNDLED.name,
@@ -37,6 +38,8 @@ class AlertSettings : PersistentStateComponent<AlertSettings.State> {
         var exceptionSoundId: String = "boom",
         var genericSoundEnabled: Boolean = true,
         var genericSoundId: String = BuiltInSounds.default.id,
+        var successSoundEnabled: Boolean = false,
+        var successSoundId: String = "yeah_boy",
         var customSoundPath: String = "",
         var alertDurationSeconds: Int = 3,
     )
@@ -60,6 +63,7 @@ class AlertSettings : PersistentStateComponent<AlertSettings.State> {
             networkSoundId = normalizeSoundId(state.networkSoundId),
             exceptionSoundId = normalizeSoundId(state.exceptionSoundId),
             genericSoundId = normalizeSoundId(state.genericSoundId),
+            successSoundId = normalizeSoundId(state.successSoundId),
             alertDurationSeconds = state.alertDurationSeconds.coerceIn(1, 10),
         )
     }

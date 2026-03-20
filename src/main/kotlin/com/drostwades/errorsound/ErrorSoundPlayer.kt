@@ -132,6 +132,7 @@ object ErrorSoundPlayer {
             ErrorKind.NETWORK -> settings.networkSoundEnabled
             ErrorKind.EXCEPTION -> settings.exceptionSoundEnabled
             ErrorKind.GENERIC -> settings.genericSoundEnabled
+            ErrorKind.SUCCESS -> settings.successSoundEnabled
             ErrorKind.NONE -> false
         }
     }
@@ -148,6 +149,7 @@ object ErrorSoundPlayer {
             ErrorKind.NETWORK -> settings.networkSoundId
             ErrorKind.EXCEPTION -> settings.exceptionSoundId
             ErrorKind.GENERIC -> settings.genericSoundId
+            ErrorKind.SUCCESS -> settings.successSoundId
             ErrorKind.NONE -> settings.genericSoundId
         }
     }

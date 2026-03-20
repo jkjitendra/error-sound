@@ -64,6 +64,7 @@ private class ErrorSoundToolWindowPanel(
     private val networkCheckBox = JBCheckBox("Network", settings.monitorNetwork)
     private val exceptionCheckBox = JBCheckBox("Exception", settings.monitorException)
     private val genericCheckBox = JBCheckBox("Generic", settings.monitorGeneric)
+    private val successCheckBox = JBCheckBox("Success", settings.monitorSuccess)
 
     private val selectAllLink = ActionLink("Select all") { setAllKinds(true) }
     private val clearAllLink = ActionLink("Clear all") { setAllKinds(false) }
@@ -111,6 +112,12 @@ private class ErrorSoundToolWindowPanel(
         )
     )
 
+    private val successRow = KindRow(
+        ErrorKind.SUCCESS,
+        successCheckBox,
+        "Successful process completions (exit code 0)"
+    )
+
     init {
         border = JBUI.Borders.empty()
 
@@ -148,6 +155,11 @@ private class ErrorSoundToolWindowPanel(
                 column.add(Box.createVerticalStrut(4))
             }
         }
+
+        column.add(Box.createVerticalStrut(8))
+        column.add(compact(TitledSeparator("Success")))
+        column.add(Box.createVerticalStrut(6))
+        column.add(compact(createTypeRow(successRow)))
 
         column.add(Box.createVerticalStrut(8))
         column.add(compact(buildQuickActions()))
@@ -270,6 +282,11 @@ private class ErrorSoundToolWindowPanel(
                 refreshUiState()
             }
         }
+
+        successRow.checkBox.addActionListener {
+            AlertMonitoring.setKindEnabled(settings, successRow.kind, successRow.checkBox.isSelected)
+            refreshUiState()
+        }
     }
 
     private fun setAllKinds(enabled: Boolean) {
@@ -313,9 +330,13 @@ private class ErrorSoundToolWindowPanel(
     private fun refreshUiState() {
         val monitoringEnabled = settings.enabled
         val enabledCount = typeRows.count { it.checkBox.isSelected }
+        val successEnabled = successRow.checkBox.isSelected
 
         statusLabel.text = if (monitoringEnabled) {
-            "Active · $enabledCount enabled"
+            val parts = mutableListOf<String>()
+            parts.add("$enabledCount error")
+            if (successEnabled) parts.add("success")
+            "Active · ${parts.joinToString(" + ")} enabled"
         } else {
             "Paused"
         }
@@ -329,6 +350,7 @@ private class ErrorSoundToolWindowPanel(
         typeRows.forEach { row ->
             row.checkBox.isEnabled = monitoringEnabled
         }
+        successRow.checkBox.isEnabled = monitoringEnabled
 
         selectAllLink.isEnabled = monitoringEnabled
         clearAllLink.isEnabled = monitoringEnabled

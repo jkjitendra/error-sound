@@ -35,7 +35,13 @@ class AlertOnErrorExecutionListener : ExecutionListener {
             override fun processTerminated(event: ProcessEvent) {
                 val exitCode = event.exitCode
                 val bufferedKind = ErrorClassifier.detect(outputBuffer.toString(), exitCode)
-                val errorKind = if (detectedKind.get() != ErrorKind.NONE) detectedKind.get() else bufferedKind
+                var errorKind = if (detectedKind.get() != ErrorKind.NONE) detectedKind.get() else bufferedKind
+
+                // Success: no error detected and clean exit → convert to SUCCESS
+                if (errorKind == ErrorKind.NONE && exitCode == 0) {
+                    errorKind = ErrorKind.SUCCESS
+                }
+
                 if (errorKind == ErrorKind.NONE) {
                     return
                 }
@@ -43,7 +49,7 @@ class AlertOnErrorExecutionListener : ExecutionListener {
                 val settings = AlertSettings.getInstance().state
 
                 log.debug(
-                    "Error process detected. executorId=$executorId, profile=${env.runProfile.name}, exitCode=$exitCode, kind=$errorKind"
+                    "Process detected. executorId=$executorId, profile=${env.runProfile.name}, exitCode=$exitCode, kind=$errorKind"
                 )
                 // Key is stable per run: one handler instance per run configuration launch
                 val key = "exec:$handlerKey:$errorKind"
@@ -67,6 +73,7 @@ class AlertOnErrorExecutionListener : ExecutionListener {
     private fun priority(kind: ErrorKind): Int {
         return when (kind) {
             ErrorKind.NONE -> 0
+            ErrorKind.SUCCESS -> 0  // SUCCESS never enters chunk-priority; branch for exhaustiveness
             ErrorKind.GENERIC -> 1
             ErrorKind.EXCEPTION -> 2
             ErrorKind.NETWORK -> 3
