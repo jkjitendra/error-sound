@@ -70,6 +70,7 @@ Class-by-class reference for the `com.drostwades.errorsound` package.
 - Output buffer capped at 1M characters
 - `ErrorClassifier.detect()` runs on each chunk + final buffer
 - Priority system: CONFIGURATION > COMPILATION > TEST_FAILURE > NETWORK > EXCEPTION > GENERIC > NONE
+- If final kind is NONE and exitCode == 0, converts to SUCCESS
 - Dedup key: `"exec:{handlerIdentityHash}:{errorKind}"`
 - Routes through `AlertDispatcher.tryAlert()`
 
@@ -106,11 +107,13 @@ Class-by-class reference for the `com.drostwades.errorsound` package.
 **State fields:**
 - `enabled` — master toggle
 - `monitorConfiguration/Compilation/TestFailure/Network/Exception/Generic` — per-kind monitor flags
+- `monitorSuccess` — success monitoring flag (default: `false`)
 - `volumePercent` (0–100), `alertDurationSeconds` (1–10)
 - `soundSource` — `BUNDLED` or `CUSTOM`
 - `builtInSoundId` — global sound ID
 - `useGlobalBuiltInSound` — one sound for all kinds
 - `{kind}SoundEnabled`, `{kind}SoundId` — per-kind sound config
+- `successSoundEnabled` (default: `false`), `successSoundId` (default: `"yeah_boy"`) — success sound config
 - `customSoundPath` — absolute path to custom audio file
 
 **Validation:** `loadState()` normalizes sound IDs and clamps numeric values.
@@ -157,7 +160,7 @@ Class-by-class reference for the `com.drostwades.errorsound` package.
 **File:** `ErrorKind.kt` (74 lines)
 **Purpose:** Error classification logic.
 
-**ErrorKind enum:** NONE, CONFIGURATION, COMPILATION, TEST_FAILURE, NETWORK, EXCEPTION, GENERIC
+**ErrorKind enum:** NONE, CONFIGURATION, COMPILATION, TEST_FAILURE, NETWORK, EXCEPTION, GENERIC, SUCCESS
 
 | Method | Description |
 |---|---|
@@ -232,4 +235,4 @@ Class-by-class reference for the `com.drostwades.errorsound` package.
 - **Risk:** LOW — UI-only
 
 ---
-*Last updated from code scan: 2026-03-18*
+*Last updated from code scan: 2026-03-19*

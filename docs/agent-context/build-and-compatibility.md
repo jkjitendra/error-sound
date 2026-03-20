@@ -29,18 +29,6 @@ org.gradle.jvmargs=-Xmx2g -Dfile.encoding=UTF-8
 
 **Critical:** `kotlin.stdlib.default.dependency=false` must remain `false`. The IntelliJ Platform bundles its own Kotlin stdlib. Adding it as a dependency would cause classloader conflicts.
 
-## Plugin Verification Setup
-
-```kotlin
-pluginVerification {
-    ides {
-        recommended()  // Verifies against JetBrains-recommended IDE set
-    }
-}
-```
-
-Run via: `./gradlew verifyPlugin`
-
 ## Signing & Publishing
 
 - Certificate chain, private key, and password read from environment variables

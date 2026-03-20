@@ -21,6 +21,7 @@ Error Sound Alert is an IntelliJ Platform plugin that plays an audio alert when 
 | Feature | Description |
 |---|---|
 | Error classification | Configuration, Compilation, Test Failure, Network, Exception, Generic |
+| Success sounds | Optional alert on successful process completion (exit code 0, off by default) |
 | Sound options | 7 built-in WAV files + custom file (WAV/AIFF/AU) |
 | Sound modes | Global (one sound for all) or per-error-type mapping |
 | Volume / Duration | 0–100% volume, 1–10 second alert duration with clip looping |
@@ -33,7 +34,7 @@ Error Sound Alert is an IntelliJ Platform plugin that plays an audio alert when 
 
 - Terminal listener relies on reflection into private/internal terminal plugin APIs — may break with future IDE updates.
 - `ErrorClassifier.detectTerminal()` only uses exit code (no output analysis for terminal commands).
-- No success/completion sounds — only error alerts.
+- Success sounds only trigger from Run/Debug processes — not from terminal or console filter paths.
 - No per-project settings — all settings are application-level.
 - Console filter can produce false positives for lines containing the word "error" or "exception" in benign contexts.
 
@@ -42,4 +43,4 @@ Error Sound Alert is an IntelliJ Platform plugin that plays an audio alert when 
 When enabled, the plugin runs silently in the background. The moment a process fails, an error pattern appears in console output, or a terminal command exits with a non-zero code, a short audio alert plays. Users configure sounds, volume, duration, and which error types to monitor via **Settings → Tools → Error Sound Alert** and the **Error Monitor** sidebar panel.
 
 ---
-*Last updated from code scan: 2026-03-18*
+*Last updated from code scan: 2026-03-19*

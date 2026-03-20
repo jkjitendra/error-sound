@@ -25,6 +25,7 @@ Quick lookup for `AlertSettings.State` fields and their usage.
 | `monitorNetwork` | Boolean | `true` | NETWORK |
 | `monitorException` | Boolean | `true` | EXCEPTION |
 | `monitorGeneric` | Boolean | `true` | GENERIC |
+| `monitorSuccess` | Boolean | `false` | SUCCESS |
 
 ### Sound Configuration
 
@@ -45,6 +46,7 @@ Quick lookup for `AlertSettings.State` fields and their usage.
 | Network | `networkSoundEnabled` | `networkSoundId` | `"yooo"` |
 | Exception | `exceptionSoundEnabled` | `exceptionSoundId` | `"boom"` |
 | Generic | `genericSoundEnabled` | `genericSoundId` | `"boom"` |
+| Success | `successSoundEnabled` | `successSoundId` | `"yeah_boy"` |
 
 ### Playback
 
@@ -67,4 +69,4 @@ enum class SoundSource { BUNDLED, CUSTOM }
 ```
 
 ---
-*Last updated from code scan: 2026-03-18*
+*Last updated from code scan: 2026-03-19*

@@ -8,6 +8,7 @@ Quick lookup for the end-to-end detection and alert flow.
 ┌─────────────────────────────────────┐
 │ 1. ExecutionListener                │  Process exit + output analysis
 │    AlertOnErrorExecutionListener    │  Key: "exec:{handlerHash}:{kind}"
+│                                     │  NONE + exitCode 0 → SUCCESS
 ├─────────────────────────────────────┤
 │ 2. ConsoleFilterProvider            │  Per-line pattern matching
 │    ErrorConsoleFilterProvider       │  Key: "console:{projectHash}:{kind}"
@@ -52,6 +53,8 @@ AlertDispatcher.tryAlert(key, settings, kind)
 
 Terminal-specific: `detectTerminal()` only checks exit code (0 = NONE, non-zero = GENERIC).
 
+Execution listener: after classification, if kind is NONE and exit code is 0, converts to SUCCESS.
+
 ## Sound Resolution
 
 ```
@@ -76,4 +79,4 @@ Fallback chain:
 | Terminal | `"terminal:{project.locationHash}:{command.trim()}:{exitCode}:{errorKind}"` |
 
 ---
-*Last updated from code scan: 2026-03-18*
+*Last updated from code scan: 2026-03-19*

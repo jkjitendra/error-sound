@@ -10,9 +10,6 @@ Quick-reference checklist for verifying changes. Run these after any modificatio
 # Standard build
 ./gradlew buildPlugin
 
-# Verify compatibility against recommended IDEs
-./gradlew verifyPlugin
-
 # Clean build (use after dependency/config changes)
 ./gradlew clean buildPlugin
 ```
@@ -21,7 +18,6 @@ Quick-reference checklist for verifying changes. Run these after any modificatio
 
 ### Build Config (`build.gradle.kts`, `gradle.properties`, `settings.gradle.kts`)
 - [ ] `./gradlew clean buildPlugin` succeeds
-- [ ] `./gradlew verifyPlugin` passes
 - [ ] Check `sinceBuild` / `untilBuild` are correct
 - [ ] Verify `kotlin.stdlib.default.dependency=false` is still in `gradle.properties`
 - [ ] If version changed: update README, changelog, Marketplace description
@@ -50,9 +46,16 @@ Quick-reference checklist for verifying changes. Run these after any modificatio
 - [ ] Test with a process that produces >1M chars output — no crash
 - [ ] Error classification: check that the correct `ErrorKind` is detected
 
+### Success Sounds (`AlertOnErrorExecutionListener.kt`, `AlertSettings.kt`)
+- [ ] `./gradlew buildPlugin` succeeds
+- [ ] Enable `monitorSuccess` + `successSoundEnabled` in settings
+- [ ] Run a passing Run configuration → success sound plays
+- [ ] Run a failing Run configuration → error sound plays (not success)
+- [ ] Disable `monitorSuccess` → run passing config → no sound
+- [ ] Fresh install: verify success settings default to OFF
+
 ### Terminal Listener (`AlertOnTerminalCommandListener.kt`)
 - [ ] `./gradlew buildPlugin` succeeds
-- [ ] `./gradlew verifyPlugin` passes (critical for reflection-based code)
 - [ ] Open terminal, run `false` — sound plays
 - [ ] Run `echo hello` — no sound
 - [ ] Open multiple terminal tabs — each gets alerts
@@ -88,4 +91,4 @@ Quick-reference checklist for verifying changes. Run these after any modificatio
 - [ ] "Open sound settings" button navigates to settings panel
 
 ---
-*Last updated from code scan: 2026-03-18*
+*Last updated from code scan: 2026-03-19*

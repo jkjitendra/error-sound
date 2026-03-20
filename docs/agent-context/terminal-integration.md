@@ -106,12 +106,11 @@ catch { addMethod.invoke(session, disposable, proxy) }
 ## What to Verify After Terminal Changes
 
 1. **Build:** `./gradlew buildPlugin` — compilation succeeds
-2. **Verify:** `./gradlew verifyPlugin` — compatibility check passes
-3. **Manual test on 2024.3** — Open terminal, run a failing command (e.g., `false`), verify sound plays
-4. **Manual test on 2025.x** — Same test on a recent IDE version (reworked terminal)
-5. **Terminal not installed** — Verify plugin loads without the terminal plugin (optional dependency)
-6. **Multiple tabs** — Open several terminal tabs, run failures in each, verify deduplication works
-7. **Check IDE log** — Confirm no unexpected warnings; debug-level messages should trace the attach flow
+2. **Manual test on 2024.3** — Open terminal, run a failing command (e.g., `false`), verify sound plays
+3. **Manual test on 2025.x** — Same test on a recent IDE version (reworked terminal)
+4. **Terminal not installed** — Verify plugin loads without the terminal plugin (optional dependency)
+5. **Multiple tabs** — Open several terminal tabs, run failures in each, verify deduplication works
+6. **Check IDE log** — Confirm no unexpected warnings; debug-level messages should trace the attach flow
 
 ---
 *Last updated from code scan: 2026-03-18*

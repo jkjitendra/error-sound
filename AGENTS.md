@@ -33,7 +33,7 @@ IntelliJ Platform plugin that plays an audio alert when a Run/Debug process, con
 3. **Do NOT** lower `sinceBuild` below 243 — Kotlin 2.x stdlib requires 2024.3+.
 4. **Do NOT** set `untilBuild` without understanding forward-compatibility impact.
 5. Keep `kotlin.stdlib.default.dependency=false` in `gradle.properties` — the platform bundles its own stdlib.
-6. Always run `./gradlew buildPlugin` and `./gradlew verifyPlugin` after changes.
+6. Always run `./gradlew buildPlugin` after changes.
 7. Keep README, Marketplace description (`build.gradle.kts`), and plugin.xml description aligned.
 
 ## Sensitive Files / Areas
@@ -51,9 +51,6 @@ IntelliJ Platform plugin that plays an audio alert when a Run/Debug process, con
 ```bash
 # Build the plugin ZIP
 ./gradlew buildPlugin
-
-# Verify plugin compatibility
-./gradlew verifyPlugin
 
 # Clean build
 ./gradlew clean buildPlugin

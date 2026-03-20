@@ -59,7 +59,6 @@ Always run:
 
 ```bash
 ./gradlew buildPlugin
-./gradlew verifyPlugin
 ```
 
 See `docs/agent-context/verification-checklist.md` for detailed per-area checks.

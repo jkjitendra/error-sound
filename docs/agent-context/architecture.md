@@ -8,7 +8,8 @@
 - **Flow:**
   1. `onTextAvailable()` — captures output into a `StringBuilder` (capped at 1M chars), runs `ErrorClassifier.detect()` per chunk
   2. `processTerminated()` — evaluates final output + exit code → determines `ErrorKind`
-  3. → `AlertDispatcher.tryAlert(key, settings, kind)`
+  3. If final kind is `NONE` and exit code is `0` → converts to `SUCCESS`
+  4. → `AlertDispatcher.tryAlert(key, settings, kind)`
 
 ### 2. ConsoleFilterProvider Path
 - **Class:** `ErrorConsoleFilterProvider` → `ErrorDetectionFilter`
@@ -106,4 +107,4 @@ Two layers:
 | Shell integration | `getShellIntegrationDeferred().getCompleted()` → `getShellIntegration()` → `getTerminalShellIntegration()` → type-matching getter → field access |
 
 ---
-*Last updated from code scan: 2026-03-18*
+*Last updated from code scan: 2026-03-19*
