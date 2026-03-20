@@ -15,6 +15,7 @@ object AlertMonitoring {
             ErrorKind.NETWORK -> settings.monitorNetwork
             ErrorKind.EXCEPTION -> settings.monitorException
             ErrorKind.GENERIC -> settings.monitorGeneric
+            ErrorKind.SUCCESS -> settings.monitorSuccess
             ErrorKind.NONE -> false
         }
     }
@@ -27,6 +28,7 @@ object AlertMonitoring {
             ErrorKind.NETWORK -> settings.monitorNetwork = enabled
             ErrorKind.EXCEPTION -> settings.monitorException = enabled
             ErrorKind.GENERIC -> settings.monitorGeneric = enabled
+            ErrorKind.SUCCESS -> settings.monitorSuccess = enabled
             ErrorKind.NONE -> Unit
         }
     }
