@@ -20,7 +20,6 @@ Quick lookup for build configuration.
 
 ```bash
 ./gradlew buildPlugin         # Build plugin ZIP
-./gradlew verifyPlugin        # Verify compatibility
 ./gradlew clean buildPlugin   # Clean build
 ```
 
