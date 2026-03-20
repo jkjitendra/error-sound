@@ -51,6 +51,9 @@ class ErrorSoundConfigurable : Configurable {
     private val genericEnabledCheck = JBCheckBox("Enable")
     private val genericSoundCombo = ComboBox(BuiltInSounds.all.toTypedArray())
 
+    private val successEnabledCheck = JBCheckBox("Enable")
+    private val successSoundCombo = ComboBox(BuiltInSounds.all.toTypedArray())
+
     private val customPathField = TextFieldWithBrowseButton()
     private val customPreviewButton = JButton("Preview")
     private val volumeSlider = JBSlider(0, 100, 80)
@@ -124,6 +127,7 @@ class ErrorSoundConfigurable : Configurable {
         attachBuiltInPreview(networkSoundCombo)
         attachBuiltInPreview(exceptionSoundCombo)
         attachBuiltInPreview(genericSoundCombo)
+        attachBuiltInPreview(successSoundCombo)
 
         customPreviewButton.addActionListener {
             ErrorSoundPlayer.stopPreview()
@@ -184,6 +188,13 @@ class ErrorSoundConfigurable : Configurable {
                 1,
                 false
             )
+            .addSeparator(8)
+            .addLabeledComponent(
+                "Success:",
+                withHelp(createErrorRow(successEnabledCheck, successSoundCombo), "Enable/disable sound for successful process completions (exit code 0)."),
+                1,
+                false
+            )
             .addLabeledComponent(
                 "Custom sound file:",
                 withHelp(createCustomFilePanel(), "Used only when Sound source is Custom and global mode is disabled."),
@@ -222,6 +233,8 @@ class ErrorSoundConfigurable : Configurable {
             (exceptionSoundCombo.selectedItem as? BuiltInSound)?.id != state.exceptionSoundId ||
             genericEnabledCheck.isSelected != state.genericSoundEnabled ||
             (genericSoundCombo.selectedItem as? BuiltInSound)?.id != state.genericSoundId ||
+            successEnabledCheck.isSelected != state.successSoundEnabled ||
+            (successSoundCombo.selectedItem as? BuiltInSound)?.id != state.successSoundId ||
             customPathField.text.trim() != state.customSoundPath ||
             volumeSlider.value != state.volumePercent ||
             durationSlider.value != state.alertDurationSeconds
@@ -252,6 +265,8 @@ class ErrorSoundConfigurable : Configurable {
                 exceptionSoundId = (exceptionSoundCombo.selectedItem as? BuiltInSound)?.id ?: "boom",
                 genericSoundEnabled = genericEnabledCheck.isSelected,
                 genericSoundId = (genericSoundCombo.selectedItem as? BuiltInSound)?.id ?: BuiltInSounds.default.id,
+                successSoundEnabled = successEnabledCheck.isSelected,
+                successSoundId = (successSoundCombo.selectedItem as? BuiltInSound)?.id ?: "yeah_boy",
                 customSoundPath = customPathField.text.trim(),
                 volumePercent = volumeSlider.value,
                 alertDurationSeconds = durationSlider.value,
@@ -291,6 +306,9 @@ class ErrorSoundConfigurable : Configurable {
 
             genericEnabledCheck.isSelected = state.genericSoundEnabled
             selectSoundId(genericSoundCombo, state.genericSoundId)
+
+            successEnabledCheck.isSelected = state.successSoundEnabled
+            selectSoundId(successSoundCombo, state.successSoundId)
             volumeSlider.value = state.volumePercent
             durationSlider.value = state.alertDurationSeconds
             updateSliderValueLabels()
@@ -335,6 +353,9 @@ class ErrorSoundConfigurable : Configurable {
         genericEnabledCheck.isEnabled = isBuiltIn && !isGlobalMode
         genericSoundCombo.isEnabled = isBuiltIn && !isGlobalMode && genericEnabledCheck.isSelected
 
+        successEnabledCheck.isEnabled = isBuiltIn && !isGlobalMode
+        successSoundCombo.isEnabled = isBuiltIn && !isGlobalMode && successEnabledCheck.isSelected
+
         customPathField.isEnabled = !isGlobalMode
         customPreviewButton.isEnabled = !isGlobalMode && customPathField.text.trim().isNotEmpty() && isCustom
     }
@@ -369,6 +390,7 @@ class ErrorSoundConfigurable : Configurable {
             networkSoundCombo.selectedItem = global
             exceptionSoundCombo.selectedItem = global
             genericSoundCombo.selectedItem = global
+            successSoundCombo.selectedItem = global
         } finally {
             suppressPreview = false
         }
@@ -427,6 +449,7 @@ class ErrorSoundConfigurable : Configurable {
             networkSoundCombo to selectedSoundId(networkSoundCombo),
             exceptionSoundCombo to selectedSoundId(exceptionSoundCombo),
             genericSoundCombo to selectedSoundId(genericSoundCombo),
+            successSoundCombo to selectedSoundId(successSoundCombo),
         )
 
         suppressPreview = true
