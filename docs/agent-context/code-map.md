@@ -71,6 +71,7 @@ Class-by-class reference for the `com.drostwades.errorsound` package.
 - `ErrorClassifier.detect()` runs on each chunk + final buffer
 - Priority system: CONFIGURATION > COMPILATION > TEST_FAILURE > NETWORK > EXCEPTION > GENERIC > NONE
 - If final kind is NONE and exitCode == 0, converts to SUCCESS
+- Duration threshold: if `elapsedMillis < minProcessDurationSeconds * 1000`, alert suppressed (Run/Debug only)
 - Dedup key: `"exec:{handlerIdentityHash}:{errorKind}"`
 - Routes through `AlertDispatcher.tryAlert()`
 
@@ -114,6 +115,7 @@ Class-by-class reference for the `com.drostwades.errorsound` package.
 - `useGlobalBuiltInSound` — one sound for all kinds
 - `{kind}SoundEnabled`, `{kind}SoundId` — per-kind sound config
 - `successSoundEnabled` (default: `false`), `successSoundId` (default: `"yeah_boy"`) — success sound config
+- `minProcessDurationSeconds: Int = 0` — duration threshold for Run/Debug alerts (0 = disabled, max 300)
 - `customSoundPath` — absolute path to custom audio file
 
 **Validation:** `loadState()` normalizes sound IDs and clamps numeric values.
@@ -235,4 +237,4 @@ Class-by-class reference for the `com.drostwades.errorsound` package.
 - **Risk:** LOW — UI-only
 
 ---
-*Last updated from code scan: 2026-03-19*
+*Last updated from code scan: 2026-03-22*
