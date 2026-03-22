@@ -42,6 +42,7 @@ class AlertSettings : PersistentStateComponent<AlertSettings.State> {
         var successSoundId: String = "yeah_boy",
         var customSoundPath: String = "",
         var alertDurationSeconds: Int = 3,
+        var minProcessDurationSeconds: Int = 0,
     )
 
     enum class SoundSource {
@@ -65,6 +66,7 @@ class AlertSettings : PersistentStateComponent<AlertSettings.State> {
             genericSoundId = normalizeSoundId(state.genericSoundId),
             successSoundId = normalizeSoundId(state.successSoundId),
             alertDurationSeconds = state.alertDurationSeconds.coerceIn(1, 10),
+            minProcessDurationSeconds = state.minProcessDurationSeconds.coerceIn(0, 300),
         )
     }
 
