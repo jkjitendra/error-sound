@@ -54,6 +54,7 @@ Quick lookup for `AlertSettings.State` fields and their usage.
 |---|---|---|---|
 | `volumePercent` | Int | `80` | 0–100 |
 | `alertDurationSeconds` | Int | `3` | 1–10 |
+| `minProcessDurationSeconds` | Int | `0` | 0–300. Alerts suppressed if process completes faster. Run/Debug only. |
 
 ## Validation (in `loadState`)
 
@@ -69,4 +70,4 @@ enum class SoundSource { BUNDLED, CUSTOM }
 ```
 
 ---
-*Last updated from code scan: 2026-03-19*
+*Last updated from code scan: 2026-03-22*

@@ -61,6 +61,11 @@ class ErrorSoundConfigurable : Configurable {
     private val volumeValueLabel = JBLabel()
     private val durationValueLabel = JBLabel()
 
+    // Minimum process duration threshold (0 = disabled)
+    private val minDurationSpinner = javax.swing.JSpinner(
+        javax.swing.SpinnerNumberModel(0, 0, 300, 1)
+    )
+
     override fun getDisplayName(): String = "Error Sound Alert"
 
     override fun createComponent(): JComponent {
@@ -203,6 +208,12 @@ class ErrorSoundConfigurable : Configurable {
             )
             .addLabeledComponent("Volume (%):", createSliderPanel(volumeSlider, volumeValueLabel), 1, false)
             .addLabeledComponent("Alert duration (sec):", createSliderPanel(durationSlider, durationValueLabel), 1, false)
+            .addLabeledComponent(
+                "Min process duration (sec):",
+                withHelp(minDurationSpinner, "Suppress alerts for processes that finish faster than this threshold (0 = no threshold). Applies to Run/Debug only — console and terminal alerts are unaffected."),
+                1,
+                false
+            )
             .addComponentFillVertically(JPanel(), 0)
             .panel
 
@@ -237,7 +248,8 @@ class ErrorSoundConfigurable : Configurable {
             (successSoundCombo.selectedItem as? BuiltInSound)?.id != state.successSoundId ||
             customPathField.text.trim() != state.customSoundPath ||
             volumeSlider.value != state.volumePercent ||
-            durationSlider.value != state.alertDurationSeconds
+            durationSlider.value != state.alertDurationSeconds ||
+            (minDurationSpinner.value as? Int) != state.minProcessDurationSeconds
     }
 
     override fun apply() {
@@ -270,6 +282,7 @@ class ErrorSoundConfigurable : Configurable {
                 customSoundPath = customPathField.text.trim(),
                 volumePercent = volumeSlider.value,
                 alertDurationSeconds = durationSlider.value,
+                minProcessDurationSeconds = (minDurationSpinner.value as? Int) ?: 0,
             )
         )
     }
@@ -311,6 +324,7 @@ class ErrorSoundConfigurable : Configurable {
             selectSoundId(successSoundCombo, state.successSoundId)
             volumeSlider.value = state.volumePercent
             durationSlider.value = state.alertDurationSeconds
+            minDurationSpinner.value = state.minProcessDurationSeconds
             updateSliderValueLabels()
 
             if (useGlobalBuiltInCheck.isSelected) {

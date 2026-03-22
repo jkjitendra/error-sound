@@ -7,7 +7,7 @@ plugins {
 }
 
 group = "com.drostwades"
-version = "1.1.2"
+version = "1.1.3"
 
 repositories {
     mavenCentral()
@@ -41,16 +41,17 @@ intellijPlatform {
               Error Sound Alert plays an audio alert the moment a Run/Debug process exits with an error,
               a recognisable error pattern appears in console output, or a terminal command fails —
               so you can stay focused on other work and only look up when something goes wrong.
-              Optionally, play a distinct sound when a process completes successfully.
+              Optionally, play a distinct sound when a Run/Debug process completes successfully.
             </p>
             <h3>Features</h3>
             <ul>
               <li>7 built-in alert sounds: Boom, Faaa, Huh, Punch, Yeah Boy, Yooo, Dog Laughing</li>
               <li>Supports custom audio files (WAV, AIFF, AU)</li>
               <li>Smart error classification: configuration, compilation, test failure, network, exception</li>
-              <li>Per-error-type sounds, or one global sound for all errors</li>
+              <li>Per-kind sounds, or one global sound for all alerts</li>
               <li><b>Success sounds:</b> optional alert on successful process completion (off by default)</li>
               <li>Configurable volume (0–100%) and alert duration (1–10 seconds)</li>
+              <li>Minimum process duration threshold: skip alerts for processes that finish too quickly (Run/Debug only)</li>
               <li>Instant preview from the settings panel</li>
               <li><b>Error Monitor</b> sidebar panel: enable/disable monitoring, filter by error type, and apply presets without leaving your editor</li>
             </ul>
@@ -59,6 +60,11 @@ intellijPlatform {
         """.trimIndent()
 
         changeNotes = """
+            <b>1.1.3</b>
+            <ul>
+              <li>New minimum process duration threshold: suppress alerts for processes that finish faster than a configured limit (Run/Debug only, 0&nbsp;= disabled)</li>
+              <li>Threshold setting available in Settings &rarr; Tools &rarr; Error Sound Alert</li>
+            </ul>
             <b>1.1.2</b>
               <ul>
                 <li>Added optional success alerts for Run/Debug process completions (off by default)</li>

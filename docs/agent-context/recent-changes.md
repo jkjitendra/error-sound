@@ -4,6 +4,23 @@ Engineering-significant changes to the codebase. Not a full changelog — focuse
 
 ---
 
+## v1.3.0 — Execution Time Threshold
+
+### New Setting
+- `minProcessDurationSeconds: Int = 0` — suppress alerts if the process finishes faster than this value
+- Clamped to 0–300 in `loadState()`. Default 0 preserves existing behavior.
+
+### Logic
+- `AlertOnErrorExecutionListener.processStarted()` now records `startedAtMillis = System.currentTimeMillis()`
+- In `processTerminated()`: if `elapsed < threshold * 1000`, alert is silently suppressed with a debug log entry
+- Applies to both error and success alerts from Run/Debug
+- **Explicitly excluded:** console filter (stateless/per-line), terminal listener (no clean start timestamp)
+
+### UI
+- Settings panel: "Min process duration (sec)" spinner (0–300) with help text documenting scope
+
+---
+
 ## v1.2.0 — Success Sounds
 
 ### ErrorKind.SUCCESS

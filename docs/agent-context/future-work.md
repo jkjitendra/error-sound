@@ -4,23 +4,7 @@ Suggested features and safe extension points for future development.
 
 ---
 
-## 1. Execution Duration Threshold / Focus Mode
-
-**Description:** Only play alert if the process ran longer than `X` seconds (user configurable).
-
-**Where it belongs:**
-- Record start time in `AlertOnErrorExecutionListener.processStarted()`
-- Compare elapsed time in `processTerminated()` before dispatching
-- Add `minProcessDurationSeconds` field to `AlertSettings.State`
-- Add slider/field to `ErrorSoundConfigurable`
-
-**Files changed:** `AlertOnErrorExecutionListener.kt`, `AlertSettings.kt`, `ErrorSoundConfigurable.kt`
-
-**Risks:** Low — straightforward timestamp comparison. Decide if this applies to console and terminal paths too.
-
----
-
-## 2. Snooze / Mute / Do Not Disturb
+## 1. Snooze / Mute / Do Not Disturb
 
 **Description:** Temporary mute (e.g., "Mute for 1 hour") via toolbar button. Could also auto-mute when IDE is in Presentation Mode.
 
@@ -35,7 +19,7 @@ Suggested features and safe extension points for future development.
 
 ---
 
-## 3. Visual Notifications
+## 2. Visual Notifications
 
 **Description:** Pair audio alert with a brief IntelliJ notification (balloon/toast) showing what failed.
 
@@ -50,7 +34,7 @@ Suggested features and safe extension points for future development.
 
 ---
 
-## 4. Custom Regex Error Rules
+## 3. Custom Regex Error Rules
 
 **Description:** Let users define custom error patterns in settings, with assigned ErrorKind or custom sounds.
 
@@ -65,7 +49,7 @@ Suggested features and safe extension points for future development.
 
 ---
 
-## 5. Exit-Code-Specific Terminal Sounds
+## 4. Exit-Code-Specific Terminal Sounds
 
 **Description:** Map specific terminal exit codes (e.g., 137 = OOM, 130 = SIGINT) to distinct sounds.
 
@@ -80,7 +64,7 @@ Suggested features and safe extension points for future development.
 
 ---
 
-## 6. Per-Project Settings
+## 5. Per-Project Settings
 
 **Description:** Override global settings per-project (e.g., loud sounds for critical projects, muted for noisy ones).
 
@@ -94,4 +78,4 @@ Suggested features and safe extension points for future development.
 **Risks:** High — significant architectural change. Must handle settings merge carefully. Consider incremental approach (project-level enable/disable first).
 
 ---
-*Last updated from code scan: 2026-03-19*
+*Last updated from code scan: 2026-03-22*

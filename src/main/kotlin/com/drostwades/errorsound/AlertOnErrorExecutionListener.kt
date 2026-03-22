@@ -14,6 +14,7 @@ class AlertOnErrorExecutionListener : ExecutionListener {
     private val maxCapturedOutputChars = 1_000_000
 
     override fun processStarted(executorId: String, env: ExecutionEnvironment, handler: ProcessHandler) {
+        val startedAtMillis = System.currentTimeMillis()
         val outputBuffer = StringBuilder()
         val detectedKind = AtomicReference(ErrorKind.NONE)
         val handlerKey = System.identityHashCode(handler)
@@ -48,8 +49,18 @@ class AlertOnErrorExecutionListener : ExecutionListener {
 
                 val settings = AlertSettings.getInstance().state
 
+                // Duration threshold — only applies to Run/Debug path (console and terminal excluded)
+                val elapsedMillis = System.currentTimeMillis() - startedAtMillis
+                val thresholdMillis = settings.minProcessDurationSeconds * 1_000L
+                if (elapsedMillis < thresholdMillis) {
+                    log.debug(
+                        "Alert suppressed by duration threshold: elapsed=${elapsedMillis}ms, threshold=${thresholdMillis}ms, kind=$errorKind"
+                    )
+                    return
+                }
+
                 log.debug(
-                    "Process detected. executorId=$executorId, profile=${env.runProfile.name}, exitCode=$exitCode, kind=$errorKind"
+                    "Process detected. executorId=$executorId, profile=${env.runProfile.name}, exitCode=$exitCode, kind=$errorKind, elapsed=${elapsedMillis}ms"
                 )
                 // Key is stable per run: one handler instance per run configuration launch
                 val key = "exec:$handlerKey:$errorKind"
