@@ -4,6 +4,27 @@ Engineering-significant changes to the codebase. Not a full changelog — focuse
 
 ---
 
+## v1.4.0 — Snooze / Mute
+
+### New File
+- `SnoozeState.kt` — transient singleton using `AtomicLong`. Provides `isSnoozed()`, `snooze(minutes)`, `resume()`, `statusLabel()`.
+
+### AlertDispatcher
+- Snooze check added as the **first gate** in `tryAlert()`, before `AlertMonitoring`
+- Gate order: SnoozeState → AlertMonitoring → AlertEventGate → ErrorSoundPlayer
+
+### ErrorSoundToolWindowFactory
+- New "Snooze" section with three `ActionLink`s: **Mute 15 min** / **Mute 1 hour** / **Resume**
+- `snoozeLabel` shows "All alerts muted" while active
+- `statusLabel` shows snooze expiry time (e.g. "Snoozed until 14:30") when snoozed
+- `Resume` link enabled only while snoozed
+
+### Scope
+- No settings persistence — snooze is always transient (resets on IDE restart)
+- No settings panel changes needed
+
+---
+
 ## v1.3.0 — Execution Time Threshold
 
 ### New Setting
