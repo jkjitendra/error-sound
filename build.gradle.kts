@@ -7,7 +7,7 @@ plugins {
 }
 
 group = "com.drostwades"
-version = "1.1.3"
+version = "1.1.4"
 
 repositories {
     mavenCentral()
@@ -52,6 +52,7 @@ intellijPlatform {
               <li><b>Success sounds:</b> optional alert on successful process completion (off by default)</li>
               <li>Configurable volume (0–100%) and alert duration (1–10 seconds)</li>
               <li>Minimum process duration threshold: skip alerts for processes that finish too quickly (Run/Debug only)</li>
+              <li>Snooze / mute: temporarily silence all alerts for 15 minutes or 1 hour from the Error Monitor sidebar</li>
               <li>Instant preview from the settings panel</li>
               <li><b>Error Monitor</b> sidebar panel: enable/disable monitoring, filter by error type, and apply presets without leaving your editor</li>
             </ul>
@@ -60,6 +61,11 @@ intellijPlatform {
         """.trimIndent()
 
         changeNotes = """
+            <b>1.1.4</b>
+            <ul>
+              <li>New Snooze / Mute feature: silence all alerts for 15 minutes or 1 hour directly from the Error Monitor sidebar</li>
+              <li>Snooze resets automatically on IDE restart (transient, never persisted)</li>
+            </ul>
             <b>1.1.3</b>
             <ul>
               <li>New minimum process duration threshold: suppress alerts for processes that finish faster than a configured limit (Run/Debug only, 0&nbsp;= disabled)</li>

@@ -4,22 +4,7 @@ Suggested features and safe extension points for future development.
 
 ---
 
-## 1. Snooze / Mute / Do Not Disturb
-
-**Description:** Temporary mute (e.g., "Mute for 1 hour") via toolbar button. Could also auto-mute when IDE is in Presentation Mode.
-
-**Where it belongs:**
-- Add a transient `mutedUntil` timestamp in `AlertSettings` (not persisted) or a new singleton
-- Check `mutedUntil` in `AlertDispatcher.tryAlert()` or `AlertMonitoring.shouldMonitor()`
-- Add mute button to `ErrorSoundToolWindowFactory`
-
-**Files changed:** `AlertDispatcher.kt` or `AlertMonitoring.kt`, `AlertSettings.kt`, `ErrorSoundToolWindowFactory.kt`
-
-**Risks:** Medium — must decide whether mute state survives IDE restart. Keep it transient to avoid accidental permanent muting.
-
----
-
-## 2. Visual Notifications
+## 1. Visual Notifications
 
 **Description:** Pair audio alert with a brief IntelliJ notification (balloon/toast) showing what failed.
 
@@ -34,7 +19,7 @@ Suggested features and safe extension points for future development.
 
 ---
 
-## 3. Custom Regex Error Rules
+## 2. Custom Regex Error Rules
 
 **Description:** Let users define custom error patterns in settings, with assigned ErrorKind or custom sounds.
 
@@ -49,7 +34,7 @@ Suggested features and safe extension points for future development.
 
 ---
 
-## 4. Exit-Code-Specific Terminal Sounds
+## 3. Exit-Code-Specific Terminal Sounds
 
 **Description:** Map specific terminal exit codes (e.g., 137 = OOM, 130 = SIGINT) to distinct sounds.
 
@@ -64,7 +49,7 @@ Suggested features and safe extension points for future development.
 
 ---
 
-## 5. Per-Project Settings
+## 4. Per-Project Settings
 
 **Description:** Override global settings per-project (e.g., loud sounds for critical projects, muted for noisy ones).
 
@@ -78,4 +63,4 @@ Suggested features and safe extension points for future development.
 **Risks:** High — significant architectural change. Must handle settings merge carefully. Consider incremental approach (project-level enable/disable first).
 
 ---
-*Last updated from code scan: 2026-03-22*
+*Last updated from code scan: 2026-03-23*

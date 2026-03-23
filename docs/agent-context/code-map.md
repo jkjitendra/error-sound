@@ -6,7 +6,8 @@ Class-by-class reference for the `com.drostwades.errorsound` package.
 
 ## AlertDispatcher
 
-**File:** `AlertDispatcher.kt` (20 lines)
+**File:** `AlertDispatcher.kt` (25 lines)  
+**Purpose:** Single routing choke-point. Gate order: `SnoozeState` → `AlertMonitoring` → `AlertEventGate` → `ErrorSoundPlayer`.
 **Purpose:** Single choke-point between the three detection paths and the audio player.
 
 | Method | Signature | Description |
@@ -237,4 +238,12 @@ Class-by-class reference for the `com.drostwades.errorsound` package.
 - **Risk:** LOW — UI-only
 
 ---
-*Last updated from code scan: 2026-03-22*
+
+### SnoozeState
+**File:** `SnoozeState.kt`  
+**Purpose:** Transient mute state. `AtomicLong snoozeUntilEpochMillis`. Not persisted.  
+**Key methods:** `isSnoozed()`, `snooze(minutes)`, `resume()`, `statusLabel()`  
+**Risk:** LOW — additive, no external dependencies.
+
+---
+*Last updated from code scan: 2026-03-23*

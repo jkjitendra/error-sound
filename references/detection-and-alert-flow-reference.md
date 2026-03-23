@@ -26,15 +26,18 @@ Detection Source
        ▼
 AlertDispatcher.tryAlert(key, settings, kind)
        │
-       ├── 1. AlertMonitoring.shouldMonitor(settings, kind)
+       ├── 1. SnoozeState.isSnoozed()
+       │       └── short-circuits if snoozed (transient, no settings needed)
+       │
+       ├── 2. AlertMonitoring.shouldMonitor(settings, kind)
        │       ├── settings.enabled == true?
        │       └── isKindEnabled(settings, kind)?
        │
-       ├── 2. AlertEventGate.shouldPlay(key)
+       ├── 3. AlertEventGate.shouldPlay(key)
        │       ├── per-key cooldown: 4s
        │       └── global cooldown: 2s
        │
-       └── 3. ErrorSoundPlayer.play(settings, kind)
+       └── 4. ErrorSoundPlayer.play(settings, kind)
                ├── debounce: 250ms (last-resort)
                ├── isErrorKindEnabled(settings, kind)
                └── resolveBuiltInSoundId(settings, kind) → play audio
@@ -79,4 +82,4 @@ Fallback chain:
 | Terminal | `"terminal:{project.locationHash}:{command.trim()}:{exitCode}:{errorKind}"` |
 
 ---
-*Last updated from code scan: 2026-03-19*
+*Last updated from code scan: 2026-03-23*
