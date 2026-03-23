@@ -79,6 +79,20 @@ private class ErrorSoundToolWindowPanel(
         }
     }
 
+    private val snoozeLabel = JBLabel().apply {
+        foreground = UIUtil.getContextHelpForeground()
+        font = JBFont.small()
+    }
+    private val snooze15Link = ActionLink("Mute 15 min") { doSnooze(15) }
+    private val snooze60Link = ActionLink("Mute 1 hour") { doSnooze(60) }
+    private val snoozeResumeLink = ActionLink("Resume") { doResume() }
+
+    /**
+     * Fires every 10 s while snoozed to keep [statusLabel], [snoozeLabel],
+     * and the Resume link fresh after expiry. Stopped as soon as snooze ends.
+     */
+    private val snoozeRefreshTimer = javax.swing.Timer(10_000) { refreshUiState() }
+
     private val typeRows = listOf(
         KindRow(
             ErrorKind.CONFIGURATION,
@@ -134,6 +148,11 @@ private class ErrorSoundToolWindowPanel(
 
     fun preferredFocus(): JComponent = enabledCheckBox
 
+    override fun removeNotify() {
+        super.removeNotify()
+        snoozeRefreshTimer.stop()
+    }
+
     private fun buildContent(): JComponent {
         val column = JPanel()
         column.layout = BoxLayout(column, BoxLayout.Y_AXIS)
@@ -166,6 +185,13 @@ private class ErrorSoundToolWindowPanel(
 
         column.add(Box.createVerticalStrut(6))
         column.add(compact(buildPresets()))
+
+        column.add(Box.createVerticalStrut(10))
+        column.add(compact(TitledSeparator("Snooze")))
+        column.add(Box.createVerticalStrut(6))
+        column.add(compact(buildSnoozeActions()))
+        column.add(Box.createVerticalStrut(2))
+        column.add(compact(snoozeLabel))
 
         column.add(Box.createVerticalStrut(10))
         column.add(
@@ -241,6 +267,20 @@ private class ErrorSoundToolWindowPanel(
         return wrapper
     }
 
+    private fun buildSnoozeActions(): JComponent {
+        val row = JPanel()
+        row.layout = BoxLayout(row, BoxLayout.X_AXIS)
+        row.isOpaque = false
+
+        row.add(snooze15Link)
+        row.add(spacerDot())
+        row.add(snooze60Link)
+        row.add(spacerDot())
+        row.add(snoozeResumeLink)
+
+        return row
+    }
+
     private fun spacerDot(): JComponent {
         return JBLabel("  •  ").apply {
             foreground = UIUtil.getContextHelpForeground()
@@ -289,6 +329,17 @@ private class ErrorSoundToolWindowPanel(
         }
     }
 
+    private fun doSnooze(minutes: Int) {
+        SnoozeState.snooze(minutes)
+        snoozeRefreshTimer.start()
+        refreshUiState()
+    }
+
+    private fun doResume() {
+        SnoozeState.resume()
+        refreshUiState()
+    }
+
     private fun setAllKinds(enabled: Boolean) {
         typeRows.forEach { row ->
             row.checkBox.isSelected = enabled
@@ -332,14 +383,22 @@ private class ErrorSoundToolWindowPanel(
         val enabledCount = typeRows.count { it.checkBox.isSelected }
         val successEnabled = successRow.checkBox.isSelected
 
-        statusLabel.text = if (monitoringEnabled) {
-            val parts = mutableListOf<String>()
-            parts.add("$enabledCount error")
-            if (successEnabled) parts.add("success")
-            "Active · ${parts.joinToString(" + ")} enabled"
-        } else {
-            "Paused"
+        val isSnoozed = SnoozeState.isSnoozed()
+
+        statusLabel.text = when {
+            isSnoozed -> SnoozeState.statusLabel() ?: "Snoozed"
+            monitoringEnabled -> {
+                val parts = mutableListOf<String>()
+                parts.add("$enabledCount error")
+                if (successEnabled) parts.add("success")
+                "Active · ${parts.joinToString(" + ")} enabled"
+            }
+            else -> "Paused"
         }
+
+        snoozeLabel.text = if (isSnoozed) "All alerts muted" else ""
+        snoozeResumeLink.isEnabled = isSnoozed
+        if (!isSnoozed) snoozeRefreshTimer.stop()
 
         statusLabel.foreground = if (monitoringEnabled) {
             UIUtil.getContextHelpForeground()
