@@ -40,6 +40,9 @@ Detection Source
          ▼
    AlertDispatcher.tryAlert(key, settings, kind)
          │
+         ├── SnoozeState.isSnoozed()
+         │     └── short-circuits all gates (transient, no settings needed)
+         │
          ├── AlertMonitoring.shouldMonitor(settings, kind)
          │     └── checks: settings.enabled + per-kind monitor flags
          │
@@ -107,4 +110,4 @@ Two layers:
 | Shell integration | `getShellIntegrationDeferred().getCompleted()` → `getShellIntegration()` → `getTerminalShellIntegration()` → type-matching getter → field access |
 
 ---
-*Last updated from code scan: 2026-03-19*
+*Last updated from code scan: 2026-03-23*
