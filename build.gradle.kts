@@ -7,7 +7,7 @@ plugins {
 }
 
 group = "com.drostwades"
-version = "1.1.4"
+version = "1.1.3"
 
 repositories {
     mavenCentral()
@@ -61,13 +61,10 @@ intellijPlatform {
         """.trimIndent()
 
         changeNotes = """
-            <b>1.1.4</b>
+            <b>1.1.3</b>
             <ul>
               <li>New Snooze / Mute feature: silence all alerts for 15 minutes or 1 hour directly from the Error Monitor sidebar</li>
               <li>Snooze resets automatically on IDE restart (transient, never persisted)</li>
-            </ul>
-            <b>1.1.3</b>
-            <ul>
               <li>New minimum process duration threshold: suppress alerts for processes that finish faster than a configured limit (Run/Debug only, 0&nbsp;= disabled)</li>
               <li>Threshold setting available in Settings &rarr; Tools &rarr; Error Sound Alert</li>
             </ul>
