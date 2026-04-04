@@ -66,10 +66,17 @@ class ErrorSoundConfigurable : Configurable {
         javax.swing.SpinnerNumberModel(0, 0, 300, 1)
     )
 
+    // Visual notification controls
+    private val showVisualNotificationCheck = JBCheckBox("Show balloon notification alongside sound")
+    private val visualNotificationOnErrorCheck = JBCheckBox("On errors")
+    private val visualNotificationOnSuccessCheck = JBCheckBox("On successes")
+
     override fun getDisplayName(): String = "Error Sound Alert"
 
     override fun createComponent(): JComponent {
         val root = JPanel(BorderLayout())
+
+        showVisualNotificationCheck.addActionListener { updateInputState() }
 
         customPathField.addBrowseFolderListener(
             TextBrowseFolderListener(
@@ -214,6 +221,20 @@ class ErrorSoundConfigurable : Configurable {
                 1,
                 false
             )
+            .addSeparator(8)
+            .addComponent(
+                withHelp(
+                    showVisualNotificationCheck,
+                    "When enabled, a balloon notification appears alongside the sound alert (off by default)."
+                ),
+                1
+            )
+            .addLabeledComponent(
+                "Notify on:",
+                createNotificationSubRow(),
+                1,
+                false
+            )
             .addComponentFillVertically(JPanel(), 0)
             .panel
 
@@ -249,7 +270,10 @@ class ErrorSoundConfigurable : Configurable {
             customPathField.text.trim() != state.customSoundPath ||
             volumeSlider.value != state.volumePercent ||
             durationSlider.value != state.alertDurationSeconds ||
-            (minDurationSpinner.value as? Int) != state.minProcessDurationSeconds
+            (minDurationSpinner.value as? Int) != state.minProcessDurationSeconds ||
+            showVisualNotificationCheck.isSelected != state.showVisualNotification ||
+            visualNotificationOnErrorCheck.isSelected != state.visualNotificationOnError ||
+            visualNotificationOnSuccessCheck.isSelected != state.visualNotificationOnSuccess
     }
 
     override fun apply() {
@@ -283,6 +307,9 @@ class ErrorSoundConfigurable : Configurable {
                 volumePercent = volumeSlider.value,
                 alertDurationSeconds = durationSlider.value,
                 minProcessDurationSeconds = (minDurationSpinner.value as? Int) ?: 0,
+                showVisualNotification = showVisualNotificationCheck.isSelected,
+                visualNotificationOnError = visualNotificationOnErrorCheck.isSelected,
+                visualNotificationOnSuccess = visualNotificationOnSuccessCheck.isSelected,
             )
         )
     }
@@ -325,6 +352,9 @@ class ErrorSoundConfigurable : Configurable {
             volumeSlider.value = state.volumePercent
             durationSlider.value = state.alertDurationSeconds
             minDurationSpinner.value = state.minProcessDurationSeconds
+            showVisualNotificationCheck.isSelected = state.showVisualNotification
+            visualNotificationOnErrorCheck.isSelected = state.visualNotificationOnError
+            visualNotificationOnSuccessCheck.isSelected = state.visualNotificationOnSuccess
             updateSliderValueLabels()
 
             if (useGlobalBuiltInCheck.isSelected) {
@@ -372,6 +402,17 @@ class ErrorSoundConfigurable : Configurable {
 
         customPathField.isEnabled = !isGlobalMode
         customPreviewButton.isEnabled = !isGlobalMode && customPathField.text.trim().isNotEmpty() && isCustom
+
+        val notificationsEnabled = showVisualNotificationCheck.isSelected
+        visualNotificationOnErrorCheck.isEnabled = notificationsEnabled
+        visualNotificationOnSuccessCheck.isEnabled = notificationsEnabled
+    }
+
+    private fun createNotificationSubRow(): JPanel {
+        return JPanel(FlowLayout(FlowLayout.LEFT, 8, 0)).apply {
+            add(visualNotificationOnErrorCheck)
+            add(visualNotificationOnSuccessCheck)
+        }
     }
 
     private fun attachBuiltInPreview(combo: ComboBox<BuiltInSound>) {
