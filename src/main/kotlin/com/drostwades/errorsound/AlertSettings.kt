@@ -43,6 +43,11 @@ class AlertSettings : PersistentStateComponent<AlertSettings.State> {
         var customSoundPath: String = "",
         var alertDurationSeconds: Int = 3,
         var minProcessDurationSeconds: Int = 0,
+
+        // Visual notification (balloon) settings — off by default
+        var showVisualNotification: Boolean = false,
+        var visualNotificationOnError: Boolean = true,
+        var visualNotificationOnSuccess: Boolean = true,
     )
 
     enum class SoundSource {
