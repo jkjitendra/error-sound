@@ -64,7 +64,7 @@ class AlertOnErrorExecutionListener : ExecutionListener {
                 )
                 // Key is stable per run: one handler instance per run configuration launch
                 val key = "exec:$handlerKey:$errorKind"
-                AlertDispatcher.tryAlert(key, settings, errorKind)
+                AlertDispatcher.tryAlert(key, settings, errorKind, env.project)
             }
         })
     }
