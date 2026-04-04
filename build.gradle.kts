@@ -7,7 +7,7 @@ plugins {
 }
 
 group = "com.drostwades"
-version = "1.1.3"
+version = "1.1.4"
 
 repositories {
     mavenCentral()
@@ -53,6 +53,7 @@ intellijPlatform {
               <li>Configurable volume (0–100%) and alert duration (1–10 seconds)</li>
               <li>Minimum process duration threshold: skip alerts for processes that finish too quickly (Run/Debug only)</li>
               <li>Snooze / mute: temporarily silence all alerts for 15 minutes or 1 hour from the Error Monitor sidebar</li>
+              <li><b>Visual notifications:</b> optional balloon notification alongside each sound alert, configurable per error/success (off by default)</li>
               <li>Instant preview from the settings panel</li>
               <li><b>Error Monitor</b> sidebar panel: enable/disable monitoring, filter by error type, and apply presets without leaving your editor</li>
             </ul>
@@ -61,6 +62,13 @@ intellijPlatform {
         """.trimIndent()
 
         changeNotes = """
+            <b>1.1.4</b>
+            <ul>
+              <li>New visual notification companion: shows a balloon notification alongside each sound alert (off by default)</li>
+              <li>Configurable separately for errors and successes in Settings &rarr; Tools &rarr; Error Sound Alert</li>
+              <li>Balloon includes quick actions: <b>Open Settings</b> and <b>Mute 1 hr</b></li>
+              <li>Notification spam prevented by existing deduplication gate — no extra configuration needed</li>
+            </ul>
             <b>1.1.3</b>
             <ul>
               <li>New Snooze / Mute feature: silence all alerts for 15 minutes or 1 hour directly from the Error Monitor sidebar</li>
