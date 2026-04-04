@@ -1,5 +1,6 @@
 package com.drostwades.errorsound
 
+import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.options.ShowSettingsUtil
 import com.intellij.openapi.project.DumbAware
 import com.intellij.openapi.project.Project
@@ -11,6 +12,7 @@ import com.intellij.ui.components.JBCheckBox
 import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.JBScrollPane
 import com.intellij.ui.content.ContentFactory
+import com.intellij.util.messages.MessageBusConnection
 import com.intellij.util.ui.JBFont
 import com.intellij.util.ui.JBUI
 import com.intellij.util.ui.UIUtil
@@ -93,6 +95,12 @@ private class ErrorSoundToolWindowPanel(
      */
     private val snoozeRefreshTimer = javax.swing.Timer(10_000) { refreshUiState() }
 
+    /**
+     * Held so we can [MessageBusConnection.dispose] it in [removeNotify],
+     * preventing stale subscribers if the panel is recreated.
+     */
+    private var snoozeBusConnection: MessageBusConnection? = null
+
     private val typeRows = listOf(
         KindRow(
             ErrorKind.CONFIGURATION,
@@ -148,10 +156,41 @@ private class ErrorSoundToolWindowPanel(
 
     fun preferredFocus(): JComponent = enabledCheckBox
 
+    override fun addNotify() {
+        super.addNotify()
+        if (snoozeBusConnection != null) return // already subscribed (defensive guard)
+        val connection = ApplicationManager.getApplication().messageBus.connect()
+        snoozeBusConnection = connection
+        connection.subscribe(SnoozeState.TOPIC, SnoozeState.SnoozeListener {
+            // syncPublisher runs on the caller's thread; enforce EDT before touching Swing.
+            ApplicationManager.getApplication().invokeLater {
+                if (!isDisplayable) return@invokeLater // panel already disposed
+                if (SnoozeState.isSnoozed()) {
+                    snoozeRefreshTimer.start()
+                } else {
+                    snoozeRefreshTimer.stop()
+                }
+                refreshUiState()
+            }
+        })
+
+        // Reconcile current snooze state immediately — no snoozeChanged() event fires
+        // for state that changed while the panel was detached (e.g. reattach while snoozed).
+        if (SnoozeState.isSnoozed()) {
+            snoozeRefreshTimer.start()
+        } else {
+            snoozeRefreshTimer.stop()
+        }
+        refreshUiState()
+    }
+
     override fun removeNotify() {
         super.removeNotify()
         snoozeRefreshTimer.stop()
+        snoozeBusConnection?.dispose()
+        snoozeBusConnection = null
     }
+
 
     private fun buildContent(): JComponent {
         val column = JPanel()
@@ -330,14 +369,11 @@ private class ErrorSoundToolWindowPanel(
     }
 
     private fun doSnooze(minutes: Int) {
-        SnoozeState.snooze(minutes)
-        snoozeRefreshTimer.start()
-        refreshUiState()
+        SnoozeState.snooze(minutes) // publishes TOPIC → subscriber handles timer + refresh
     }
 
     private fun doResume() {
-        SnoozeState.resume()
-        refreshUiState()
+        SnoozeState.resume() // publishes TOPIC → subscriber handles timer stop + refresh
     }
 
     private fun setAllKinds(enabled: Boolean) {
