@@ -7,7 +7,8 @@
         <![CDATA[
         Plays a short audio alert when a Run/Debug process fails, and optionally when it succeeds.
         Also monitors console output and terminal commands for errors.
-        Supports built-in sounds, custom audio files, and optional success alerts.
+        Supports built-in sounds, custom audio files, optional success alerts,
+        and optional visual balloon notifications alongside each sound alert.
         ]]>
     </description>
 
@@ -27,6 +28,10 @@
                 instance="com.drostwades.errorsound.ErrorSoundConfigurable"/>
         <consoleFilterProvider
                 implementation="com.drostwades.errorsound.ErrorConsoleFilterProvider"/>
+
+        <notificationGroup id="Error Sound Alert"
+                           displayType="BALLOON"
+                           isLogByDefault="false"/>
 
         <toolWindow
                 id="Error Monitor"
