@@ -41,7 +41,7 @@ private class ErrorDetectionFilter(private val project: Project) : Filter {
 
         // Key: project identity + error kind — stable across many console lines from the same project
         val key = "console:${project.locationHash}:$errorKind"
-        AlertDispatcher.tryAlert(key, settings, errorKind)
+        AlertDispatcher.tryAlert(key, settings, errorKind, project)
 
         // Return null — we only want the sound side-effect, not to modify the line
         return null
