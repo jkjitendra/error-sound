@@ -534,7 +534,7 @@ class AlertOnTerminalCommandListener : ProjectActivity {
         log.debug("ErrorSound: [Event] dispatching alert for '$command' exitCode=$exitCode kind=$errorKind")
         // Key: project + command + exit code + kind — stable for repeated identical commands
         val key = "terminal:${project.locationHash}:${command.trim()}:$exitCode:$errorKind"
-        AlertDispatcher.tryAlert(key, settings, errorKind)
+        AlertDispatcher.tryAlert(key, settings, errorKind, project)
     }
 
     private fun extractCommandAndExitCode(event: Any): Pair<String, Int>? {
