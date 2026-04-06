@@ -527,14 +527,19 @@ class AlertOnTerminalCommandListener : ProjectActivity {
         val (command, exitCode) = result
         log.debug("ErrorSound: [Event] command='$command' exitCode=$exitCode")
 
-        val settings = AlertSettings.getInstance().state
-        val errorKind = ErrorClassifier.detectTerminal(command, exitCode)
+        val settings = AlertSettings.getInstance()
+        val engine = settings.getCompiledRuleEngine()
+
+        // EXIT_CODE_AND_TEXT custom rules take precedence over built-in terminal detection.
+        // LINE_TEXT and FULL_OUTPUT targets are not supported in the terminal path.
+        val customKind = if (engine.hasExitCodeAndTextRules) engine.matchExitCodeAndText(command, exitCode) else null
+        val errorKind = customKind ?: ErrorClassifier.detectTerminal(command, exitCode)
         if (errorKind == ErrorKind.NONE) return
 
         log.debug("ErrorSound: [Event] dispatching alert for '$command' exitCode=$exitCode kind=$errorKind")
         // Key: project + command + exit code + kind — stable for repeated identical commands
         val key = "terminal:${project.locationHash}:${command.trim()}:$exitCode:$errorKind"
-        AlertDispatcher.tryAlert(key, settings, errorKind, project)
+        AlertDispatcher.tryAlert(key, settings.state, errorKind, project)
     }
 
     private fun extractCommandAndExitCode(event: Any): Pair<String, Int>? {
