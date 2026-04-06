@@ -16,7 +16,13 @@ class AlertOnErrorExecutionListener : ExecutionListener {
     override fun processStarted(executorId: String, env: ExecutionEnvironment, handler: ProcessHandler) {
         val startedAtMillis = System.currentTimeMillis()
         val outputBuffer = StringBuilder()
-        val detectedKind = AtomicReference(ErrorKind.NONE)
+
+        // Custom LINE_TEXT matches are tracked separately so built-in chunk detection
+        // (which uses a priority ladder) cannot overwrite a custom match that landed first.
+        val customDetectedKind = AtomicReference(ErrorKind.NONE)
+        // Built-in chunk matches accumulate via priority — only used if no custom match wins.
+        val builtInDetectedKind = AtomicReference(ErrorKind.NONE)
+
         val handlerKey = System.identityHashCode(handler)
         handler.addProcessListener(object : ProcessListener {
             override fun onTextAvailable(event: ProcessEvent, outputType: com.intellij.openapi.util.Key<*>) {
@@ -27,16 +33,44 @@ class AlertOnErrorExecutionListener : ExecutionListener {
                     outputBuffer.delete(0, outputBuffer.length - maxCapturedOutputChars)
                 }
 
-                val chunkKind = ErrorClassifier.detect(text, 0)
-                if (chunkKind != ErrorKind.NONE) {
-                    updateDetectedKind(detectedKind, chunkKind)
+                val engine = AlertSettings.getInstance().getCompiledRuleEngine()
+                val customKind = if (engine.hasLineTextRules) engine.matchLineText(text) else null
+                if (customKind != null) {
+                    // Custom rule matched: record it in the custom accumulator.
+                    // We do NOT also run built-in on this chunk — custom wins for this chunk.
+                    updateDetectedKind(customDetectedKind, customKind)
+                } else {
+                    // No custom match: run built-in classification and accumulate normally.
+                    val builtInKind = ErrorClassifier.detect(text, 0)
+                    if (builtInKind != ErrorKind.NONE) {
+                        updateDetectedKind(builtInDetectedKind, builtInKind)
+                    }
                 }
             }
 
             override fun processTerminated(event: ProcessEvent) {
                 val exitCode = event.exitCode
-                val bufferedKind = ErrorClassifier.detect(outputBuffer.toString(), exitCode)
-                var errorKind = if (detectedKind.get() != ErrorKind.NONE) detectedKind.get() else bufferedKind
+                val settings = AlertSettings.getInstance()
+                val engine = settings.getCompiledRuleEngine()
+                val fullText = outputBuffer.toString()
+
+                // Priority order (custom always beats built-in):
+                // 1. Custom FULL_OUTPUT rule on full buffer
+                // 2. Custom EXIT_CODE_AND_TEXT rule on full buffer + exit code
+                // 3. Custom LINE_TEXT chunk accumulation
+                // 4. Built-in chunk accumulation (highest-priority kind seen in chunks)
+                // 5. Built-in full-buffer classification
+                val customFinalKind =
+                    (if (engine.hasFullOutputRules) engine.matchFullOutput(fullText) else null)
+                        ?: (if (engine.hasExitCodeAndTextRules) engine.matchExitCodeAndText(fullText, exitCode) else null)
+                        ?: customDetectedKind.get().takeIf { it != ErrorKind.NONE }
+
+                var errorKind = if (customFinalKind != null) {
+                    customFinalKind
+                } else {
+                    val bufferedKind = ErrorClassifier.detect(fullText, exitCode)
+                    if (builtInDetectedKind.get() != ErrorKind.NONE) builtInDetectedKind.get() else bufferedKind
+                }
 
                 // Success: no error detected and clean exit → convert to SUCCESS
                 if (errorKind == ErrorKind.NONE && exitCode == 0) {
@@ -47,11 +81,11 @@ class AlertOnErrorExecutionListener : ExecutionListener {
                     return
                 }
 
-                val settings = AlertSettings.getInstance().state
+                val settingsState = settings.state
 
                 // Duration threshold — only applies to Run/Debug path (console and terminal excluded)
                 val elapsedMillis = System.currentTimeMillis() - startedAtMillis
-                val thresholdMillis = settings.minProcessDurationSeconds * 1_000L
+                val thresholdMillis = settingsState.minProcessDurationSeconds * 1_000L
                 if (elapsedMillis < thresholdMillis) {
                     log.debug(
                         "Alert suppressed by duration threshold: elapsed=${elapsedMillis}ms, threshold=${thresholdMillis}ms, kind=$errorKind"
@@ -64,7 +98,7 @@ class AlertOnErrorExecutionListener : ExecutionListener {
                 )
                 // Key is stable per run: one handler instance per run configuration launch
                 val key = "exec:$handlerKey:$errorKind"
-                AlertDispatcher.tryAlert(key, settings, errorKind, env.project)
+                AlertDispatcher.tryAlert(key, settingsState, errorKind, env.project)
             }
         })
     }
