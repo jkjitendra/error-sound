@@ -5,10 +5,26 @@ import com.intellij.openapi.components.PersistentStateComponent
 import com.intellij.openapi.components.Service
 import com.intellij.openapi.components.State
 import com.intellij.openapi.components.Storage
+import java.util.UUID
 
 @State(name = "ErrorSoundAlertSettings", storages = [Storage("errorSoundAlert.xml")])
 @Service(Service.Level.APP)
 class AlertSettings : PersistentStateComponent<AlertSettings.State> {
+
+    /** Where a custom rule pattern is applied when classifying output. */
+    enum class MatchTarget { LINE_TEXT, FULL_OUTPUT, EXIT_CODE_AND_TEXT }
+
+    /**
+     * A single user-defined regex rule.
+     * All fields have defaults so IntelliJ's XML serializer can create instances without arguments.
+     */
+    data class CustomRuleState(
+        var id: String = UUID.randomUUID().toString(),
+        var enabled: Boolean = true,
+        var pattern: String = "",
+        var matchTarget: String = MatchTarget.LINE_TEXT.name,
+        var kind: String = ErrorKind.GENERIC.name,
+    )
 
     data class State(
         var enabled: Boolean = true,
@@ -48,6 +64,9 @@ class AlertSettings : PersistentStateComponent<AlertSettings.State> {
         var showVisualNotification: Boolean = false,
         var visualNotificationOnError: Boolean = true,
         var visualNotificationOnSuccess: Boolean = true,
+
+        // Custom regex rules — evaluated before built-in classification
+        var customRules: MutableList<CustomRuleState> = mutableListOf(),
     )
 
     enum class SoundSource {
@@ -56,6 +75,9 @@ class AlertSettings : PersistentStateComponent<AlertSettings.State> {
     }
 
     private var state = State()
+
+    @Volatile
+    private var compiledRuleEngine: CustomRuleEngine? = null
 
     override fun getState(): State = state
 
@@ -72,7 +94,32 @@ class AlertSettings : PersistentStateComponent<AlertSettings.State> {
             successSoundId = normalizeSoundId(state.successSoundId),
             alertDurationSeconds = state.alertDurationSeconds.coerceIn(1, 10),
             minProcessDurationSeconds = state.minProcessDurationSeconds.coerceIn(0, 300),
+            customRules = state.customRules
+                .take(CustomRuleEngine.MAX_RULES)
+                .map { r ->
+                    r.copy(
+                        id = r.id.ifBlank { UUID.randomUUID().toString() },
+                        pattern = r.pattern.trim().take(CustomRuleEngine.MAX_PATTERN_LENGTH),
+                        matchTarget = (MatchTarget.entries.find { it.name == r.matchTarget }
+                            ?: MatchTarget.LINE_TEXT).name,
+                        kind = (ErrorKind.entries.find { it.name == r.kind }
+                            ?.takeIf { it in CustomRuleEngine.ALLOWED_CUSTOM_RULE_KINDS }
+                            ?: ErrorKind.GENERIC).name,
+                    )
+                }
+                .toMutableList(),
         )
+        compiledRuleEngine = null  // invalidate cached engine whenever settings change
+    }
+
+    /**
+     * Returns the compiled custom rule engine, creating and caching it on first access.
+     * The cache is invalidated by [loadState] (i.e., when the user presses Apply in settings).
+     */
+    fun getCompiledRuleEngine(): CustomRuleEngine {
+        return compiledRuleEngine ?: CustomRuleEngine(state.customRules).also {
+            compiledRuleEngine = it
+        }
     }
 
     private fun normalizeSoundId(id: String): String {

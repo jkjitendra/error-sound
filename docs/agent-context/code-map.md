@@ -6,18 +6,18 @@ Class-by-class reference for the `com.drostwades.errorsound` package.
 
 ## AlertDispatcher
 
-**File:** `AlertDispatcher.kt` (25 lines)  
-**Purpose:** Single routing choke-point. Gate order: `SnoozeState` → `AlertMonitoring` → `AlertEventGate` → `ErrorSoundPlayer`.
-**Purpose:** Single choke-point between the three detection paths and the audio player.
+**File:** `AlertDispatcher.kt`  
+**Purpose:** Single routing choke-point. Gate order: `SnoozeState` → `AlertMonitoring` → `AlertEventGate` → `ErrorSoundPlayer` → visual notification.
 
 | Method | Signature | Description |
 |---|---|---|
-| `tryAlert` | `(key: String, settings: State, kind: ErrorKind)` | Routes through `AlertMonitoring` → `AlertEventGate` → `ErrorSoundPlayer` |
+| `tryAlert` | `(key: String, settings: State, kind: ErrorKind, project: Project? = null)` | Routes through all gates; optionally shows balloon notification |
+| `showNotification` | `(settings: State, kind: ErrorKind, project: Project)` | Shows BALLOON notification with kind title + "Open Settings" / "Mute 1 hr" actions |
 
-- **Inputs:** deduplication key, current settings state, detected error kind
+- **Inputs:** deduplication key, current settings state, detected error kind, optional project
 - **Outputs:** none (fire-and-forget side effect)
-- **Side effects:** may trigger audio playback
-- **Risk:** LOW — thin routing layer, but every detection path depends on it
+- **Side effects:** may trigger audio playback; may show balloon notification
+- **Risk:** LOW-MEDIUM — thin routing layer, but every detection path depends on it
 
 ---
 
@@ -118,6 +118,9 @@ Class-by-class reference for the `com.drostwades.errorsound` package.
 - `successSoundEnabled` (default: `false`), `successSoundId` (default: `"yeah_boy"`) — success sound config
 - `minProcessDurationSeconds: Int = 0` — duration threshold for Run/Debug alerts (0 = disabled, max 300)
 - `customSoundPath` — absolute path to custom audio file
+- `showVisualNotification: Boolean = false` — master toggle for balloon notifications (off by default)
+- `visualNotificationOnError: Boolean = true` — show balloon on error alerts (when master is on)
+- `visualNotificationOnSuccess: Boolean = true` — show balloon on success alerts (when master is on)
 
 **Validation:** `loadState()` normalizes sound IDs and clamps numeric values.
 
@@ -243,7 +246,10 @@ Class-by-class reference for the `com.drostwades.errorsound` package.
 **File:** `SnoozeState.kt`  
 **Purpose:** Transient mute state. `AtomicLong snoozeUntilEpochMillis`. Not persisted.  
 **Key methods:** `isSnoozed()`, `snooze(minutes)`, `resume()`, `statusLabel()`  
+**Topic:** `SnoozeState.TOPIC` (application bus) — published by `snooze()` and `resume()` so any subscriber
+(e.g. the tool window) is notified of state changes regardless of call origin.  
+**SnoozeListener:** `fun interface SnoozeListener { fun snoozeChanged() }` — subscribe on the app message bus.  
 **Risk:** LOW — additive, no external dependencies.
 
 ---
-*Last updated from code scan: 2026-03-23*
+*Last updated from code scan: 2026-04-04*

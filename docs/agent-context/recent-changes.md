@@ -4,7 +4,48 @@ Engineering-significant changes to the codebase. Not a full changelog — focuse
 
 ---
 
-## v1.4.0 — Snooze / Mute
+## 1.1.4 — Visual Alert Companion
+
+### AlertDispatcher
+- `tryAlert()` gains a new optional parameter: `project: Project? = null`
+- After `ErrorSoundPlayer.play()`, conditionally calls `showNotification(settings, kind, project)`
+- Gate order updated: `SnoozeState` → `AlertMonitoring` → `AlertEventGate` → `ErrorSoundPlayer` → visual notification
+- Notification uses `NotificationGroupManager` with group id `"Error Sound Alert"` (registered in `plugin.xml`)
+- Balloon type: `WARNING` for errors, `INFORMATION` for success
+- Two inline actions: **Open Settings** (opens `ErrorSoundConfigurable`) and **Mute 1 hr** (calls `SnoozeState.snooze(60)`)
+
+### plugin.xml
+- Registered new `<notificationGroup>` extension: id `"Error Sound Alert"`, `displayType="BALLOON"`, `isLogByDefault="false"`
+
+### AlertSettings.State — New Fields
+- `showVisualNotification: Boolean = false` — master toggle (off by default)
+- `visualNotificationOnError: Boolean = true` — show balloon on error alerts
+- `visualNotificationOnSuccess: Boolean = true` — show balloon on success alerts
+
+### ErrorSoundConfigurable
+- New "Visual Notifications" section (below Min Process Duration, separated by divider)
+- Master checkbox: **Show balloon notification alongside sound**
+- Sub-row ("Notify on:"): **On errors** / **On successes** checkboxes
+- Sub-checkboxes disabled when master toggle is off
+
+### Call Sites Updated
+- `AlertOnErrorExecutionListener` → passes `env.project`
+- `ErrorConsoleFilterProvider` → passes `project`
+- `AlertOnTerminalCommandListener` → passes `project`
+
+### Spam Prevention
+- No extra deduplication needed — existing `AlertEventGate` cooldown naturally prevents balloon spam
+
+### SnoozeState — Bus Integration
+- Added `TOPIC: Topic<SnoozeListener>` on the application message bus
+- `snooze(minutes)` and `resume()` now call `publish()` after updating state
+- `ErrorSoundToolWindowPanel` subscribes to the topic in `init` — fires on any source (tool window links or balloon action)
+- Subscriber starts/stops `snoozeRefreshTimer` and calls `refreshUiState()` — same logic, single path
+- `doSnooze()` and `doResume()` in the tool window simplified to just call `SnoozeState`; bus handles the rest
+
+---
+
+## 1.4.0 — Snooze / Mute
 
 ### New File
 - `SnoozeState.kt` — transient singleton using `AtomicLong`. Provides `isSnoozed()`, `snooze(minutes)`, `resume()`, `statusLabel()`.
@@ -25,7 +66,7 @@ Engineering-significant changes to the codebase. Not a full changelog — focuse
 
 ---
 
-## v1.3.0 — Execution Time Threshold
+## 1.3.0 — Execution Time Threshold
 
 ### New Setting
 - `minProcessDurationSeconds: Int = 0` — suppress alerts if the process finishes faster than this value
@@ -42,7 +83,7 @@ Engineering-significant changes to the codebase. Not a full changelog — focuse
 
 ---
 
-## v1.2.0 — Success Sounds
+## 1.2.0 — Success Sounds
 
 ### ErrorKind.SUCCESS
 - **New enum value** `SUCCESS` added to `ErrorKind`
@@ -65,7 +106,7 @@ Engineering-significant changes to the codebase. Not a full changelog — focuse
 
 ---
 
-## v1.1.1 — Deduplication & Dispatch Overhaul
+## 1.1.1 — Deduplication & Dispatch Overhaul
 
 ### AlertDispatcher Introduction
 - **New class** `AlertDispatcher.kt` — single choke-point between all three detection paths and `ErrorSoundPlayer`
@@ -97,7 +138,7 @@ Engineering-significant changes to the codebase. Not a full changelog — focuse
 
 ---
 
-## v1.1.0 — Platform Migration
+## 1.1.0 — Platform Migration
 
 ### IntelliJ Platform Gradle Plugin 2.x Migration
 - Migrated from IntelliJ Gradle Plugin 1.x to IntelliJ Platform Gradle Plugin 2.12.0
@@ -125,14 +166,14 @@ Engineering-significant changes to the codebase. Not a full changelog — focuse
 
 ---
 
-## v1.0.4 — Error Monitor Tool Window
+## 1.0.4 — Error Monitor Tool Window
 - Added **Error Monitor** sidebar panel (`ErrorSoundToolWindowFactory`)
 - Per-kind toggle checkboxes with presets (All, Build Only, Runtime Only)
 - `AlertMonitoring` object introduced for centralized monitoring rule checks
 
-## v1.0.3 — Console Detection & Terminal
+## 1.0.3 — Console Detection & Terminal
 - Added `ErrorConsoleFilterProvider` for real-time console output scanning
 - Improved terminal compatibility with 2025.x reworked terminal engine
 
 ---
-*Last updated from code scan: 2026-03-19*
+*Last updated from code scan: 2026-04-04*

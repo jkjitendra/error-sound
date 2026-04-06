@@ -34,14 +34,19 @@ private class ErrorDetectionFilter(private val project: Project) : Filter {
     )
 
     override fun applyFilter(line: String, entireLength: Int): Filter.Result? {
-        if (!errorPattern.containsMatchIn(line)) return null
+        val settings = AlertSettings.getInstance()
+        val engine = settings.getCompiledRuleEngine()
 
-        val settings = AlertSettings.getInstance().state
-        val errorKind = ErrorClassifier.detect(line, 1)
+        // Custom LINE_TEXT rules are checked first on this hot path.
+        // FULL_OUTPUT and EXIT_CODE_AND_TEXT are not supported in the console filter path.
+        val customKind = if (engine.hasLineTextRules) engine.matchLineText(line) else null
+        if (customKind == null && !errorPattern.containsMatchIn(line)) return null
+
+        val errorKind = customKind ?: ErrorClassifier.detect(line, 1)
 
         // Key: project identity + error kind — stable across many console lines from the same project
         val key = "console:${project.locationHash}:$errorKind"
-        AlertDispatcher.tryAlert(key, settings, errorKind, project)
+        AlertDispatcher.tryAlert(key, settings.state, errorKind, project)
 
         // Return null — we only want the sound side-effect, not to modify the line
         return null
