@@ -6,19 +6,30 @@ import com.intellij.openapi.options.Configurable
 import com.intellij.openapi.ui.ComboBox
 import com.intellij.openapi.ui.TextFieldWithBrowseButton
 import com.intellij.ui.ContextHelpLabel
+import com.intellij.ui.JBColor
+import com.intellij.ui.ToolbarDecorator
 import com.intellij.ui.components.JBCheckBox
 import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.JBSlider
+import com.intellij.ui.table.JBTable
 import com.intellij.util.ui.FormBuilder
 import java.awt.BorderLayout
+import java.awt.Color
+import java.awt.Component
 import java.awt.FlowLayout
+import java.util.regex.PatternSyntaxException
 import javax.swing.BorderFactory
-import javax.swing.JButton
+import javax.swing.DefaultCellEditor
 import javax.swing.DefaultComboBoxModel
+import javax.swing.JButton
 import javax.swing.JComponent
+import javax.swing.JLabel
 import javax.swing.JPanel
+import javax.swing.JTable
 import javax.swing.event.DocumentEvent
 import javax.swing.event.DocumentListener
+import javax.swing.table.AbstractTableModel
+import javax.swing.table.DefaultTableCellRenderer
 
 class ErrorSoundConfigurable : Configurable {
 
@@ -70,6 +81,10 @@ class ErrorSoundConfigurable : Configurable {
     private val showVisualNotificationCheck = JBCheckBox("Show balloon notification alongside sound")
     private val visualNotificationOnErrorCheck = JBCheckBox("On errors")
     private val visualNotificationOnSuccessCheck = JBCheckBox("On successes")
+
+    // Custom regex rules table
+    private val customRuleTableModel = CustomRuleTableModel()
+    private val customRuleTable = JBTable(customRuleTableModel)
 
     override fun getDisplayName(): String = "Error Sound Alert"
 
@@ -235,6 +250,8 @@ class ErrorSoundConfigurable : Configurable {
                 1,
                 false
             )
+            .addSeparator(8)
+            .addComponent(createCustomRulesPanel(), 1)
             .addComponentFillVertically(JPanel(), 0)
             .panel
 
@@ -273,11 +290,14 @@ class ErrorSoundConfigurable : Configurable {
             (minDurationSpinner.value as? Int) != state.minProcessDurationSeconds ||
             showVisualNotificationCheck.isSelected != state.showVisualNotification ||
             visualNotificationOnErrorCheck.isSelected != state.visualNotificationOnError ||
-            visualNotificationOnSuccessCheck.isSelected != state.visualNotificationOnSuccess
+            visualNotificationOnSuccessCheck.isSelected != state.visualNotificationOnSuccess ||
+            customRuleTableModel.getRules() != state.customRules
     }
 
     override fun apply() {
         ErrorSoundPlayer.stopPreview()
+        // Stop any in-progress cell edit before reading table data
+        if (customRuleTable.isEditing) customRuleTable.cellEditor?.stopCellEditing()
 
         val selectedSource = (sourceCombo.selectedItem as? AlertSettings.SoundSource)?.name
             ?: AlertSettings.SoundSource.BUNDLED.name
@@ -310,8 +330,13 @@ class ErrorSoundConfigurable : Configurable {
                 showVisualNotification = showVisualNotificationCheck.isSelected,
                 visualNotificationOnError = visualNotificationOnErrorCheck.isSelected,
                 visualNotificationOnSuccess = visualNotificationOnSuccessCheck.isSelected,
+                customRules = customRuleTableModel.getRules().toMutableList(),
             )
         )
+        // Sync the table back to the normalized state (loadState() may have clamped rule count,
+        // truncated patterns, or corrected matchTarget/kind values). This ensures isModified()
+        // returns false immediately after Apply and the UI reflects what was actually persisted.
+        customRuleTableModel.setRules(settings.state.customRules)
     }
 
     override fun reset() {
@@ -361,6 +386,8 @@ class ErrorSoundConfigurable : Configurable {
                 syncPerKindToGlobal()
             }
             updateInputState()
+
+            customRuleTableModel.setRules(state.customRules)
         } finally {
             suppressPreview = false
         }
@@ -414,6 +441,165 @@ class ErrorSoundConfigurable : Configurable {
             add(visualNotificationOnSuccessCheck)
         }
     }
+
+    // ── Custom Rules Panel ─────────────────────────────────────────────────────
+
+    private fun createCustomRulesPanel(): JPanel {
+        customRuleTable.rowHeight = 24
+
+        val cm = customRuleTable.columnModel
+        cm.getColumn(0).apply {
+            preferredWidth = 60
+            maxWidth = 70
+        }
+        cm.getColumn(1).apply {
+            preferredWidth = 280
+            cellRenderer = PatternValidatingRenderer()
+        }
+        cm.getColumn(2).apply {
+            preferredWidth = 170
+            cellEditor = DefaultCellEditor(
+                javax.swing.JComboBox(AlertSettings.MatchTarget.entries.map { it.name }.toTypedArray())
+            )
+        }
+        cm.getColumn(3).apply {
+            preferredWidth = 140
+            cellEditor = DefaultCellEditor(
+                javax.swing.JComboBox(
+                    CustomRuleEngine.ALLOWED_CUSTOM_RULE_KINDS
+                        .sortedBy { it.name }
+                        .map { it.name }
+                        .toTypedArray()
+                )
+            )
+        }
+
+        val tablePanel = ToolbarDecorator.createDecorator(customRuleTable)
+            .disableUpAction()
+            .disableDownAction()
+            .setAddAction {
+                if (customRuleTable.isEditing) customRuleTable.cellEditor?.stopCellEditing()
+                customRuleTableModel.addRule(AlertSettings.CustomRuleState())
+                val newRow = customRuleTableModel.rowCount - 1
+                customRuleTable.setRowSelectionInterval(newRow, newRow)
+                customRuleTable.scrollRectToVisible(customRuleTable.getCellRect(newRow, 1, true))
+            }
+            .setRemoveAction {
+                if (customRuleTable.isEditing) customRuleTable.cellEditor?.stopCellEditing()
+                customRuleTable.selectedRows.sortedDescending().forEach { customRuleTableModel.removeRule(it) }
+            }
+            .createPanel()
+
+        val helpTop = JBLabel(
+            "<html>Custom rules run <b>before</b> built-in classification — first matching rule wins. " +
+                "Disabled rules and invalid patterns are ignored.</html>"
+        ).apply { border = BorderFactory.createEmptyBorder(0, 0, 4, 0) }
+
+        val helpBottom = JBLabel(
+            "<html>" +
+                "<b>Target scope — </b>" +
+                "LINE_TEXT: per line/chunk in Run/Debug and Console. " +
+                "FULL_OUTPUT: Run/Debug final buffered output only. " +
+                "EXIT_CODE_AND_TEXT: Run/Debug final output and Terminal (matches against " +
+                "<tt>exitcode:N\\n&lt;text&gt;</tt>)." +
+                "</html>"
+        ).apply {
+            foreground = JBColor.GRAY
+            border = BorderFactory.createEmptyBorder(4, 0, 0, 0)
+        }
+
+        return JPanel(BorderLayout(0, 0)).apply {
+            add(helpTop, BorderLayout.NORTH)
+            add(tablePanel, BorderLayout.CENTER)
+            add(helpBottom, BorderLayout.SOUTH)
+        }
+    }
+
+    // ── Inner classes ──────────────────────────────────────────────────────────
+
+    private class CustomRuleTableModel : AbstractTableModel() {
+        private val rules: MutableList<AlertSettings.CustomRuleState> = mutableListOf()
+
+        fun setRules(newRules: List<AlertSettings.CustomRuleState>) {
+            rules.clear()
+            rules.addAll(newRules.map { it.copy() })  // deep copy — edits in UI don't mutate settings
+            fireTableDataChanged()
+        }
+
+        fun getRules(): List<AlertSettings.CustomRuleState> = rules.toList()
+
+        fun addRule(rule: AlertSettings.CustomRuleState) {
+            rules.add(rule)
+            fireTableRowsInserted(rules.size - 1, rules.size - 1)
+        }
+
+        fun removeRule(index: Int) {
+            if (index in rules.indices) {
+                rules.removeAt(index)
+                fireTableRowsDeleted(index, index)
+            }
+        }
+
+        override fun getRowCount(): Int = rules.size
+        override fun getColumnCount(): Int = 4
+        override fun getColumnName(col: Int): String = when (col) {
+            0 -> "Enabled"
+            1 -> "Pattern"
+            2 -> "Match Target"
+            3 -> "Kind"
+            else -> ""
+        }
+        override fun getColumnClass(col: Int): Class<*> =
+            if (col == 0) Boolean::class.javaObjectType else String::class.java
+        override fun isCellEditable(row: Int, col: Int): Boolean = true
+
+        override fun getValueAt(row: Int, col: Int): Any = when (col) {
+            0 -> rules[row].enabled
+            1 -> rules[row].pattern
+            2 -> rules[row].matchTarget
+            3 -> rules[row].kind
+            else -> ""
+        }
+
+        override fun setValueAt(value: Any?, row: Int, col: Int) {
+            if (row !in rules.indices) return
+            when (col) {
+                0 -> rules[row].enabled = value as? Boolean ?: true
+                1 -> rules[row].pattern = value as? String ?: ""
+                2 -> rules[row].matchTarget = value as? String ?: AlertSettings.MatchTarget.LINE_TEXT.name
+                3 -> rules[row].kind = value as? String ?: ErrorKind.GENERIC.name
+            }
+            fireTableCellUpdated(row, col)
+        }
+    }
+
+    /** Renders the Pattern cell with a red tint when the regex is syntactically invalid. */
+    private class PatternValidatingRenderer : DefaultTableCellRenderer() {
+        override fun getTableCellRendererComponent(
+            table: JTable,
+            value: Any?,
+            isSelected: Boolean,
+            hasFocus: Boolean,
+            row: Int,
+            column: Int,
+        ): Component {
+            val comp = super.getTableCellRendererComponent(table, value, isSelected, hasFocus, row, column)
+            val pattern = value as? String ?: ""
+            if (pattern.isNotBlank() && !isSelected) {
+                val valid = try { java.util.regex.Pattern.compile(pattern); true }
+                catch (_: PatternSyntaxException) { false }
+                if (!valid) {
+                    comp.background = JBColor(Color(255, 185, 185), Color(110, 55, 55))
+                    (comp as? JLabel)?.toolTipText = "Invalid regex pattern"
+                } else {
+                    (comp as? JLabel)?.toolTipText = null
+                }
+            }
+            return comp
+        }
+    }
+
+    // ── Existing helpers (unchanged) ───────────────────────────────────────────
 
     private fun attachBuiltInPreview(combo: ComboBox<BuiltInSound>) {
         combo.addActionListener { previewSelectedBuiltIn(combo) }
