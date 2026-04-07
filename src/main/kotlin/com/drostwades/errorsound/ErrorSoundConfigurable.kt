@@ -445,25 +445,27 @@ class ErrorSoundConfigurable : Configurable {
     // ── Custom Rules Panel ─────────────────────────────────────────────────────
 
     private fun createCustomRulesPanel(): JPanel {
+        customRuleTable.autoResizeMode = JTable.AUTO_RESIZE_SUBSEQUENT_COLUMNS
+        customRuleTable.fillsViewportHeight = true
         customRuleTable.rowHeight = 24
 
         val cm = customRuleTable.columnModel
         cm.getColumn(0).apply {
-            preferredWidth = 60
-            maxWidth = 70
+            preferredWidth = 55
+            maxWidth = 65
         }
         cm.getColumn(1).apply {
-            preferredWidth = 280
+            preferredWidth = 220
             cellRenderer = PatternValidatingRenderer()
         }
         cm.getColumn(2).apply {
-            preferredWidth = 170
+            preferredWidth = 130
             cellEditor = DefaultCellEditor(
                 javax.swing.JComboBox(AlertSettings.MatchTarget.entries.map { it.name }.toTypedArray())
             )
         }
         cm.getColumn(3).apply {
-            preferredWidth = 140
+            preferredWidth = 120
             cellEditor = DefaultCellEditor(
                 javax.swing.JComboBox(
                     CustomRuleEngine.ALLOWED_CUSTOM_RULE_KINDS
@@ -488,21 +490,32 @@ class ErrorSoundConfigurable : Configurable {
                 if (customRuleTable.isEditing) customRuleTable.cellEditor?.stopCellEditing()
                 customRuleTable.selectedRows.sortedDescending().forEach { customRuleTableModel.removeRule(it) }
             }
-            .createPanel()
+            .createPanel().apply {
+                preferredSize = java.awt.Dimension(0, 180)
+            }
 
         val helpTop = JBLabel(
-            "<html>Custom rules run <b>before</b> built-in classification — first matching rule wins. " +
-                "Disabled rules and invalid patterns are ignored.</html>"
-        ).apply { border = BorderFactory.createEmptyBorder(0, 0, 4, 0) }
+            """
+        <html>
+          Custom rules run <b>before</b> built-in classification — first matching rule wins.
+          <br/>
+          Disabled rules and invalid patterns are ignored.
+        </html>
+        """.trimIndent()
+        ).apply {
+            border = BorderFactory.createEmptyBorder(0, 0, 4, 0)
+        }
 
         val helpBottom = JBLabel(
-            "<html>" +
-                "<b>Target scope — </b>" +
-                "LINE_TEXT: per line/chunk in Run/Debug and Console. " +
-                "FULL_OUTPUT: Run/Debug final buffered output only. " +
-                "EXIT_CODE_AND_TEXT: Run/Debug final output and Terminal (matches against " +
-                "<tt>exitcode:N\\n&lt;text&gt;</tt>)." +
-                "</html>"
+            """
+        <html>
+          <b>Target scope —</b><br/>
+          LINE_TEXT: per line/chunk in Run/Debug and Console.<br/>
+          FULL_OUTPUT: Run/Debug final buffered output only.<br/>
+          EXIT_CODE_AND_TEXT: Run/Debug final output and Terminal
+          (matches against <tt>exitcode:N\n&lt;text&gt;</tt>).
+        </html>
+        """.trimIndent()
         ).apply {
             foreground = JBColor.GRAY
             border = BorderFactory.createEmptyBorder(4, 0, 0, 0)
