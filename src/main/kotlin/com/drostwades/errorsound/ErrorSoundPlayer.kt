@@ -28,7 +28,15 @@ object ErrorSoundPlayer {
     private var previewThread: Thread? = null
     private val lastPlayTime = java.util.concurrent.atomic.AtomicLong(0L)
 
-    fun play(settings: AlertSettings.State, errorKind: ErrorKind = ErrorKind.GENERIC) {
+    /**
+     * Play an alert sound.
+     *
+     * @param soundOverride Optional built-in sound ID for this event only (Phase 6 exit-code
+     *                      rules). When non-null the override is played directly, bypassing the
+     *                      normal global/per-kind/custom-file resolution. All non-terminal callers
+     *                      pass null and are unaffected.
+     */
+    fun play(settings: AlertSettings.State, errorKind: ErrorKind = ErrorKind.GENERIC, soundOverride: String? = null) {
         val now = System.currentTimeMillis()
         val prev = lastPlayTime.get()
         if (now - prev < DEBOUNCE_MS) return
@@ -38,9 +46,14 @@ object ErrorSoundPlayer {
                 if (!isErrorKindEnabled(settings, errorKind)) {
                     return@runCatching
                 }
-                when (settings.soundSource) {
-                    AlertSettings.SoundSource.CUSTOM.name -> playCustom(settings)
-                    else -> playBuiltIn(settings, errorKind)
+                if (soundOverride != null) {
+                    // Per-event built-in override: skip custom-file and per-kind resolution
+                    playBuiltInById(soundOverride, settings)
+                } else {
+                    when (settings.soundSource) {
+                        AlertSettings.SoundSource.CUSTOM.name -> playCustom(settings)
+                        else -> playBuiltIn(settings, errorKind)
+                    }
                 }
             }.onFailure {
                 log.warn("Failed to play error sound", it)
@@ -86,6 +99,24 @@ object ErrorSoundPlayer {
 
         val audioBytes = file.readBytes()
         playClipLooping(audioBytes, settings)
+    }
+
+    /**
+     * Plays a specific built-in sound by ID, honoring volume and duration from [settings].
+     * Used when a per-event [soundOverride] is specified. Does not consult the custom-file path
+     * or per-kind sound mapping — the caller has already resolved the desired sound ID.
+     */
+    private fun playBuiltInById(soundId: String, settings: AlertSettings.State) {
+        val sound = BuiltInSounds.findByIdOrDefault(soundId)
+        val resourceBytes = readResourceBytes(sound.resourcePath)
+        if (resourceBytes != null) {
+            runCatching { playClipLooping(resourceBytes, settings) }
+                .onSuccess { return }
+                .onFailure { log.warn("Sound override playback failed for id=$soundId, falling back to generated tone", it) }
+        } else {
+            log.warn("Sound override resource not found: ${sound.resourcePath}")
+        }
+        playGeneratedTone(settings)
     }
 
     private fun playBuiltIn(settings: AlertSettings.State, errorKind: ErrorKind) {
