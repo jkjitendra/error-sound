@@ -86,6 +86,12 @@ class ErrorSoundConfigurable : Configurable {
     private val customRuleTableModel = CustomRuleTableModel()
     private val customRuleTable = JBTable(customRuleTableModel)
 
+    // Exit code rules table
+    private val soundChoices: List<SoundChoice> =
+        listOf(SoundChoice(null, "(default)")) + BuiltInSounds.all.map { SoundChoice(it.id, it.toString()) }
+    private val exitCodeRuleTableModel = ExitCodeRuleTableModel(soundChoices)
+    private val exitCodeRuleTable = JBTable(exitCodeRuleTableModel)
+
     override fun getDisplayName(): String = "Error Sound Alert"
 
     override fun createComponent(): JComponent {
@@ -252,6 +258,8 @@ class ErrorSoundConfigurable : Configurable {
             )
             .addSeparator(8)
             .addComponent(createCustomRulesPanel(), 1)
+            .addSeparator(8)
+            .addComponent(createExitCodeRulesPanel(), 1)
             .addComponentFillVertically(JPanel(), 0)
             .panel
 
@@ -291,13 +299,15 @@ class ErrorSoundConfigurable : Configurable {
             showVisualNotificationCheck.isSelected != state.showVisualNotification ||
             visualNotificationOnErrorCheck.isSelected != state.visualNotificationOnError ||
             visualNotificationOnSuccessCheck.isSelected != state.visualNotificationOnSuccess ||
-            customRuleTableModel.getRules() != state.customRules
+            customRuleTableModel.getRules() != state.customRules ||
+            exitCodeRuleTableModel.getRules() != state.exitCodeRules
     }
 
     override fun apply() {
         ErrorSoundPlayer.stopPreview()
         // Stop any in-progress cell edit before reading table data
         if (customRuleTable.isEditing) customRuleTable.cellEditor?.stopCellEditing()
+        if (exitCodeRuleTable.isEditing) exitCodeRuleTable.cellEditor?.stopCellEditing()
 
         val selectedSource = (sourceCombo.selectedItem as? AlertSettings.SoundSource)?.name
             ?: AlertSettings.SoundSource.BUNDLED.name
@@ -331,12 +341,12 @@ class ErrorSoundConfigurable : Configurable {
                 visualNotificationOnError = visualNotificationOnErrorCheck.isSelected,
                 visualNotificationOnSuccess = visualNotificationOnSuccessCheck.isSelected,
                 customRules = customRuleTableModel.getRules().toMutableList(),
+                exitCodeRules = exitCodeRuleTableModel.getRules().toMutableList(),
             )
         )
-        // Sync the table back to the normalized state (loadState() may have clamped rule count,
-        // truncated patterns, or corrected matchTarget/kind values). This ensures isModified()
-        // returns false immediately after Apply and the UI reflects what was actually persisted.
+        // Sync tables back to normalized state so isModified() returns false immediately after Apply.
         customRuleTableModel.setRules(settings.state.customRules)
+        exitCodeRuleTableModel.setRules(settings.state.exitCodeRules)
     }
 
     override fun reset() {
@@ -388,6 +398,7 @@ class ErrorSoundConfigurable : Configurable {
             updateInputState()
 
             customRuleTableModel.setRules(state.customRules)
+            exitCodeRuleTableModel.setRules(state.exitCodeRules)
         } finally {
             suppressPreview = false
         }
@@ -528,6 +539,93 @@ class ErrorSoundConfigurable : Configurable {
         }
     }
 
+    // ── Exit Code Rules Panel ──────────────────────────────────────────────────
+
+    private fun createExitCodeRulesPanel(): JPanel {
+        exitCodeRuleTable.autoResizeMode = JTable.AUTO_RESIZE_SUBSEQUENT_COLUMNS
+        exitCodeRuleTable.fillsViewportHeight = true
+        exitCodeRuleTable.rowHeight = 24
+
+        val cm = exitCodeRuleTable.columnModel
+        cm.getColumn(0).apply {      // Exit Code
+            preferredWidth = 75
+            maxWidth = 90
+        }
+        cm.getColumn(1).apply {      // Enabled
+            preferredWidth = 60
+            maxWidth = 70
+        }
+        cm.getColumn(2).apply {      // Kind
+            preferredWidth = 130
+            cellEditor = DefaultCellEditor(
+                javax.swing.JComboBox(
+                    CustomRuleEngine.ALLOWED_CUSTOM_RULE_KINDS
+                        .sortedBy { it.name }
+                        .map { it.name }
+                        .toTypedArray()
+                )
+            )
+        }
+        cm.getColumn(3).apply {      // Sound override
+            preferredWidth = 150
+            cellEditor = DefaultCellEditor(javax.swing.JComboBox(soundChoices.toTypedArray()))
+        }
+        cm.getColumn(4).apply {      // Suppress
+            preferredWidth = 70
+            maxWidth = 80
+        }
+
+        val tablePanel = ToolbarDecorator.createDecorator(exitCodeRuleTable)
+            .disableUpAction()
+            .disableDownAction()
+            .setAddAction {
+                if (exitCodeRuleTable.isEditing) exitCodeRuleTable.cellEditor?.stopCellEditing()
+                exitCodeRuleTableModel.addRule(AlertSettings.ExitCodeRuleState())
+                val newRow = exitCodeRuleTableModel.rowCount - 1
+                exitCodeRuleTable.setRowSelectionInterval(newRow, newRow)
+                exitCodeRuleTable.scrollRectToVisible(exitCodeRuleTable.getCellRect(newRow, 0, true))
+            }
+            .setRemoveAction {
+                if (exitCodeRuleTable.isEditing) exitCodeRuleTable.cellEditor?.stopCellEditing()
+                exitCodeRuleTable.selectedRows.sortedDescending().forEach { exitCodeRuleTableModel.removeRule(it) }
+            }
+            .createPanel().apply {
+                preferredSize = java.awt.Dimension(0, 160)
+            }
+
+        val helpTop = JBLabel(
+            """
+            <html>
+              Exit-code rules apply to <b>terminal</b> commands only — first matching enabled rule wins.
+              <br/>
+              Rules are checked <i>after</i> custom regex rules but before built-in classification.
+            </html>
+            """.trimIndent()
+        ).apply {
+            border = BorderFactory.createEmptyBorder(0, 0, 4, 0)
+        }
+
+        val helpBottom = JBLabel(
+            """
+            <html>
+              <b>Sound</b> — "(default)" uses normal kind/global resolution; any other value overrides
+              the sound for that event only.
+              <br/>
+              <b>Suppress</b> — silences the alert entirely (e.g. Ctrl+C / exit 130).
+            </html>
+            """.trimIndent()
+        ).apply {
+            foreground = JBColor.GRAY
+            border = BorderFactory.createEmptyBorder(4, 0, 0, 0)
+        }
+
+        return JPanel(BorderLayout(0, 0)).apply {
+            add(helpTop, BorderLayout.NORTH)
+            add(tablePanel, BorderLayout.CENTER)
+            add(helpBottom, BorderLayout.SOUTH)
+        }
+    }
+
     // ── Inner classes ──────────────────────────────────────────────────────────
 
     private class CustomRuleTableModel : AbstractTableModel() {
@@ -609,6 +707,117 @@ class ErrorSoundConfigurable : Configurable {
                 }
             }
             return comp
+        }
+    }
+
+    /** Wraps a nullable built-in sound ID for display in the Exit Code Rules sound combo column. */
+    private data class SoundChoice(val id: String?, val label: String) {
+        override fun toString(): String = label
+    }
+
+    private class ExitCodeRuleTableModel(
+        private val soundChoices: List<SoundChoice>,
+    ) : AbstractTableModel() {
+
+        /** Internal mutable row mirroring [AlertSettings.ExitCodeRuleState] with [SoundChoice] for col 3. */
+        private data class Row(
+            var exitCode: Int,
+            var enabled: Boolean,
+            var kind: String,
+            var sound: SoundChoice,
+            var suppress: Boolean,
+        )
+
+        private val rows: MutableList<Row> = mutableListOf()
+
+        private fun soundChoiceForId(id: String?): SoundChoice =
+            if (id == null) soundChoices.first() else soundChoices.find { it.id == id } ?: soundChoices.first()
+
+        fun setRules(newRules: List<AlertSettings.ExitCodeRuleState>) {
+            rows.clear()
+            newRules.forEach { r ->
+                rows.add(Row(
+                    exitCode = r.exitCode,
+                    enabled = r.enabled,
+                    kind = r.kind,
+                    sound = soundChoiceForId(r.soundId),
+                    suppress = r.suppress,
+                ))
+            }
+            fireTableDataChanged()
+        }
+
+        fun getRules(): List<AlertSettings.ExitCodeRuleState> = rows.map { r ->
+            AlertSettings.ExitCodeRuleState(
+                exitCode = r.exitCode,
+                enabled = r.enabled,
+                kind = r.kind,
+                soundId = r.sound.id,
+                suppress = r.suppress,
+            )
+        }
+
+        fun addRule(rule: AlertSettings.ExitCodeRuleState) {
+            rows.add(Row(
+                exitCode = rule.exitCode,
+                enabled = rule.enabled,
+                kind = rule.kind,
+                sound = soundChoiceForId(rule.soundId),
+                suppress = rule.suppress,
+            ))
+            fireTableRowsInserted(rows.size - 1, rows.size - 1)
+        }
+
+        fun removeRule(index: Int) {
+            if (index in rows.indices) {
+                rows.removeAt(index)
+                fireTableRowsDeleted(index, index)
+            }
+        }
+
+        override fun getRowCount(): Int = rows.size
+        override fun getColumnCount(): Int = 5
+        override fun getColumnName(col: Int): String = when (col) {
+            0 -> "Exit Code"
+            1 -> "Enabled"
+            2 -> "Kind"
+            3 -> "Sound"
+            4 -> "Suppress"
+            else -> ""
+        }
+        override fun getColumnClass(col: Int): Class<*> = when (col) {
+            0 -> Int::class.javaObjectType
+            1 -> Boolean::class.javaObjectType
+            2 -> String::class.java
+            3 -> SoundChoice::class.java
+            4 -> Boolean::class.javaObjectType
+            else -> Any::class.java
+        }
+        override fun isCellEditable(row: Int, col: Int): Boolean = true
+
+        override fun getValueAt(row: Int, col: Int): Any? = when (col) {
+            0 -> rows[row].exitCode
+            1 -> rows[row].enabled
+            2 -> rows[row].kind
+            3 -> rows[row].sound
+            4 -> rows[row].suppress
+            else -> null
+        }
+
+        override fun setValueAt(value: Any?, row: Int, col: Int) {
+            if (row !in rows.indices) return
+            when (col) {
+                0 -> rows[row].exitCode = when (value) {
+                    is Int -> value
+                    is String -> value.toIntOrNull() ?: rows[row].exitCode
+                    else -> rows[row].exitCode
+                }
+                1 -> rows[row].enabled = value as? Boolean ?: true
+                2 -> rows[row].kind = value as? String ?: ErrorKind.GENERIC.name
+                3 -> rows[row].sound = value as? SoundChoice ?: soundChoices.first()
+                4 -> rows[row].suppress = value as? Boolean ?: false
+            }
+            fireTableCellUpdated(row, col)
         }
     }
 
