@@ -4,33 +4,15 @@ Suggested features and safe extension points for future development.
 
 ---
 
-## 1. Visual Notifications
+## 1. Visual Notifications — DONE (v1.1.4)
 
-**Description:** Pair audio alert with a brief IntelliJ notification (balloon/toast) showing what failed.
-
-**Where it belongs:**
-- Add notification logic in `AlertDispatcher.tryAlert()` after sound plays
-- Use `NotificationGroupManager` with a registered notification group in `plugin.xml`
-- Add settings toggle for visual notifications
-
-**Files changed:** `AlertDispatcher.kt`, `plugin.xml`, `AlertSettings.kt`, `ErrorSoundConfigurable.kt`
-
-**Risks:** Low — standard IntelliJ API. Watch for notification spam; respect `AlertEventGate` deduplication.
+Implemented in Phase 4. See `recent-changes.md` for the full engineering summary.
 
 ---
 
-## 2. Custom Regex Error Rules
+## 2. Custom Regex Error Rules — DONE (v1.1.5)
 
-**Description:** Let users define custom error patterns in settings, with assigned ErrorKind or custom sounds.
-
-**Where it belongs:**
-- Add a list of `CustomRule(regex: String, kind: ErrorKind, soundId: String?)` to `AlertSettings.State`
-- Evaluate custom rules first in `ErrorClassifier.detect()`
-- Add table UI in `ErrorSoundConfigurable` for managing rules
-
-**Files changed:** `ErrorClassifier.kt`, `AlertSettings.kt`, `ErrorSoundConfigurable.kt`
-
-**Risks:** Medium — regex compilation errors need graceful handling. Performance impact if many rules are evaluated per console line.
+Implemented in Phase 5. See `recent-changes.md` for the full engineering summary.
 
 ---
 
@@ -63,4 +45,4 @@ Suggested features and safe extension points for future development.
 **Risks:** High — significant architectural change. Must handle settings merge carefully. Consider incremental approach (project-level enable/disable first).
 
 ---
-*Last updated from code scan: 2026-03-23*
+*Last updated from code scan: 2026-04-07*
