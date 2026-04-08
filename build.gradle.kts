@@ -7,7 +7,7 @@ plugins {
 }
 
 group = "com.drostwades"
-version = "1.1.4"
+version = "1.1.5"
 
 repositories {
     mavenCentral()
@@ -48,6 +48,7 @@ intellijPlatform {
               <li>7 built-in alert sounds: Boom, Faaa, Huh, Punch, Yeah Boy, Yooo, Dog Laughing</li>
               <li>Supports custom audio files (WAV, AIFF, AU)</li>
               <li>Smart error classification: configuration, compilation, test failure, network, exception</li>
+              <li><b>Custom regex rules:</b> define your own patterns mapped to error kinds, evaluated before built-in classification</li>
               <li>Per-kind sounds, or one global sound for all alerts</li>
               <li><b>Success sounds:</b> optional alert on successful process completion (off by default)</li>
               <li>Configurable volume (0–100%) and alert duration (1–10 seconds)</li>
@@ -62,6 +63,14 @@ intellijPlatform {
         """.trimIndent()
 
         changeNotes = """
+            <b>1.1.5</b>
+            <ul>
+              <li>New <b>Custom Regex Rules</b>: define your own patterns in Settings &rarr; Tools &rarr; Error Sound Alert and map them to an error kind</li>
+              <li>Custom rules are evaluated before built-in classification &mdash; first matching rule wins</li>
+              <li>Three match targets: <b>LINE_TEXT</b> (per line in Run/Debug and Console), <b>FULL_OUTPUT</b> (Run/Debug final buffered output), <b>EXIT_CODE_AND_TEXT</b> (Run/Debug and Terminal, matches against exit code + text)</li>
+              <li>Rules with invalid regex patterns are highlighted inline in the settings table and skipped at runtime without disrupting other rules</li>
+              <li>Disabled rules are preserved and can be re-enabled without re-entering the pattern</li>
+            </ul>
             <b>1.1.4</b>
             <ul>
               <li>New visual notification companion: shows a balloon notification alongside each sound alert (off by default)</li>
