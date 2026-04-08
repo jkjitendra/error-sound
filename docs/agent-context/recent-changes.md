@@ -4,6 +4,61 @@ Engineering-significant changes to the codebase. Not a full changelog — focuse
 
 ---
 
+## 1.1.5 — Custom Regex Rules
+
+### New File
+- `CustomRuleEngine.kt` — compiles and caches user-defined rules; provides `matchLineText()`, `matchFullOutput()`, `matchExitCodeAndText()` methods.
+
+### AlertOnErrorExecutionListener — chunk precedence fix
+- Introduced separate `customDetectedKind` (`AtomicReference`) alongside existing `builtInDetectedKind`
+- In `onTextAvailable()`: if a custom LINE_TEXT rule matches, the kind goes into `customDetectedKind` only; built-in `ErrorClassifier.detect()` is skipped for that chunk
+- In `processTerminated()`: custom wins at every level — FULL_OUTPUT → EXIT_CODE_AND_TEXT → custom LINE_TEXT accumulation → built-in accumulation → built-in full-buffer
+- This prevents a later high-priority built-in chunk match (e.g. CONFIGURATION) from overwriting an earlier custom match
+
+### AlertSettings — New Types
+- `enum class MatchTarget { LINE_TEXT, FULL_OUTPUT, EXIT_CODE_AND_TEXT }` (nested in `AlertSettings`)
+- `data class CustomRuleState(id, enabled, pattern, matchTarget, kind)` (nested in `AlertSettings`)
+- `State.customRules: MutableList<CustomRuleState> = mutableListOf()` — persisted list of rules
+
+### AlertSettings — Engine Cache
+- `compiledRuleEngine: CustomRuleEngine? (@Volatile)` — invalidated by `loadState()` on every Apply
+- `getCompiledRuleEngine()` — returns cached engine, compiles lazily on first call after invalidation
+
+### AlertSettings — loadState() Normalization
+- Clamps rule count to max 100
+- Trims/limits pattern to 500 chars
+- Normalizes `matchTarget` to valid `MatchTarget` enum (default LINE_TEXT)
+- Normalizes `kind` to a valid allowed kind (default GENERIC); NONE and SUCCESS excluded
+- Preserves/generates IDs; keeps invalid regex text for UI editing
+
+### CustomRuleEngine
+- Compiles rules once on construction; skips disabled rules, blank patterns, and invalid regex
+- `ALLOWED_CUSTOM_RULE_KINDS` = CONFIGURATION, COMPILATION, TEST_FAILURE, NETWORK, EXCEPTION, GENERIC
+- `MAX_RULES = 100`, `MAX_PATTERN_LENGTH = 500`
+- `hasLineTextRules / hasFullOutputRules / hasExitCodeAndTextRules` — fast guards to skip paths with no applicable rules
+- EXIT_CODE_AND_TEXT matching uses combined string `"exitcode:N\n<text>"` so patterns can reference exit code and/or text content
+
+### AlertOnErrorExecutionListener
+- `onTextAvailable()` — LINE_TEXT custom rules checked first; falls back to `ErrorClassifier.detect()`
+- `processTerminated()` — FULL_OUTPUT then EXIT_CODE_AND_TEXT custom rules applied to full buffer; if any match, custom kind overrides all built-in detection; otherwise existing logic (chunk accumulation + full-buffer detect) unchanged
+
+### ErrorConsoleFilterProvider
+- Custom LINE_TEXT rules checked before built-in `errorPattern`; FULL_OUTPUT and EXIT_CODE_AND_TEXT skipped (unsupported target for this path)
+
+### AlertOnTerminalCommandListener
+- EXIT_CODE_AND_TEXT custom rules checked before `ErrorClassifier.detectTerminal()`; LINE_TEXT and FULL_OUTPUT skipped (unsupported)
+
+### ErrorSoundConfigurable
+- New "Custom Regex Rules" section (below Visual Notifications, separated by divider)
+- `JBTable` via `ToolbarDecorator` with columns: Enabled / Pattern / Match Target / Kind
+- Add/Remove toolbar actions
+- Pattern column has inline validation renderer (red tint + tooltip for invalid regex)
+- Match Target column: combo box with LINE_TEXT / FULL_OUTPUT / EXIT_CODE_AND_TEXT
+- Kind column: combo box restricted to allowed kinds
+- Help text: custom rules run before built-in classification; target scope limitations documented inline
+
+---
+
 ## 1.1.4 — Visual Alert Companion
 
 ### AlertDispatcher
@@ -176,4 +231,4 @@ Engineering-significant changes to the codebase. Not a full changelog — focuse
 - Improved terminal compatibility with 2025.x reworked terminal engine
 
 ---
-*Last updated from code scan: 2026-04-04*
+*Last updated from code scan: 2026-04-07*
