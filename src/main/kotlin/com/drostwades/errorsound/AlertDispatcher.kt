@@ -18,20 +18,29 @@ import com.intellij.openapi.project.Project
  * 1. [SnoozeState] — transient mute check (fastest, no settings needed)
  * 2. [AlertMonitoring] — per-kind enabled check
  * 3. [AlertEventGate] — deduplication / cooldown
- * 4. [ErrorSoundPlayer] — playback
+ * 4. [ErrorSoundPlayer] — playback (optional per-event [soundOverride])
  * 5. Visual notification — balloon (after sound, guarded by [AlertSettings.State.showVisualNotification])
  *
- * @param key     Stable deduplication key — see [AlertEventGate.shouldPlay].
- * @param project The active project, used to anchor balloon notifications.
- *                Pass `null` if no project is available; notifications are skipped.
+ * @param key           Stable deduplication key — see [AlertEventGate.shouldPlay].
+ * @param soundOverride Optional built-in sound ID to use for this event only (Phase 6 exit-code
+ *                      rules). Null means use the normal global/per-kind resolution. All call
+ *                      sites except the terminal listener pass null.
+ * @param project       The active project, used to anchor balloon notifications.
+ *                      Pass `null` if no project is available; notifications are skipped.
  */
 object AlertDispatcher {
 
-    fun tryAlert(key: String, settings: AlertSettings.State, kind: ErrorKind, project: Project? = null) {
+    fun tryAlert(
+        key: String,
+        settings: AlertSettings.State,
+        kind: ErrorKind,
+        project: Project? = null,
+        soundOverride: String? = null,
+    ) {
         if (SnoozeState.isSnoozed()) return
         if (!AlertMonitoring.shouldMonitor(settings, kind)) return
         if (!AlertEventGate.shouldPlay(key)) return
-        ErrorSoundPlayer.play(settings, kind)
+        ErrorSoundPlayer.play(settings, kind, soundOverride)
         if (settings.showVisualNotification && project != null) {
             showNotification(settings, kind, project)
         }
