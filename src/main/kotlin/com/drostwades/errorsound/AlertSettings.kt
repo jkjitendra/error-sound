@@ -11,11 +11,11 @@ import java.util.UUID
 @Service(Service.Level.APP)
 class AlertSettings : PersistentStateComponent<AlertSettings.State> {
 
-    /** Where a custom rule pattern is applied when classifying output. */
+    /** Where a custom regex rule pattern is applied when classifying output. */
     enum class MatchTarget { LINE_TEXT, FULL_OUTPUT, EXIT_CODE_AND_TEXT }
 
     /**
-     * A single user-defined regex rule.
+     * A single user-defined regex rule (Phase 5).
      * All fields have defaults so IntelliJ's XML serializer can create instances without arguments.
      */
     data class CustomRuleState(
@@ -24,6 +24,22 @@ class AlertSettings : PersistentStateComponent<AlertSettings.State> {
         var pattern: String = "",
         var matchTarget: String = MatchTarget.LINE_TEXT.name,
         var kind: String = ErrorKind.GENERIC.name,
+    )
+
+    /**
+     * A single exit-code-to-kind mapping rule for terminal alerts (Phase 6).
+     * All fields have defaults for XML serializer compatibility.
+     *
+     * - [suppress] = true means the alert is silenced for this exit code entirely.
+     * - [soundId]  = non-null overrides the built-in sound used for this event only;
+     *               null means use normal kind/global resolution.
+     */
+    data class ExitCodeRuleState(
+        var exitCode: Int = 0,
+        var enabled: Boolean = true,
+        var kind: String = ErrorKind.GENERIC.name,
+        var soundId: String? = null,
+        var suppress: Boolean = false,
     )
 
     data class State(
@@ -65,8 +81,21 @@ class AlertSettings : PersistentStateComponent<AlertSettings.State> {
         var visualNotificationOnError: Boolean = true,
         var visualNotificationOnSuccess: Boolean = true,
 
-        // Custom regex rules — evaluated before built-in classification
+        // Custom regex rules — evaluated before built-in classification (Phase 5)
         var customRules: MutableList<CustomRuleState> = mutableListOf(),
+
+        // Exit-code rules for terminal alerts (Phase 6).
+        // Default rules cover common shell exit codes.
+        var exitCodeRules: MutableList<ExitCodeRuleState> = mutableListOf(
+            // 130 = SIGINT (Ctrl+C) — user-initiated, suppress by default
+            ExitCodeRuleState(exitCode = 130, enabled = true, kind = ErrorKind.GENERIC.name, soundId = null, suppress = true),
+            // 127 = command not found
+            ExitCodeRuleState(exitCode = 127, enabled = true, kind = ErrorKind.GENERIC.name, soundId = null, suppress = false),
+            // 137 = SIGKILL (OOM or kill -9)
+            ExitCodeRuleState(exitCode = 137, enabled = true, kind = ErrorKind.GENERIC.name, soundId = null, suppress = false),
+            // 143 = SIGTERM (graceful kill)
+            ExitCodeRuleState(exitCode = 143, enabled = true, kind = ErrorKind.GENERIC.name, soundId = null, suppress = false),
+        ),
     )
 
     enum class SoundSource {
@@ -108,6 +137,17 @@ class AlertSettings : PersistentStateComponent<AlertSettings.State> {
                     )
                 }
                 .toMutableList(),
+            exitCodeRules = state.exitCodeRules.map { r ->
+                r.copy(
+                    kind = (ErrorKind.entries.find { it.name == r.kind }
+                        ?.takeIf { it in CustomRuleEngine.ALLOWED_CUSTOM_RULE_KINDS }
+                        ?: ErrorKind.GENERIC).name,
+                    // Normalize soundId: blank/CUSTOM_FILE treated as no override
+                    soundId = r.soundId
+                        ?.takeIf { it.isNotBlank() && it != BuiltInSounds.CUSTOM_FILE_ID }
+                        ?.let { normalizeSoundId(it) },
+                )
+            }.toMutableList(),
         )
         compiledRuleEngine = null  // invalidate cached engine whenever settings change
     }

@@ -530,16 +530,29 @@ class AlertOnTerminalCommandListener : ProjectActivity {
         val settings = AlertSettings.getInstance()
         val engine = settings.getCompiledRuleEngine()
 
-        // EXIT_CODE_AND_TEXT custom rules take precedence over built-in terminal detection.
+        // Step 1 — Phase 5: EXIT_CODE_AND_TEXT custom regex rules (highest priority).
         // LINE_TEXT and FULL_OUTPUT targets are not supported in the terminal path.
         val customKind = if (engine.hasExitCodeAndTextRules) engine.matchExitCodeAndText(command, exitCode) else null
-        val errorKind = customKind ?: ErrorClassifier.detectTerminal(command, exitCode)
-        if (errorKind == ErrorKind.NONE) return
+        if (customKind != null) {
+            if (customKind == ErrorKind.NONE) return
+            log.debug("ErrorSound: [Event] custom regex matched '$command' exitCode=$exitCode kind=$customKind")
+            val key = "terminal:${project.locationHash}:${command.trim()}:$exitCode:$customKind"
+            AlertDispatcher.tryAlert(key, settings.state, customKind, project)
+            return
+        }
 
-        log.debug("ErrorSound: [Event] dispatching alert for '$command' exitCode=$exitCode kind=$errorKind")
-        // Key: project + command + exit code + kind — stable for repeated identical commands
-        val key = "terminal:${project.locationHash}:${command.trim()}:$exitCode:$errorKind"
-        AlertDispatcher.tryAlert(key, settings.state, errorKind, project)
+        // Step 2 — Phase 6: exit-code rules (kind mapping, sound override, suppression).
+        // Step 3 — fallback: built-in detectTerminal() (handled inside classifyTerminal).
+        val termResult = ErrorClassifier.classifyTerminal(command, exitCode, settings.state.exitCodeRules)
+        if (termResult.suppressed) {
+            log.debug("ErrorSound: [Event] alert suppressed by exit-code rule for exitCode=$exitCode")
+            return
+        }
+        if (termResult.kind == ErrorKind.NONE) return
+
+        log.debug("ErrorSound: [Event] dispatching alert for '$command' exitCode=$exitCode kind=${termResult.kind} soundOverride=${termResult.soundOverride}")
+        val key = "terminal:${project.locationHash}:${command.trim()}:$exitCode:${termResult.kind}"
+        AlertDispatcher.tryAlert(key, settings.state, termResult.kind, project, termResult.soundOverride)
     }
 
     private fun extractCommandAndExitCode(event: Any): Pair<String, Int>? {
