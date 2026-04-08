@@ -4,6 +4,30 @@ Class-by-class reference for the `com.drostwades.errorsound` package.
 
 ---
 
+## CustomRuleEngine
+
+**File:** `CustomRuleEngine.kt`
+**Purpose:** Compiles and caches user-defined regex rules from `AlertSettings.State.customRules`. Provides target-specific match methods used by all three detection paths.
+
+| Method | Description |
+|---|---|
+| `matchLineText(line)` | Matches LINE_TEXT rules against a single line/chunk |
+| `matchFullOutput(text)` | Matches FULL_OUTPUT rules against the complete buffered output |
+| `matchExitCodeAndText(text, exitCode)` | Matches EXIT_CODE_AND_TEXT rules against `"exitcode:N\n<text>"` |
+
+**Guards:** `hasLineTextRules`, `hasFullOutputRules`, `hasExitCodeAndTextRules` — `Boolean` flags to skip evaluation when no applicable rules exist.
+
+**Constants:**
+- `MAX_RULES = 100` — rules beyond this count are ignored
+- `MAX_PATTERN_LENGTH = 500` — patterns truncated to this length at normalization
+- `ALLOWED_CUSTOM_RULE_KINDS` — CONFIGURATION, COMPILATION, TEST_FAILURE, NETWORK, EXCEPTION, GENERIC (NONE and SUCCESS excluded)
+
+**Construction:** Compiles rules once; skips disabled rules, blank patterns, and invalid regex (`PatternSyntaxException` caught silently).
+
+- **Risk:** LOW — pure computation, no side effects
+
+---
+
 ## AlertDispatcher
 
 **File:** `AlertDispatcher.kt`  
@@ -60,7 +84,7 @@ Class-by-class reference for the `com.drostwades.errorsound` package.
 
 ## AlertOnErrorExecutionListener
 
-**File:** `AlertOnErrorExecutionListener.kt` (79 lines)
+**File:** `AlertOnErrorExecutionListener.kt`
 **Purpose:** Listens to Run/Debug process lifecycle. Captures output, classifies errors, dispatches alerts on process termination.
 
 | Method | Signature | Description |
@@ -69,8 +93,9 @@ Class-by-class reference for the `com.drostwades.errorsound` package.
 
 **Internal logic:**
 - Output buffer capped at 1M characters
-- `ErrorClassifier.detect()` runs on each chunk + final buffer
-- Priority system: CONFIGURATION > COMPILATION > TEST_FAILURE > NETWORK > EXCEPTION > GENERIC > NONE
+- `onTextAvailable()` — LINE_TEXT custom rules checked first per chunk; falls back to `ErrorClassifier.detect()` if no match
+- `processTerminated()` — FULL_OUTPUT then EXIT_CODE_AND_TEXT custom rules applied to full buffer first; if matched, custom kind overrides everything; otherwise chunk accumulation + full-buffer `ErrorClassifier.detect()`
+- Priority system for chunk accumulation: CONFIGURATION > COMPILATION > TEST_FAILURE > NETWORK > EXCEPTION > GENERIC > NONE
 - If final kind is NONE and exitCode == 0, converts to SUCCESS
 - Duration threshold: if `elapsedMillis < minProcessDurationSeconds * 1000`, alert suppressed (Run/Debug only)
 - Dedup key: `"exec:{handlerIdentityHash}:{errorKind}"`
@@ -103,8 +128,12 @@ Class-by-class reference for the `com.drostwades.errorsound` package.
 
 ## AlertSettings
 
-**File:** `AlertSettings.kt` (79 lines)
+**File:** `AlertSettings.kt`
 **Purpose:** Persistent application-level settings. Stored in `errorSoundAlert.xml`.
+
+**Nested types:**
+- `enum class MatchTarget { LINE_TEXT, FULL_OUTPUT, EXIT_CODE_AND_TEXT }` — where a custom rule pattern applies
+- `data class CustomRuleState(id, enabled, pattern, matchTarget, kind)` — a single user-defined rule
 
 **State fields:**
 - `enabled` — master toggle
@@ -121,8 +150,12 @@ Class-by-class reference for the `com.drostwades.errorsound` package.
 - `showVisualNotification: Boolean = false` — master toggle for balloon notifications (off by default)
 - `visualNotificationOnError: Boolean = true` — show balloon on error alerts (when master is on)
 - `visualNotificationOnSuccess: Boolean = true` — show balloon on success alerts (when master is on)
+- `customRules: MutableList<CustomRuleState> = mutableListOf()` — user-defined regex rules (evaluated before built-in classification)
 
-**Validation:** `loadState()` normalizes sound IDs and clamps numeric values.
+**Methods:**
+- `getCompiledRuleEngine(): CustomRuleEngine` — returns cached compiled rule engine; lazily created, invalidated by `loadState()`
+
+**Validation:** `loadState()` normalizes sound IDs, clamps numeric values, and normalizes custom rules (count, pattern length, matchTarget, kind, IDs).
 
 - **Risk:** LOW — standard `PersistentStateComponent` pattern
 
@@ -149,15 +182,21 @@ Class-by-class reference for the `com.drostwades.errorsound` package.
 
 ## ErrorConsoleFilterProvider
 
-**File:** `ErrorConsoleFilterProvider.kt` (50 lines)
+**File:** `ErrorConsoleFilterProvider.kt`
 **Purpose:** Registered as `consoleFilterProvider` extension. Provides an `ErrorDetectionFilter` that matches error patterns in every console line.
 
-**ErrorDetectionFilter patterns:** Exception, Error, FATAL, `Caused by:`, stack trace lines, BUILD FAILED, FAILURE:, Tests failed, compilation failed, command not found.
+**Detection order:**
+1. Custom LINE_TEXT rules (via `CustomRuleEngine.matchLineText()`) — checked first on every line
+2. Built-in `errorPattern` regex — only reached if no custom LINE_TEXT rule matched
+
+**FULL_OUTPUT and EXIT_CODE_AND_TEXT targets are explicitly skipped** — unsupported in this path.
+
+**ErrorDetectionFilter patterns (built-in):** Exception, Error, FATAL, `Caused by:`, stack trace lines, BUILD FAILED, FAILURE:, Tests failed, compilation failed, command not found.
 
 **Dedup key format:** `"console:{project.locationHash}:{errorKind}"`
 
 - **Side effects:** Calls `AlertDispatcher.tryAlert()` — returns `null` filter result (no text modification)
-- **Risk:** LOW-MEDIUM — false positives possible for benign lines containing "error"
+- **Risk:** LOW-MEDIUM — false positives possible for benign lines containing "error"; hot path — `hasLineTextRules` guard keeps overhead minimal when no custom rules exist
 
 ---
 
@@ -187,7 +226,7 @@ Class-by-class reference for the `com.drostwades.errorsound` package.
 
 ## ErrorSoundConfigurable
 
-**File:** `ErrorSoundConfigurable.kt` (456 lines)
+**File:** `ErrorSoundConfigurable.kt`
 **Purpose:** Settings UI panel registered under **Settings → Tools → Error Sound Alert**.
 
 **Key behaviors:**
@@ -195,7 +234,15 @@ Class-by-class reference for the `com.drostwades.errorsound` package.
 - Preview plays sound immediately on combo selection (suppressed during programmatic updates via `suppressPreview` flag)
 - Global mode syncs all per-kind combos to the global selection
 - Custom file path refreshes all combo models to include/exclude custom option
-- `apply()` stops any active preview before saving
+- `apply()` stops any active preview, stops any in-progress cell edit, then saves
+
+**Custom Regex Rules section (Phase 5 addition):**
+- `CustomRuleTableModel` (inner class) — `AbstractTableModel` with deep-copy semantics on `setRules()` so table edits don't mutate settings until Apply
+- `PatternValidatingRenderer` (inner class) — renders Pattern column with red tint + tooltip for invalid regex
+- `ToolbarDecorator`-wrapped `JBTable` with Add/Remove actions
+- Match Target column: `DefaultCellEditor` with `JComboBox` over `MatchTarget` values
+- Kind column: `DefaultCellEditor` with `JComboBox` over `ALLOWED_CUSTOM_RULE_KINDS`
+- Help text: rules run before built-in; target scope limitations documented
 
 - **Risk:** LOW — UI-only, no business logic side effects beyond settings persistence
 
@@ -252,4 +299,4 @@ Class-by-class reference for the `com.drostwades.errorsound` package.
 **Risk:** LOW — additive, no external dependencies.
 
 ---
-*Last updated from code scan: 2026-04-04*
+*Last updated from code scan: 2026-04-07*
