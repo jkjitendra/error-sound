@@ -4,6 +4,49 @@ Engineering-significant changes to the codebase. Not a full changelog — focuse
 
 ---
 
+## 1.1.6 — Exit-Code-Specific Terminal Sounds
+
+### AlertSettings — New Type
+- `data class ExitCodeRuleState(exitCode, enabled, kind, soundId?, suppress)` (nested in `AlertSettings`)
+- `State.exitCodeRules: MutableList<ExitCodeRuleState>` — four default rules:
+  - exitCode=130 suppress=true (SIGINT / Ctrl+C — silenced by default)
+  - exitCode=127 suppress=false (command not found)
+  - exitCode=137 suppress=false (SIGKILL / OOM)
+  - exitCode=143 suppress=false (SIGTERM)
+
+### AlertSettings — loadState() Normalization (exit code rules)
+- `kind` normalized to allowed kinds (NONE/SUCCESS rejected → GENERIC)
+- `soundId` blank or `CUSTOM_FILE_ID` → `null`; non-null soundId passed through `normalizeSoundId()`
+
+### ErrorKind — New Types
+- `data class TerminalClassifyResult(kind: ErrorKind, soundOverride: String?, suppressed: Boolean)` — richer result from terminal classification
+- `ErrorClassifier.classifyTerminal(command, exitCode, exitCodeRules)` — iterates exit code rules (first enabled match wins), falls back to `detectTerminal()` if no rule matches
+
+### AlertOnTerminalCommandListener — Three-step terminal precedence
+`handleCommandFinished()` now applies three precedence tiers in order:
+1. Phase 5 custom EXIT_CODE_AND_TEXT regex rules (highest priority)
+2. Phase 6 exit code rules via `ErrorClassifier.classifyTerminal()` — check `suppressed` flag first; if suppressed, return silently
+3. Built-in `detectTerminal()` fallback (inside `classifyTerminal()` when no rule matches)
+
+### AlertDispatcher — soundOverride parameter
+- `tryAlert()` gains `soundOverride: String? = null` (backward-compatible)
+- Passes `soundOverride` to `ErrorSoundPlayer.play()` — only the terminal listener passes a non-null value
+
+### ErrorSoundPlayer — soundOverride support
+- `play(settings, errorKind, soundOverride: String? = null)` — if non-null, skips normal sound resolution
+- New private `playBuiltInById(soundId, settings)` — resolves and plays by ID directly, falls back to generated tone on failure
+
+### ErrorSoundConfigurable — Exit Code Rules section
+- New "Exit-Code Rules" table section (below Custom Regex Rules, separated by divider)
+- `JBTable` via `ToolbarDecorator` with Add/Remove; 5 columns: Exit Code / Enabled / Kind / Sound / Suppress
+- `ExitCodeRuleTableModel` (inner class) — `AbstractTableModel` with internal `Row` data class; `SoundChoice` for nullable sound column
+- `SoundChoice` (inner data class) — wraps nullable sound ID; `null` = "(default)"; uses `toString()` = label for JComboBox display
+- Sound column: `DefaultCellEditor(JComboBox(soundChoices))` — "(default)" + all `BuiltInSounds.all` entries
+- Kind column: `DefaultCellEditor(JComboBox(ALLOWED_CUSTOM_RULE_KINDS))`
+- Help text: exit-code rules apply to terminal only; Sound "(default)" semantics; Suppress explained
+
+---
+
 ## 1.1.5 — Custom Regex Rules
 
 ### New File
