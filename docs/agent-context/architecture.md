@@ -35,9 +35,15 @@
 - **Flow:**
   1. Builds a JDK `Proxy` implementing `ShellCommandListener` and/or `TerminalCommandExecutionListener`
   2. Attaches to both Block/Classic and Reworked terminal engines via reflection
-  3. Proxy handles `commandFinished`-like callbacks → `extractCommandAndExitCode()` → checks custom EXIT_CODE_AND_TEXT rules first, then `ErrorClassifier.detectTerminal()`
+  3. Proxy handles `commandFinished`-like callbacks → `extractCommandAndExitCode()` → three-tier classification:
+     - **Tier 1:** custom EXIT_CODE_AND_TEXT rules (`engine.matchExitCodeAndText()`) — if matched, dispatch immediately with no sound override
+     - **Tier 2:** `ErrorClassifier.classifyTerminal(command, exitCode, exitCodeRules)` → `TerminalClassifyResult(kind, soundOverride, suppressed)`
+       - if `suppressed == true` → return silently (no alert, no log)
+       - if `kind == NONE` → return
+       - dispatch with `soundOverride` (null if the matching rule has no per-code sound set)
+     - **Tier 3:** built-in fallback — `classifyTerminal()` internally calls `detectTerminal()` when no exit-code rule matches (GENERIC for non-zero exit, NONE for zero)
   4. LINE_TEXT and FULL_OUTPUT rules are **skipped** in this path
-  5. → `AlertDispatcher.tryAlert("terminal:{projectHash}:{command}:{exitCode}:{kind}", settings, kind)`
+  5. → `AlertDispatcher.tryAlert("terminal:{projectHash}:{command}:{exitCode}:{kind}", settings, kind, project, soundOverride?)`
 
 ## Routing Flow
 
@@ -49,23 +55,47 @@ Detection Source
   ├── ErrorConsoleFilterProvider
   │     └── applyFilter: CustomRuleEngine.matchLineText() → built-in errorPattern → ErrorClassifier.detect()
   └── AlertOnTerminalCommandListener
-        └── handleCommandFinished: CustomRuleEngine.matchExitCodeAndText() → ErrorClassifier.detectTerminal()
+        └── handleCommandFinished:
+              1. CustomRuleEngine.matchExitCodeAndText()   [Phase 5 — highest priority]
+              2. ErrorClassifier.classifyTerminal()        [Phase 6 — exit-code rules + suppression]
+              3. ErrorClassifier.detectTerminal()          [built-in fallback inside classifyTerminal]
          │
          ▼
-   AlertDispatcher.tryAlert(key, settings, kind)
+   AlertDispatcher.tryAlert(key, settings, kind, project?, soundOverride?)
          │
          ├── SnoozeState.isSnoozed()
          │     └── short-circuits all gates (transient, no settings needed)
          │
          ├── AlertMonitoring.shouldMonitor(settings, kind)
          │     └── checks: settings.enabled + per-kind monitor flags
+         │     └── NOTE: kind-enable check still applies even when soundOverride is set
+         │           (soundOverride changes which sound plays; it does not bypass the kind gate)
          │
          ├── AlertEventGate.shouldPlay(key)
          │     └── per-key cooldown (4s) + global cooldown (2s) + eviction
          │
-         └── ErrorSoundPlayer.play(settings, kind)
-               └── last-resort debounce (250ms) + sound resolution + playback
+         └── ErrorSoundPlayer.play(settings, kind, soundOverride?)
+               └── if soundOverride != null → play that built-in ID directly (playBuiltInById)
+               └── else → normal sound resolution (global/per-kind/custom-file)
+               └── last-resort debounce (250ms)
 ```
+
+## soundOverride Policy
+
+**Decision: kind-enable check is NOT bypassed by soundOverride.**
+
+When a terminal exit-code rule specifies a `soundId` (i.e., `soundOverride` is non-null), the override only changes *which* sound is played — it does not skip the `AlertMonitoring.shouldMonitor()` gate or the per-kind sound-enable check inside `ErrorSoundPlayer.play()`.
+
+Example:
+- Exit code 137 → exit-code rule maps it to `kind=GENERIC`, `soundId="boom"`
+- User has `genericSoundEnabled = false` (GENERIC sounds disabled in settings)
+- **Result:** no sound plays — `isErrorKindEnabled()` returns `false` for GENERIC, playback is skipped entirely
+
+**Rationale:** The kind enable/disable flags represent the user's intent to receive or not receive a category of alerts. A per-event sound override is a cosmetic choice (which sound), not an escalation that overrides the alert policy. If a user disables GENERIC sounds, they mean to suppress GENERIC alerts — including those triggered by exit-code rules.
+
+This policy is consistent, predictable, and avoids "phantom" sounds surprising users who have explicitly disabled a kind.
+
+---
 
 ## Settings / Configuration Flow
 
