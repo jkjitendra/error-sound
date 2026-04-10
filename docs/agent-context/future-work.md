@@ -16,18 +16,9 @@ Implemented in Phase 5. See `recent-changes.md` for the full engineering summary
 
 ---
 
-## 3. Exit-Code-Specific Terminal Sounds
+## 3. Exit-Code-Specific Terminal Sounds — DONE (v1.1.6)
 
-**Description:** Map specific terminal exit codes (e.g., 137 = OOM, 130 = SIGINT) to distinct sounds.
-
-**Where it belongs:**
-- Extend `ErrorClassifier.detectTerminal()` with exit-code-to-kind mapping
-- Or add a user-configurable exit code → sound map to `AlertSettings.State`
-- Update terminal handler in `AlertOnTerminalCommandListener.handleCommandFinished()`
-
-**Files changed:** `ErrorKind.kt`, `AlertOnTerminalCommandListener.kt`, `AlertSettings.kt`, possibly `ErrorSoundConfigurable.kt`
-
-**Risks:** Low — exit code mapping is straightforward. Watch for SIGINT (130) which is user-initiated and should probably not alert.
+Implemented in Phase 6. See `recent-changes.md` for the full engineering summary.
 
 ---
 

@@ -7,7 +7,7 @@ plugins {
 }
 
 group = "com.drostwades"
-version = "1.1.5"
+version = "1.1.6"
 
 repositories {
     mavenCentral()
@@ -49,6 +49,7 @@ intellijPlatform {
               <li>Supports custom audio files (WAV, AIFF, AU)</li>
               <li>Smart error classification: configuration, compilation, test failure, network, exception</li>
               <li><b>Custom regex rules:</b> define your own patterns mapped to error kinds, evaluated before built-in classification</li>
+              <li><b>Exit-code rules for terminal commands:</b> map specific exit codes to error kinds, optional per-code sound overrides, or suppress alerts entirely (e.g. silence Ctrl+C / exit&nbsp;130)</li>
               <li>Per-kind sounds, or one global sound for all alerts</li>
               <li><b>Success sounds:</b> optional alert on successful process completion (off by default)</li>
               <li>Configurable volume (0–100%) and alert duration (1–10 seconds)</li>
@@ -63,6 +64,12 @@ intellijPlatform {
         """.trimIndent()
 
         changeNotes = """
+            <b>1.1.6</b>
+            <ul>
+              <li>New <b>Exit-Code Rules</b> for terminal commands: map specific exit codes (e.g., 137&nbsp;=&nbsp;SIGKILL, 127&nbsp;=&nbsp;command not found) to error kinds, optional per-code sound overrides, and suppression (e.g., silence Ctrl+C / exit&nbsp;130 by default)</li>
+              <li>Rules configurable in Settings &rarr; Tools &rarr; Error Sound Alert under "Exit-Code Rules"</li>
+              <li>Applies to terminal path only; custom regex rules still take precedence</li>
+            </ul>
             <b>1.1.5</b>
             <ul>
               <li>New <b>Custom Regex Rules</b>: define your own patterns in Settings &rarr; Tools &rarr; Error Sound Alert and map them to an error kind</li>
