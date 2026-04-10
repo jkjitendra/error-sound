@@ -35,7 +35,7 @@ Class-by-class reference for the `com.drostwades.errorsound` package.
 
 | Method | Signature | Description |
 |---|---|---|
-| `tryAlert` | `(key: String, settings: State, kind: ErrorKind, project: Project? = null)` | Routes through all gates; optionally shows balloon notification |
+| `tryAlert` | `(key: String, settings: State, kind: ErrorKind, project: Project? = null, soundOverride: String? = null)` | Routes through all gates; optionally shows balloon notification |
 | `showNotification` | `(settings: State, kind: ErrorKind, project: Project)` | Shows BALLOON notification with kind title + "Open Settings" / "Mute 1 hr" actions |
 
 - **Inputs:** deduplication key, current settings state, detected error kind, optional project
@@ -117,7 +117,7 @@ Class-by-class reference for the `com.drostwades.errorsound` package.
 | `attachBlockTerminal` | private | Block/Classic terminal: `TerminalToolWindowManager` → widgets → session |
 | `attachReworkedTerminal` | private | Reworked terminal: `TerminalToolWindowTabsManager` → tabs → view → shell integration |
 | `buildListenerProxy` | private | Creates JDK `Proxy` implementing 1–2 listener interfaces |
-| `handleCommandFinished` | private | Extracts command+exitCode, classifies, dispatches via `AlertDispatcher` |
+| `handleCommandFinished` | private | Three-tier precedence: (1) custom EXIT_CODE_AND_TEXT regex, (2) exit code rules via `classifyTerminal()` with suppression check, (3) built-in fallback |
 | `extractCommandAndExitCode` | private | Reflection-based extraction from event objects |
 | `getShellIntegration` | private | 4-strategy fallback to get shell integration from a view |
 
@@ -134,6 +134,7 @@ Class-by-class reference for the `com.drostwades.errorsound` package.
 **Nested types:**
 - `enum class MatchTarget { LINE_TEXT, FULL_OUTPUT, EXIT_CODE_AND_TEXT }` — where a custom rule pattern applies
 - `data class CustomRuleState(id, enabled, pattern, matchTarget, kind)` — a single user-defined rule
+- `data class ExitCodeRuleState(exitCode, enabled, kind, soundId?, suppress)` — a single terminal exit-code rule
 
 **State fields:**
 - `enabled` — master toggle
@@ -151,11 +152,12 @@ Class-by-class reference for the `com.drostwades.errorsound` package.
 - `visualNotificationOnError: Boolean = true` — show balloon on error alerts (when master is on)
 - `visualNotificationOnSuccess: Boolean = true` — show balloon on success alerts (when master is on)
 - `customRules: MutableList<CustomRuleState> = mutableListOf()` — user-defined regex rules (evaluated before built-in classification)
+- `exitCodeRules: MutableList<ExitCodeRuleState>` — terminal exit code → kind/sound/suppress mapping (4 defaults: 130 suppress, 127/137/143 GENERIC)
 
 **Methods:**
 - `getCompiledRuleEngine(): CustomRuleEngine` — returns cached compiled rule engine; lazily created, invalidated by `loadState()`
 
-**Validation:** `loadState()` normalizes sound IDs, clamps numeric values, and normalizes custom rules (count, pattern length, matchTarget, kind, IDs).
+**Validation:** `loadState()` normalizes sound IDs, clamps numeric values, normalizes custom rules (count, pattern length, matchTarget, kind, IDs), and normalizes exit code rules (kind, soundId blank/CUSTOM_FILE → null).
 
 - **Risk:** LOW — standard `PersistentStateComponent` pattern
 
@@ -202,15 +204,18 @@ Class-by-class reference for the `com.drostwades.errorsound` package.
 
 ## ErrorClassifier / ErrorKind
 
-**File:** `ErrorKind.kt` (74 lines)
-**Purpose:** Error classification logic.
+**File:** `ErrorKind.kt` (121 lines)
+**Purpose:** Error classification logic and value types.
 
 **ErrorKind enum:** NONE, CONFIGURATION, COMPILATION, TEST_FAILURE, NETWORK, EXCEPTION, GENERIC, SUCCESS
+
+**`TerminalClassifyResult`** (data class): `(kind: ErrorKind, soundOverride: String?, suppressed: Boolean)` — richer result from terminal classification carrying an optional per-event sound override and a suppression flag.
 
 | Method | Description |
 |---|---|
 | `ErrorClassifier.detect(outputText, exitCode)` | Full-text classification against hardcoded string patterns |
 | `ErrorClassifier.detectTerminal(command, exitCode)` | Terminal-only: returns GENERIC for exitCode ≠ 0, NONE for 0 |
+| `ErrorClassifier.classifyTerminal(command, exitCode, exitCodeRules)` | Iterates exit code rules (first enabled match wins); falls back to `detectTerminal()` |
 
 **Classification priority (first match wins):**
 1. CONFIGURATION — `"could not resolve placeholder"`, `"beancreationexception"`, etc.
@@ -244,6 +249,13 @@ Class-by-class reference for the `com.drostwades.errorsound` package.
 - Kind column: `DefaultCellEditor` with `JComboBox` over `ALLOWED_CUSTOM_RULE_KINDS`
 - Help text: rules run before built-in; target scope limitations documented
 
+**Exit Code Rules section (Phase 6 addition):**
+- `ExitCodeRuleTableModel` (inner class) — `AbstractTableModel` with internal `Row` data class; handles `SoundChoice ↔ soundId` conversion in `setRules()`/`getRules()`
+- `SoundChoice` (inner data class) — wraps nullable built-in sound ID; `null` id = "(default)"; `toString()` returns label for JComboBox rendering
+- `ToolbarDecorator`-wrapped `JBTable` with Add/Remove; 5 columns: Exit Code / Enabled / Kind / Sound / Suppress
+- Sound column: `DefaultCellEditor(JComboBox(soundChoices))` — "(default)" + all `BuiltInSounds.all` entries
+- Applies to terminal path only; exit code rules checked after custom regex rules
+
 - **Risk:** LOW — UI-only, no business logic side effects beyond settings persistence
 
 ---
@@ -255,10 +267,11 @@ Class-by-class reference for the `com.drostwades.errorsound` package.
 
 | Method | Description |
 |---|---|
-| `play(settings, kind)` | Main alert path — 250ms debounce, executor-submitted |
+| `play(settings, kind, soundOverride?)` | Main alert path — if `soundOverride != null`, plays that built-in ID directly instead of normal resolution |
 | `previewBuiltIn(id, vol, dur)` | Preview a built-in sound |
 | `previewCustom(path, vol, dur)` | Preview a custom file |
 | `stopPreview()` | Cancel active preview |
+| `playBuiltInById(soundId, settings)` | (private) Resolves sound by ID and plays it; falls back to generated tone on failure |
 
 **Internals:**
 - Single-threaded bounded executor for alerts
