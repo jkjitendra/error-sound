@@ -101,6 +101,7 @@ Class-by-class reference for the `com.drostwades.errorsound` package.
 - Dedup key: `"exec:{handlerIdentityHash}:{errorKind}"`
 - Routes through `AlertDispatcher.tryAlert()`
 
+- Phase 7: `processTerminated()` resolves effective settings via `ResolvedSettingsResolver.getInstance(env.project).resolve()` — project-level `enabled` override is honoured at dispatch time
 - **Risk:** LOW — straightforward listener pattern
 
 ---
@@ -117,7 +118,7 @@ Class-by-class reference for the `com.drostwades.errorsound` package.
 | `attachBlockTerminal` | private | Block/Classic terminal: `TerminalToolWindowManager` → widgets → session |
 | `attachReworkedTerminal` | private | Reworked terminal: `TerminalToolWindowTabsManager` → tabs → view → shell integration |
 | `buildListenerProxy` | private | Creates JDK `Proxy` implementing 1–2 listener interfaces |
-| `handleCommandFinished` | private | Three-tier precedence: (1) custom EXIT_CODE_AND_TEXT regex, (2) exit code rules via `classifyTerminal()` with suppression check, (3) built-in fallback |
+| `handleCommandFinished` | private | Three-tier precedence: (1) custom EXIT_CODE_AND_TEXT regex, (2) exit code rules via `classifyTerminal()` with suppression check, (3) built-in fallback. Phase 7: uses `ResolvedSettingsResolver` for the settings state passed to `AlertDispatcher` |
 | `extractCommandAndExitCode` | private | Reflection-based extraction from event objects |
 | `getShellIntegration` | private | 4-strategy fallback to get shell integration from a view |
 
@@ -163,6 +164,47 @@ Class-by-class reference for the `com.drostwades.errorsound` package.
 
 ---
 
+## ProjectAlertSettings
+
+**File:** `ProjectAlertSettings.kt`  
+**Purpose:** Project-scoped settings service (Phase 7 — Project-Level Profiles). Persisted to workspace storage (`WORKSPACE_FILE`) so overrides are per-workspace, not shared across clones.
+
+**Level:** `@Service(Service.Level.PROJECT)`
+
+**State fields:**
+- `useOverride: Boolean = false` — whether the project-level enabled override is active
+- `enabledOverride: Boolean = true` — the override value (relevant only when `useOverride == true`)
+
+**Methods:**
+- `effectiveEnabledOverride(): Boolean?` — returns `null` (inherit global) or the override value
+- `getInstance(project): ProjectAlertSettings` — companion helper
+
+**Phase 7 scope:** Only the `enabled` flag can be overridden per project. All other settings (sounds, per-kind flags, custom rules, exit-code rules) are NOT stored here.
+
+- **Risk:** LOW — simple persistent state component, workspace-scoped
+
+---
+
+## ResolvedSettingsResolver
+
+**File:** `ResolvedSettingsResolver.kt`  
+**Purpose:** Project service (Phase 7) that merges project-level overrides on top of global application settings and returns the effective `AlertSettings.State` for the current project.
+
+**Level:** `@Service(Service.Level.PROJECT)`
+
+| Method | Description |
+|---|---|
+| `resolve()` | Returns a copy of global `AlertSettings.State` with `enabled` replaced by the project override if active; returns the global state object directly when no override is set |
+| `getInstance(project)` | Companion helper |
+
+**Phase 7 merge rule:** Only `enabled` may differ per project. Everything else comes unchanged from `AlertSettings.getInstance().state`.
+
+**Usage pattern:** All three detection paths call `ResolvedSettingsResolver.getInstance(project).resolve()` instead of `AlertSettings.getInstance().state` when passing settings to `AlertDispatcher.tryAlert()`.
+
+- **Risk:** LOW — thin delegating wrapper; only modifies one field
+
+---
+
 ## BuiltInSounds
 
 **File:** `BuiltInSounds.kt` (44 lines)
@@ -197,6 +239,7 @@ Class-by-class reference for the `com.drostwades.errorsound` package.
 
 **Dedup key format:** `"console:{project.locationHash}:{errorKind}"`
 
+- Phase 7: `AlertDispatcher.tryAlert()` call uses `ResolvedSettingsResolver.getInstance(project).resolve()` for the settings state — project-level `enabled` override is honoured
 - **Side effects:** Calls `AlertDispatcher.tryAlert()` — returns `null` filter result (no text modification)
 - **Risk:** LOW-MEDIUM — false positives possible for benign lines containing "error"; hot path — `hasLineTextRules` guard keeps overhead minimal when no custom rules exist
 
@@ -286,17 +329,23 @@ Class-by-class reference for the `com.drostwades.errorsound` package.
 
 ## ErrorSoundToolWindowFactory
 
-**File:** `ErrorSoundToolWindowFactory.kt` (357 lines)
+**File:** `ErrorSoundToolWindowFactory.kt`  
 **Purpose:** Error Monitor sidebar panel. Provides quick toggles for error monitoring categories.
 
 **Features:**
-- Master enable/disable checkbox
+- **Project Profile section (Phase 7):** "Use project override for monitoring enabled" + "Enable monitoring for this project" checkboxes
+- Master enable/disable checkbox (global)
 - Per-kind checkboxes with descriptions
 - Quick actions: Select All, Clear All
 - Presets: All, Build Only, Runtime Only
 - "Open sound settings" button → opens `ErrorSoundConfigurable`
 
-**Behavior:** Directly mutates `AlertSettings.state` fields (monitoring flags) on checkbox changes — no apply/reset cycle.
+**Behavior:**
+- Project Profile checkboxes mutate `ProjectAlertSettings.state` directly
+- Global enable checkbox mutates `AlertSettings.state.enabled`
+- `refreshUiState()` uses `ResolvedSettingsResolver.resolve().enabled` as the effective enabled value for greying out per-kind checkboxes and building the status label
+- Status label shows `(global)` or `(project override)` to clarify which setting is in effect
+- When project override is unchecked, `projectEnabledCheckBox` is disabled (greyed out)
 
 - **Risk:** LOW — UI-only
 
@@ -312,4 +361,4 @@ Class-by-class reference for the `com.drostwades.errorsound` package.
 **Risk:** LOW — additive, no external dependencies.
 
 ---
-*Last updated from code scan: 2026-04-07*
+*Last updated from code scan: 2026-04-11*
