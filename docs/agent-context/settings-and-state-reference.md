@@ -79,6 +79,36 @@ NONE and SUCCESS are explicitly excluded.
 
 ---
 
+## Project-Level State (`ProjectAlertSettings.State`) — Phase 7
+
+Stored in `WORKSPACE_FILE` (workspace-scoped, not shared across clones). Loaded by `ProjectAlertSettings.loadState()`.
+
+| Field | Type | Default | Notes |
+|---|---|---|---|
+| `useOverride` | Boolean | `false` | Whether the project-level `enabled` override is active |
+| `enabledOverride` | Boolean | `true` | The override value; ignored when `useOverride == false` |
+
+**Effective nullable override (via `effectiveEnabledOverride(): Boolean?`):**
+- `useOverride == false` → returns `null` (inherit global `enabled`)
+- `useOverride == true` → returns `enabledOverride`
+
+**Phase 7 scope:** Only `enabled` may be overridden per project. All other settings come from `AlertSettings.State`.
+
+---
+
+## Resolved Settings (`ResolvedSettingsResolver`) — Phase 7
+
+Not persisted. Computed on-demand via `resolve()`.
+
+| Output field | Resolution logic |
+|---|---|
+| `enabled` | `ProjectAlertSettings.effectiveEnabledOverride() ?: AlertSettings.state.enabled` |
+| All other fields | Copied unchanged from `AlertSettings.state` |
+
+Usage: all three detection paths call `ResolvedSettingsResolver.getInstance(project).resolve()` at dispatch time.
+
+---
+
 ## Transient State (`SnoozeState`)
 
 Not persisted. Resets on IDE restart.
@@ -116,4 +146,4 @@ Obtain via `AlertSettings.getInstance().getCompiledRuleEngine()`.
 6. `compiledRuleEngine` cache invalidated after every normalization
 
 ---
-*Last updated: 2026-04-07*
+*Last updated: 2026-04-11*
