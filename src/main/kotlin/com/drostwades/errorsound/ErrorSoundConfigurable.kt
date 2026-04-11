@@ -65,6 +65,55 @@ class ErrorSoundConfigurable : Configurable {
     private val successEnabledCheck = JBCheckBox("Enable")
     private val successSoundCombo = ComboBox(BuiltInSounds.all.toTypedArray())
 
+    // ── Per-kind volume controls (Phase 8 — Per-Kind Volume) ──────────────────
+    // Each kind has: a checkbox (activates the override), a slider (0–100), and a value label.
+    // Slider and label are disabled when the checkbox is unchecked.
+    private val configurationVolumeCheck  = JBCheckBox("Custom volume")
+    private val configurationVolumeSlider = JBSlider(0, 100, 80)
+    private val configurationVolumeLabel  = JBLabel("80%")
+
+    private val compilationVolumeCheck    = JBCheckBox("Custom volume")
+    private val compilationVolumeSlider   = JBSlider(0, 100, 80)
+    private val compilationVolumeLabel    = JBLabel("80%")
+
+    private val testFailureVolumeCheck    = JBCheckBox("Custom volume")
+    private val testFailureVolumeSlider   = JBSlider(0, 100, 80)
+    private val testFailureVolumeLabel    = JBLabel("80%")
+
+    private val networkVolumeCheck        = JBCheckBox("Custom volume")
+    private val networkVolumeSlider       = JBSlider(0, 100, 80)
+    private val networkVolumeLabel        = JBLabel("80%")
+
+    private val exceptionVolumeCheck      = JBCheckBox("Custom volume")
+    private val exceptionVolumeSlider     = JBSlider(0, 100, 80)
+    private val exceptionVolumeLabel      = JBLabel("80%")
+
+    private val genericVolumeCheck        = JBCheckBox("Custom volume")
+    private val genericVolumeSlider       = JBSlider(0, 100, 80)
+    private val genericVolumeLabel        = JBLabel("80%")
+
+    private val successVolumeCheck        = JBCheckBox("Custom volume")
+    private val successVolumeSlider       = JBSlider(0, 100, 80)
+    private val successVolumeLabel        = JBLabel("80%")
+
+    /**
+     * Maps each per-kind sound combo to a lambda that returns its effective preview volume.
+     * When the kind's "Custom volume" checkbox is checked, returns the kind slider value;
+     * otherwise falls back to the global [volumeSlider] value.
+     * [builtInSoundCombo] is intentionally absent — it always uses [volumeSlider].
+     */
+    private val kindVolumeMap: Map<ComboBox<BuiltInSound>, () -> Int> by lazy {
+        mapOf(
+            configurationSoundCombo to { if (configurationVolumeCheck.isSelected) configurationVolumeSlider.value else volumeSlider.value },
+            compilationSoundCombo   to { if (compilationVolumeCheck.isSelected)   compilationVolumeSlider.value   else volumeSlider.value },
+            testFailureSoundCombo   to { if (testFailureVolumeCheck.isSelected)   testFailureVolumeSlider.value   else volumeSlider.value },
+            networkSoundCombo       to { if (networkVolumeCheck.isSelected)       networkVolumeSlider.value       else volumeSlider.value },
+            exceptionSoundCombo     to { if (exceptionVolumeCheck.isSelected)     exceptionVolumeSlider.value     else volumeSlider.value },
+            genericSoundCombo       to { if (genericVolumeCheck.isSelected)       genericVolumeSlider.value       else volumeSlider.value },
+            successSoundCombo       to { if (successVolumeCheck.isSelected)       successVolumeSlider.value       else volumeSlider.value },
+        )
+    }
+
     private val customPathField = TextFieldWithBrowseButton()
     private val customPreviewButton = JButton("Preview")
     private val volumeSlider = JBSlider(0, 100, 80)
@@ -121,7 +170,7 @@ class ErrorSoundConfigurable : Configurable {
         durationSlider.minorTickSpacing = 1
         durationSlider.snapToTicks = true
 
-        volumeSlider.addChangeListener { updateSliderValueLabels() }
+        volumeSlider.addChangeListener { updateSliderValueLabels(); refreshUncheckedKindVolumeLabels() }
         durationSlider.addChangeListener {
             updateSliderValueLabels()
             if (!suppressPreview) {
@@ -187,46 +236,81 @@ class ErrorSoundConfigurable : Configurable {
             )
             .addLabeledComponent(
                 "Configuration error:",
-                withHelp(createErrorRow(configurationEnabledCheck, configurationSoundCombo), "Enable/disable sound for configuration errors and select its sound."),
-                1,
-                false
+                withHelp(
+                    createKindPanel(
+                        createErrorRow(configurationEnabledCheck, configurationSoundCombo),
+                        createKindVolumeRow(configurationVolumeCheck, configurationVolumeSlider, configurationVolumeLabel)
+                    ),
+                    "Enable/disable sound for configuration errors; optionally override volume for this kind."
+                ),
+                1, false
             )
             .addLabeledComponent(
                 "Compilation error:",
-                withHelp(createErrorRow(compilationEnabledCheck, compilationSoundCombo), "Enable/disable sound for compilation errors and select its sound."),
-                1,
-                false
+                withHelp(
+                    createKindPanel(
+                        createErrorRow(compilationEnabledCheck, compilationSoundCombo),
+                        createKindVolumeRow(compilationVolumeCheck, compilationVolumeSlider, compilationVolumeLabel)
+                    ),
+                    "Enable/disable sound for compilation errors; optionally override volume for this kind."
+                ),
+                1, false
             )
             .addLabeledComponent(
                 "Test failure:",
-                withHelp(createErrorRow(testFailureEnabledCheck, testFailureSoundCombo), "Enable/disable sound for test failures and select its sound."),
-                1,
-                false
+                withHelp(
+                    createKindPanel(
+                        createErrorRow(testFailureEnabledCheck, testFailureSoundCombo),
+                        createKindVolumeRow(testFailureVolumeCheck, testFailureVolumeSlider, testFailureVolumeLabel)
+                    ),
+                    "Enable/disable sound for test failures; optionally override volume for this kind."
+                ),
+                1, false
             )
             .addLabeledComponent(
                 "Network error:",
-                withHelp(createErrorRow(networkEnabledCheck, networkSoundCombo), "Enable/disable sound for network errors and select its sound."),
-                1,
-                false
+                withHelp(
+                    createKindPanel(
+                        createErrorRow(networkEnabledCheck, networkSoundCombo),
+                        createKindVolumeRow(networkVolumeCheck, networkVolumeSlider, networkVolumeLabel)
+                    ),
+                    "Enable/disable sound for network errors; optionally override volume for this kind."
+                ),
+                1, false
             )
             .addLabeledComponent(
                 "Exception:",
-                withHelp(createErrorRow(exceptionEnabledCheck, exceptionSoundCombo), "Enable/disable sound for exception-based errors and select its sound."),
-                1,
-                false
+                withHelp(
+                    createKindPanel(
+                        createErrorRow(exceptionEnabledCheck, exceptionSoundCombo),
+                        createKindVolumeRow(exceptionVolumeCheck, exceptionVolumeSlider, exceptionVolumeLabel)
+                    ),
+                    "Enable/disable sound for exception-based errors; optionally override volume for this kind."
+                ),
+                1, false
             )
             .addLabeledComponent(
                 "Generic error:",
-                withHelp(createErrorRow(genericEnabledCheck, genericSoundCombo), "Enable/disable sound for uncategorized errors and select its sound."),
-                1,
-                false
+                withHelp(
+                    createKindPanel(
+                        createErrorRow(genericEnabledCheck, genericSoundCombo),
+                        createKindVolumeRow(genericVolumeCheck, genericVolumeSlider, genericVolumeLabel)
+                    ),
+                    "Enable/disable sound for uncategorized errors; optionally override volume for this kind."
+                ),
+                1, false
             )
             .addSeparator(8)
             .addLabeledComponent(
                 "Success:",
-                withHelp(createErrorRow(successEnabledCheck, successSoundCombo), "Enable/disable sound for successful process completions (exit code 0)."),
-                1,
-                false
+                withHelp(
+                    createKindPanel(
+                        createErrorRow(successEnabledCheck, successSoundCombo),
+                        createKindVolumeRow(successVolumeCheck, successVolumeSlider, successVolumeLabel)
+                    ),
+                    "Enable/disable sound for successful process completions; optionally override volume for this kind."
+                ),
+                1, false
             )
             .addLabeledComponent(
                 "Custom sound file:",
@@ -292,6 +376,21 @@ class ErrorSoundConfigurable : Configurable {
             (genericSoundCombo.selectedItem as? BuiltInSound)?.id != state.genericSoundId ||
             successEnabledCheck.isSelected != state.successSoundEnabled ||
             (successSoundCombo.selectedItem as? BuiltInSound)?.id != state.successSoundId ||
+            // Phase 8: per-kind volume — check activation flag AND value when active
+            configurationVolumeCheck.isSelected != (state.configurationVolumePercent != null) ||
+            (configurationVolumeCheck.isSelected && configurationVolumeSlider.value != state.configurationVolumePercent) ||
+            compilationVolumeCheck.isSelected != (state.compilationVolumePercent != null) ||
+            (compilationVolumeCheck.isSelected && compilationVolumeSlider.value != state.compilationVolumePercent) ||
+            testFailureVolumeCheck.isSelected != (state.testFailureVolumePercent != null) ||
+            (testFailureVolumeCheck.isSelected && testFailureVolumeSlider.value != state.testFailureVolumePercent) ||
+            networkVolumeCheck.isSelected != (state.networkVolumePercent != null) ||
+            (networkVolumeCheck.isSelected && networkVolumeSlider.value != state.networkVolumePercent) ||
+            exceptionVolumeCheck.isSelected != (state.exceptionVolumePercent != null) ||
+            (exceptionVolumeCheck.isSelected && exceptionVolumeSlider.value != state.exceptionVolumePercent) ||
+            genericVolumeCheck.isSelected != (state.genericVolumePercent != null) ||
+            (genericVolumeCheck.isSelected && genericVolumeSlider.value != state.genericVolumePercent) ||
+            successVolumeCheck.isSelected != (state.successVolumePercent != null) ||
+            (successVolumeCheck.isSelected && successVolumeSlider.value != state.successVolumePercent) ||
             customPathField.text.trim() != state.customSoundPath ||
             volumeSlider.value != state.volumePercent ||
             durationSlider.value != state.alertDurationSeconds ||
@@ -333,6 +432,14 @@ class ErrorSoundConfigurable : Configurable {
                 genericSoundId = (genericSoundCombo.selectedItem as? BuiltInSound)?.id ?: BuiltInSounds.default.id,
                 successSoundEnabled = successEnabledCheck.isSelected,
                 successSoundId = (successSoundCombo.selectedItem as? BuiltInSound)?.id ?: "yeah_boy",
+                // Phase 8: per-kind volume — persist null when checkbox is unchecked
+                configurationVolumePercent = if (configurationVolumeCheck.isSelected) configurationVolumeSlider.value else null,
+                compilationVolumePercent   = if (compilationVolumeCheck.isSelected)   compilationVolumeSlider.value   else null,
+                testFailureVolumePercent   = if (testFailureVolumeCheck.isSelected)   testFailureVolumeSlider.value   else null,
+                networkVolumePercent       = if (networkVolumeCheck.isSelected)       networkVolumeSlider.value       else null,
+                exceptionVolumePercent     = if (exceptionVolumeCheck.isSelected)     exceptionVolumeSlider.value     else null,
+                genericVolumePercent       = if (genericVolumeCheck.isSelected)       genericVolumeSlider.value       else null,
+                successVolumePercent       = if (successVolumeCheck.isSelected)       successVolumeSlider.value       else null,
                 customSoundPath = customPathField.text.trim(),
                 volumePercent = volumeSlider.value,
                 alertDurationSeconds = durationSlider.value,
@@ -384,6 +491,36 @@ class ErrorSoundConfigurable : Configurable {
 
             successEnabledCheck.isSelected = state.successSoundEnabled
             selectSoundId(successSoundCombo, state.successSoundId)
+
+            // Phase 8: restore per-kind volume — check = non-null, slider = override or global fallback
+            configurationVolumeCheck.isSelected  = state.configurationVolumePercent != null
+            configurationVolumeSlider.value       = state.configurationVolumePercent ?: state.volumePercent
+            configurationVolumeLabel.text         = "${configurationVolumeSlider.value}%"
+
+            compilationVolumeCheck.isSelected     = state.compilationVolumePercent != null
+            compilationVolumeSlider.value         = state.compilationVolumePercent ?: state.volumePercent
+            compilationVolumeLabel.text           = "${compilationVolumeSlider.value}%"
+
+            testFailureVolumeCheck.isSelected     = state.testFailureVolumePercent != null
+            testFailureVolumeSlider.value         = state.testFailureVolumePercent ?: state.volumePercent
+            testFailureVolumeLabel.text           = "${testFailureVolumeSlider.value}%"
+
+            networkVolumeCheck.isSelected         = state.networkVolumePercent != null
+            networkVolumeSlider.value             = state.networkVolumePercent ?: state.volumePercent
+            networkVolumeLabel.text               = "${networkVolumeSlider.value}%"
+
+            exceptionVolumeCheck.isSelected       = state.exceptionVolumePercent != null
+            exceptionVolumeSlider.value           = state.exceptionVolumePercent ?: state.volumePercent
+            exceptionVolumeLabel.text             = "${exceptionVolumeSlider.value}%"
+
+            genericVolumeCheck.isSelected         = state.genericVolumePercent != null
+            genericVolumeSlider.value             = state.genericVolumePercent ?: state.volumePercent
+            genericVolumeLabel.text               = "${genericVolumeSlider.value}%"
+
+            successVolumeCheck.isSelected         = state.successVolumePercent != null
+            successVolumeSlider.value             = state.successVolumePercent ?: state.volumePercent
+            successVolumeLabel.text               = "${successVolumeSlider.value}%"
+
             volumeSlider.value = state.volumePercent
             durationSlider.value = state.alertDurationSeconds
             minDurationSpinner.value = state.minProcessDurationSeconds
@@ -444,6 +581,23 @@ class ErrorSoundConfigurable : Configurable {
         val notificationsEnabled = showVisualNotificationCheck.isSelected
         visualNotificationOnErrorCheck.isEnabled = notificationsEnabled
         visualNotificationOnSuccessCheck.isEnabled = notificationsEnabled
+
+        // Phase 8: per-kind volume slider and label are enabled only when their checkbox is checked.
+        // The checkbox itself is always enabled (independent of sound source and global mode).
+        configurationVolumeSlider.isEnabled = configurationVolumeCheck.isSelected
+        configurationVolumeLabel.isEnabled  = configurationVolumeCheck.isSelected
+        compilationVolumeSlider.isEnabled   = compilationVolumeCheck.isSelected
+        compilationVolumeLabel.isEnabled    = compilationVolumeCheck.isSelected
+        testFailureVolumeSlider.isEnabled   = testFailureVolumeCheck.isSelected
+        testFailureVolumeLabel.isEnabled    = testFailureVolumeCheck.isSelected
+        networkVolumeSlider.isEnabled       = networkVolumeCheck.isSelected
+        networkVolumeLabel.isEnabled        = networkVolumeCheck.isSelected
+        exceptionVolumeSlider.isEnabled     = exceptionVolumeCheck.isSelected
+        exceptionVolumeLabel.isEnabled      = exceptionVolumeCheck.isSelected
+        genericVolumeSlider.isEnabled       = genericVolumeCheck.isSelected
+        genericVolumeLabel.isEnabled        = genericVolumeCheck.isSelected
+        successVolumeSlider.isEnabled       = successVolumeCheck.isSelected
+        successVolumeLabel.isEnabled        = successVolumeCheck.isSelected
     }
 
     private fun createNotificationSubRow(): JPanel {
@@ -828,18 +982,16 @@ class ErrorSoundConfigurable : Configurable {
     }
 
     private fun previewSelectedBuiltIn(combo: ComboBox<BuiltInSound>) {
-        if (suppressPreview) {
-            return
-        }
-        if (!combo.isFocusOwner && !combo.isPopupVisible) {
-            return
-        }
+        if (suppressPreview) return
+        if (!combo.isFocusOwner && !combo.isPopupVisible) return
         val selectedId = (combo.selectedItem as? BuiltInSound)?.id ?: return
+        // Phase 8: use per-kind effective volume; absent from map means global combo → use volumeSlider
+        val effectiveVol = kindVolumeMap[combo]?.invoke() ?: volumeSlider.value
         ErrorSoundPlayer.stopPreview()
         if (selectedId == BuiltInSounds.CUSTOM_FILE_ID) {
-            ErrorSoundPlayer.previewCustom(customPathField.text.trim(), volumeSlider.value, durationSlider.value)
+            ErrorSoundPlayer.previewCustom(customPathField.text.trim(), effectiveVol, durationSlider.value)
         } else {
-            ErrorSoundPlayer.previewBuiltIn(selectedId, volumeSlider.value, durationSlider.value)
+            ErrorSoundPlayer.previewBuiltIn(selectedId, effectiveVol, durationSlider.value)
         }
     }
 
@@ -864,6 +1016,25 @@ class ErrorSoundConfigurable : Configurable {
         durationValueLabel.text = "Current: ${durationSlider.value} sec"
     }
 
+    /**
+     * Refreshes the display label of every per-kind volume row whose "Custom volume"
+     * checkbox is **unchecked**, so the greyed-out label mirrors the current global
+     * [volumeSlider] value instead of showing a stale fallback.
+     *
+     * Called from the global volume slider listener. Does not affect any kind whose
+     * checkbox is checked — those labels are owned by their own slider listener.
+     */
+    private fun refreshUncheckedKindVolumeLabels() {
+        val globalPct = volumeSlider.value
+        if (!configurationVolumeCheck.isSelected) configurationVolumeLabel.text = "$globalPct%"
+        if (!compilationVolumeCheck.isSelected)   compilationVolumeLabel.text   = "$globalPct%"
+        if (!testFailureVolumeCheck.isSelected)   testFailureVolumeLabel.text   = "$globalPct%"
+        if (!networkVolumeCheck.isSelected)       networkVolumeLabel.text       = "$globalPct%"
+        if (!exceptionVolumeCheck.isSelected)     exceptionVolumeLabel.text     = "$globalPct%"
+        if (!genericVolumeCheck.isSelected)       genericVolumeLabel.text       = "$globalPct%"
+        if (!successVolumeCheck.isSelected)       successVolumeLabel.text       = "$globalPct%"
+    }
+
     private fun createSliderPanel(slider: JBSlider, valueLabel: JBLabel): JPanel {
         return JPanel(BorderLayout()).apply {
             add(slider, BorderLayout.CENTER)
@@ -884,6 +1055,39 @@ class ErrorSoundConfigurable : Configurable {
         return JPanel(FlowLayout(FlowLayout.LEFT, 8, 0)).apply {
             add(enabledCheck)
             add(combo)
+        }
+    }
+
+    /**
+     * Stacks [soundRow] and [volumeRow] vertically into a single component
+     * for use with [com.intellij.util.ui.FormBuilder.addLabeledComponent].
+     */
+    private fun createKindPanel(soundRow: JPanel, volumeRow: JPanel): JPanel =
+        JPanel(BorderLayout(0, 2)).apply {
+            add(soundRow, BorderLayout.CENTER)
+            add(volumeRow, BorderLayout.SOUTH)
+        }
+
+    /**
+     * Creates the compact "Custom volume" row for a single error kind (Phase 8).
+     *
+     * Layout: [checkbox] [slider ── CENTER] ["xx%" label]
+     *
+     * The [slider] and [label] enabled state is managed by [updateInputState]; [check] is always enabled.
+     */
+    private fun createKindVolumeRow(check: JBCheckBox, slider: JBSlider, label: JBLabel): JPanel {
+        slider.paintTicks = true
+        slider.majorTickSpacing = 25
+        check.addActionListener { updateInputState() }
+        slider.addChangeListener { label.text = "${slider.value}%" }
+        val sliderWithLabel = JPanel(BorderLayout(4, 0)).apply {
+            add(slider, BorderLayout.CENTER)
+            label.border = BorderFactory.createEmptyBorder(0, 4, 0, 0)
+            add(label, BorderLayout.EAST)
+        }
+        return JPanel(BorderLayout(6, 0)).apply {
+            add(check, BorderLayout.WEST)
+            add(sliderWithLabel, BorderLayout.CENTER)
         }
     }
 
