@@ -33,7 +33,8 @@ Priority ladder (step 1 wins; later steps only reached if prior steps yield noth
 6. If `errorKind == NONE && exitCode == 0` → `errorKind = SUCCESS`
 7. If `errorKind == NONE` → return (no alert)
 8. Duration threshold: if `elapsed < minProcessDurationSeconds * 1000` → suppress + log
-9. `AlertDispatcher.tryAlert("exec:{handlerHash}:{kind}", state, kind, project)`
+9. **Phase 7:** `settingsState = ResolvedSettingsResolver.getInstance(env.project).resolve()`
+10. `AlertDispatcher.tryAlert("exec:{handlerHash}:{kind}", settingsState, kind, project)`
 
 ---
 
@@ -46,8 +47,9 @@ Priority ladder (step 1 wins; later steps only reached if prior steps yield noth
 2. If `engine.hasLineTextRules`: call `engine.matchLineText(line)` → `customKind`
 3. If `customKind == null && !errorPattern.containsMatchIn(line)` → return `null` (no alert, fast exit)
 4. `errorKind = customKind ?: ErrorClassifier.detect(line, exitCode=1)`
-5. `AlertDispatcher.tryAlert("console:{projectLocationHash}:{kind}", state, kind, project)`
-6. Return `null` (sound side-effect only; line is not modified)
+5. **Phase 7:** `resolvedState = ResolvedSettingsResolver.getInstance(project).resolve()`
+6. `AlertDispatcher.tryAlert("console:{projectLocationHash}:{kind}", resolvedState, kind, project)`
+7. Return `null` (sound side-effect only; line is not modified)
 
 **Unsupported targets:** FULL_OUTPUT and EXIT_CODE_AND_TEXT rules are never evaluated here.
 
@@ -61,12 +63,14 @@ Priority ladder (step 1 wins; later steps only reached if prior steps yield noth
 1. Proxy intercepts `commandFinished`-like callback
 2. `extractCommandAndExitCode(event)` → `(command: String, exitCode: Int)`
 3. Get compiled rule engine
-4. If `engine.hasExitCodeAndTextRules`: call `engine.matchExitCodeAndText(command, exitCode)` → `customKind`
-5. `errorKind = customKind ?: ErrorClassifier.detectTerminal(command, exitCode)`
-6. If `errorKind == NONE` → return
-7. `AlertDispatcher.tryAlert("terminal:{projectLocationHash}:{command}:{exitCode}:{kind}", state, kind, project)`
+4. **Phase 7:** `resolvedState = ResolvedSettingsResolver.getInstance(project).resolve()`
+5. If `engine.hasExitCodeAndTextRules`: call `engine.matchExitCodeAndText(command, exitCode)` → `customKind`
+6. `AlertDispatcher.tryAlert("terminal:{projectLocationHash}:{command}:{exitCode}:{kind}", resolvedState, kind, project)` (custom path)
+7. Or: `ErrorClassifier.classifyTerminal(command, exitCode, settings.state.exitCodeRules)` → `TerminalClassifyResult`
+8. `AlertDispatcher.tryAlert("terminal:...", resolvedState, kind, project, soundOverride?)` (exit-code rule path)
 
 **Unsupported targets:** LINE_TEXT and FULL_OUTPUT rules are never evaluated here.
+**Resolver note:** Exit-code rules still read from `settings.state.exitCodeRules` (global); only the state object passed to `AlertDispatcher` is resolved.
 
 ---
 
@@ -96,14 +100,15 @@ All rules compile with `IGNORE_CASE` and `MULTILINE` flags.
 
 ## AlertDispatcher Gate Order
 
-All three paths call `AlertDispatcher.tryAlert(key, settings, kind, project?)`. Gates are applied in this order; the first failure short-circuits:
+All three paths call `AlertDispatcher.tryAlert(key, resolvedSettings, kind, project?)`. Gates are applied in this order; the first failure short-circuits:
 
 ```
 1. SnoozeState.isSnoozed()          → if snoozed: return (no alert)
-2. AlertMonitoring.shouldMonitor()  → if !enabled or kind disabled: return
+2. AlertMonitoring.shouldMonitor()  → checks resolvedSettings.enabled + per-kind monitor flags
+                                      └─ Phase 7: resolvedSettings.enabled may differ per project
 3. AlertEventGate.shouldPlay(key)   → per-key cooldown 4s + global cooldown 2s
 4. ErrorSoundPlayer.play()          → 250ms last-resort debounce, then playback
-5. showNotification() [optional]    → balloon if showVisualNotification enabled
+5. showNotification() [optional]    → balloon if resolvedSettings.showVisualNotification enabled
 ```
 
 ---
@@ -152,4 +157,4 @@ Two layers, both must pass for an alert to play:
 - Only catches near-simultaneous calls that slip past the gate
 
 ---
-*Last updated: 2026-04-07*
+*Last updated: 2026-04-11*
