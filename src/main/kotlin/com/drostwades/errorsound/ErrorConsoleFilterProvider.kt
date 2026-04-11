@@ -46,7 +46,9 @@ private class ErrorDetectionFilter(private val project: Project) : Filter {
 
         // Key: project identity + error kind — stable across many console lines from the same project
         val key = "console:${project.locationHash}:$errorKind"
-        AlertDispatcher.tryAlert(key, settings.state, errorKind, project)
+        // Phase 7: use resolved effective settings so the per-project enabled override is respected.
+        val resolvedState = ResolvedSettingsResolver.getInstance(project).resolve()
+        AlertDispatcher.tryAlert(key, resolvedState, errorKind, project)
 
         // Return null — we only want the sound side-effect, not to modify the line
         return null
