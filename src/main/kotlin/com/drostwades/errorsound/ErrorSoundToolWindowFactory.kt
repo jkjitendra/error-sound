@@ -44,6 +44,9 @@ private class ErrorSoundToolWindowPanel(
     private val settings: AlertSettings.State
         get() = AlertSettings.getInstance().state
 
+    // Project profile helpers
+    private val projectSettings: ProjectAlertSettings
+        get() = ProjectAlertSettings.getInstance(project)
     private val titleLabel = JBLabel("Error Monitoring").apply {
         font = font.deriveFont(Font.BOLD, font.size2D + 1f)
     }
@@ -57,6 +60,27 @@ private class ErrorSoundToolWindowPanel(
         foreground = UIUtil.getContextHelpForeground()
         font = JBFont.small()
     }
+
+    // ── Project Profile controls (Phase 7) ────────────────────────────────────
+    /**
+     * When checked, the project-level override for `enabled` is active.
+     * When unchecked, this project inherits the global `enabled` value.
+     */
+    private val useProjectOverrideCheckBox = JBCheckBox(
+        "Use project override for monitoring enabled",
+        projectSettings.state.useOverride
+    )
+
+    /**
+     * Controls `enabled` for this project when [useProjectOverrideCheckBox] is checked.
+     * Disabled (greyed out) when the override is not active.
+     */
+    private val projectEnabledCheckBox = JBCheckBox(
+        "Enable monitoring for this project",
+        projectSettings.state.enabledOverride
+    )
+
+    // ── Global monitoring controls ─────────────────────────────────────────────
 
     private val enabledCheckBox = JBCheckBox("Enable monitoring", settings.enabled)
 
@@ -201,6 +225,14 @@ private class ErrorSoundToolWindowPanel(
         column.add(compact(buildHeader()))
         column.add(Box.createVerticalStrut(8))
 
+        // Phase 7 — Project Profile section
+        column.add(compact(TitledSeparator("Project Profile")))
+        column.add(Box.createVerticalStrut(6))
+        column.add(compact(buildProjectProfileSection()))
+        column.add(Box.createVerticalStrut(10))
+
+        column.add(compact(TitledSeparator("Global Monitoring")))
+        column.add(Box.createVerticalStrut(6))
         column.add(compact(enabledCheckBox))
         column.add(Box.createVerticalStrut(10))
 
@@ -265,6 +297,38 @@ private class ErrorSoundToolWindowPanel(
         panel.add(left(statusLabel))
 
         return panel
+    }
+
+    /**
+     * Builds the "Project Profile" UI section (Phase 7).
+     *
+     * Contains two checkboxes stacked vertically:
+     * 1. [useProjectOverrideCheckBox] — activates a per-project override
+     * 2. [projectEnabledCheckBox] — the override value (enabled only when override is active)
+     */
+    private fun buildProjectProfileSection(): JComponent {
+        val wrapper = JPanel()
+        wrapper.layout = BoxLayout(wrapper, BoxLayout.Y_AXIS)
+        wrapper.isOpaque = false
+
+        val hint = JBLabel("Override the global \"Enable monitoring\" for this project only.").apply {
+            foreground = UIUtil.getContextHelpForeground()
+            font = JBFont.small()
+            border = JBUI.Borders.emptyLeft(0)
+            alignmentX = Component.LEFT_ALIGNMENT
+        }
+
+        useProjectOverrideCheckBox.alignmentX = Component.LEFT_ALIGNMENT
+        projectEnabledCheckBox.alignmentX = Component.LEFT_ALIGNMENT
+        projectEnabledCheckBox.border = JBUI.Borders.emptyLeft(22)
+
+        wrapper.add(left(hint))
+        wrapper.add(Box.createVerticalStrut(4))
+        wrapper.add(useProjectOverrideCheckBox)
+        wrapper.add(Box.createVerticalStrut(2))
+        wrapper.add(projectEnabledCheckBox)
+
+        return wrapper
     }
 
     private fun buildQuickActions(): JComponent {
@@ -350,6 +414,20 @@ private class ErrorSoundToolWindowPanel(
     }
 
     private fun bindEvents() {
+        // ── Project Profile checkboxes (Phase 7) ──────────────────────────────
+        useProjectOverrideCheckBox.addActionListener {
+            val ps = projectSettings.state
+            ps.useOverride = useProjectOverrideCheckBox.isSelected
+            refreshUiState()
+        }
+
+        projectEnabledCheckBox.addActionListener {
+            val ps = projectSettings.state
+            ps.enabledOverride = projectEnabledCheckBox.isSelected
+            refreshUiState()
+        }
+
+        // ── Global monitoring checkbox ─────────────────────────────────────────
         enabledCheckBox.addActionListener {
             settings.enabled = enabledCheckBox.isSelected
             refreshUiState()
@@ -415,21 +493,39 @@ private class ErrorSoundToolWindowPanel(
     }
 
     private fun refreshUiState() {
-        val monitoringEnabled = settings.enabled
+        // Phase 7: use the effective (resolved) settings so per-project enabled override is reflected.
+        val ps = projectSettings.state
+        val resolvedEnabled = ResolvedSettingsResolver.getInstance(project).resolve().enabled
+
+        // Sync project profile checkboxes from stored state
+        useProjectOverrideCheckBox.isSelected = ps.useOverride
+        projectEnabledCheckBox.isSelected = ps.enabledOverride
+        projectEnabledCheckBox.isEnabled = ps.useOverride  // greyed out when no override active
+
+        // Global enabled checkbox reflects global state regardless of project override
+        enabledCheckBox.isSelected = settings.enabled
+
+        val monitoringEnabled = resolvedEnabled
         val enabledCount = typeRows.count { it.checkBox.isSelected }
         val successEnabled = successRow.checkBox.isSelected
 
         val isSnoozed = SnoozeState.isSnoozed()
 
+        // Build status text — show whether the effective state is inherited or overridden
+        val sourceNote = when {
+            isSnoozed -> null
+            ps.useOverride -> "(project override)"
+            else -> "(global)"
+        }
         statusLabel.text = when {
             isSnoozed -> SnoozeState.statusLabel() ?: "Snoozed"
             monitoringEnabled -> {
                 val parts = mutableListOf<String>()
                 parts.add("$enabledCount error")
                 if (successEnabled) parts.add("success")
-                "Active · ${parts.joinToString(" + ")} enabled"
+                "Active · ${parts.joinToString(" + ")} enabled ${sourceNote.orEmpty()}".trim()
             }
-            else -> "Paused"
+            else -> "Paused ${sourceNote.orEmpty()}".trim()
         }
 
         snoozeLabel.text = if (isSnoozed) "All alerts muted" else ""
