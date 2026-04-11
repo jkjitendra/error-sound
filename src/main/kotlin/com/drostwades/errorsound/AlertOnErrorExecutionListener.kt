@@ -81,7 +81,9 @@ class AlertOnErrorExecutionListener : ExecutionListener {
                     return
                 }
 
-                val settingsState = settings.state
+                // Phase 7: use resolved effective settings so the per-project enabled override
+                // is respected. All other settings (sounds, per-kind flags, …) come from global.
+                val settingsState = ResolvedSettingsResolver.getInstance(env.project).resolve()
 
                 // Duration threshold — only applies to Run/Debug path (console and terminal excluded)
                 val elapsedMillis = System.currentTimeMillis() - startedAtMillis
