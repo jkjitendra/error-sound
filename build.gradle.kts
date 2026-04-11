@@ -7,7 +7,7 @@ plugins {
 }
 
 group = "com.drostwades"
-version = "1.1.6"
+version = "1.1.7"
 
 repositories {
     mavenCentral()
@@ -58,12 +58,21 @@ intellijPlatform {
               <li><b>Visual notifications:</b> optional balloon notification alongside each sound alert, configurable per error/success (off by default)</li>
               <li>Instant preview from the settings panel</li>
               <li><b>Error Monitor</b> sidebar panel: enable/disable monitoring, filter by error type, and apply presets without leaving your editor</li>
+              <li><b>Project-level profiles:</b> override the master monitoring enabled state per project from the Error Monitor sidebar; all other settings remain global</li>
             </ul>
             <h3>Supported IDEs</h3>
             <p>All IntelliJ-based IDEs (IntelliJ IDEA, PyCharm, WebStorm, GoLand, etc.) version 2024.3+.</p>
         """.trimIndent()
 
         changeNotes = """
+            <b>1.1.7</b>
+            <ul>
+              <li>New <b>Project-Level Profiles</b>: override the master monitoring <b>enabled</b> flag per project from the Error Monitor sidebar</li>
+              <li>When no project override is set, monitoring state is fully inherited from global application settings</li>
+              <li>Project override is saved in workspace storage (per-workspace, not shared across clones)</li>
+              <li>All other settings (sounds, per-kind flags, custom rules, exit-code rules) remain global in this release</li>
+              <li>Status label in the Error Monitor panel now shows <code>(global)</code> or <code>(project override)</code> to clarify which setting is in effect</li>
+            </ul>
             <b>1.1.6</b>
             <ul>
               <li>New <b>Exit-Code Rules</b> for terminal commands: map specific exit codes (e.g., 137&nbsp;=&nbsp;SIGKILL, 127&nbsp;=&nbsp;command not found) to error kinds, optional per-code sound overrides, and suppression (e.g., silence Ctrl+C / exit&nbsp;130 by default)</li>
