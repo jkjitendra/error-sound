@@ -305,21 +305,21 @@ Class-by-class reference for the `com.drostwades.errorsound` package.
 
 ## ErrorSoundPlayer
 
-**File:** `ErrorSoundPlayer.kt` (311 lines)
+**File:** `ErrorSoundPlayer.kt`
 **Purpose:** Audio playback engine. Handles both real alerts and settings preview.
 
 | Method | Description |
 |---|---|
-| `play(settings, kind, soundOverride?)` | Main alert path — if `soundOverride != null`, plays that built-in ID directly instead of normal resolution |
+| `play(settings, kind, soundOverride?)` | Main alert path. Calls `resolveEffectiveVolumePercent()` once and passes result to all playback helpers |
+| `resolveEffectiveVolumePercent(settings, kind)` | **Phase 8** — returns per-kind override Int? or falls back to `settings.volumePercent` |
 | `previewBuiltIn(id, vol, dur)` | Preview a built-in sound |
 | `previewCustom(path, vol, dur)` | Preview a custom file |
 | `stopPreview()` | Cancel active preview |
-| `playBuiltInById(soundId, settings)` | (private) Resolves sound by ID and plays it; falls back to generated tone on failure |
 
 **Internals:**
 - Single-threaded bounded executor for alerts
 - Preview uses daemon threads with token-based cancellation
-- `playClipLooping()` — opens `Clip`, loops until duration expires, closes
+- `playClipLooping(bytes, settings, volumePercent)` — explicit `volumePercent` arg (Phase 8); no longer reads `settings.volumePercent` internally
 - Volume: `FloatControl.MASTER_GAIN` with dB scaling (`20 * log10(linear)`)
 - Tone fallback: generates 880 Hz WAV in-memory
 

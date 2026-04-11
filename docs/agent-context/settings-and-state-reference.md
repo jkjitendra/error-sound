@@ -28,6 +28,13 @@ Stored in `errorSoundAlert.xml`. Loaded and normalized by `AlertSettings.loadSta
 | Field | Type | Default | Notes |
 |---|---|---|---|
 | `volumePercent` | Int | `80` | 0–100; clamped in `loadState()` |
+| `configurationVolumePercent` | Int? | `null` | Per-kind volume override; null = inherit `volumePercent` |
+| `compilationVolumePercent` | Int? | `null` | Same; clamped to 0–100 when non-null |
+| `testFailureVolumePercent` | Int? | `null` | Same |
+| `networkVolumePercent` | Int? | `null` | Same |
+| `exceptionVolumePercent` | Int? | `null` | Same |
+| `genericVolumePercent` | Int? | `null` | Same |
+| `successVolumePercent` | Int? | `null` | Same |
 | `soundSource` | String | `BUNDLED` | `SoundSource.BUNDLED` or `CUSTOM` |
 | `builtInSoundId` | String | `"boom"` | Global sound ID; normalized against `BuiltInSounds` |
 | `useGlobalBuiltInSound` | Boolean | `true` | One sound for all error kinds |
@@ -137,13 +144,14 @@ Obtain via `AlertSettings.getInstance().getCompiledRuleEngine()`.
 `AlertSettings.loadState()` applies the following normalizations before storing the state:
 
 1. `volumePercent` clamped to 0–100
-2. All `*SoundId` fields normalized via `normalizeSoundId()` (falls back to `BuiltInSounds.default.id`)
-3. `alertDurationSeconds` clamped to 1–10
-4. `minProcessDurationSeconds` clamped to 0–300
-5. `customRules` list:
+2. `{kind}VolumePercent` fields (`configurationVolumePercent` … `successVolumePercent`) — each clamped to 0–100 when **non-null**; `null` is preserved unchanged (Phase 8)
+3. All `*SoundId` fields normalized via `normalizeSoundId()` (falls back to `BuiltInSounds.default.id`)
+4. `alertDurationSeconds` clamped to 1–10
+5. `minProcessDurationSeconds` clamped to 0–300
+6. `customRules` list:
    - Truncated to first 100 entries
    - Each rule: pattern trimmed + capped to 500 chars; `matchTarget` normalized; `kind` normalized; blank `id` regenerated
-6. `compiledRuleEngine` cache invalidated after every normalization
+7. `compiledRuleEngine` cache invalidated after every normalization
 
 ---
-*Last updated: 2026-04-11*
+*Last updated: 2026-04-12*
