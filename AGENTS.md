@@ -13,6 +13,7 @@ IntelliJ Platform plugin that plays an audio alert when a Run/Debug process, con
 3. Monitors terminal command completions via reflection-based listener on Classic/Block and Reworked terminal internals (optional dependency on `org.jetbrains.plugins.terminal`).
 4. Routes detected errors through `AlertDispatcher → AlertMonitoring → AlertEventGate → ErrorSoundPlayer`.
 5. Plays a WAV sound (built-in or custom) with configurable volume and duration.
+6. Resolves per-project `enabled` override via `ResolvedSettingsResolver` (Phase 7) before dispatching.
 
 ## Minimum Build Baseline
 
@@ -25,6 +26,17 @@ IntelliJ Platform plugin that plays an audio alert when a Run/Debug process, con
 | Target platform | IC 2024.3 |
 | `sinceBuild` | 243 |
 | `untilBuild` | unset (open-ended) |
+| **Plugin version** | **1.1.7** |
+
+## Completed Phases
+
+- Phase 1 — Success Sounds
+- Phase 2 — Execution Time Threshold
+- Phase 3 — Snooze / Mute
+- Phase 4 — Visual Alert Companion
+- Phase 5 — Custom Regex Rules
+- Phase 6 — Exit-Code-Specific Terminal Sounds
+- Phase 7 — Project-Level Profiles (per-project `enabled` override only)
 
 ## Safe Editing Rules
 
@@ -35,6 +47,7 @@ IntelliJ Platform plugin that plays an audio alert when a Run/Debug process, con
 5. Keep `kotlin.stdlib.default.dependency=false` in `gradle.properties` — the platform bundles its own stdlib.
 6. Always run `./gradlew buildPlugin` after changes.
 7. Keep README, Marketplace description (`build.gradle.kts`), and plugin.xml description aligned.
+8. When adding a new project service, register it in `plugin.xml` under `<extensions>` as a `<projectService>`.
 
 ## Sensitive Files / Areas
 
@@ -45,6 +58,8 @@ IntelliJ Platform plugin that plays an audio alert when a Run/Debug process, con
 | `plugin.xml` / `terminal-features.xml` | **MEDIUM** — Extension point registrations. Misregistration = silent failure. |
 | `build.gradle.kts` | **MEDIUM** — Platform plugin config, sinceBuild/untilBuild, signing, verification. |
 | `ErrorSoundPlayer.kt` | **LOW-MEDIUM** — Audio thread management. Clip leaks if not closed properly. |
+| `ProjectAlertSettings.kt` | **LOW** — Workspace-scoped persistent state; changing storage path would lose saved overrides. |
+| `ResolvedSettingsResolver.kt` | **LOW** — Merge logic is trivial, but all detection paths depend on it for the `enabled` gate. |
 
 ## Required Verification Commands
 
@@ -67,4 +82,4 @@ IntelliJ Platform plugin that plays an audio alert when a Run/Debug process, con
 7. See `docs/agent-context/maintenance-rules.md` for the full update matrix.
 
 ---
-*Last updated from code scan: 2026-03-18*
+*Last updated from code scan: 2026-04-11*
