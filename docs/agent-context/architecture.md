@@ -100,10 +100,26 @@ This policy is consistent, predictable, and avoids "phantom" sounds surprising u
 ## Settings / Configuration Flow
 
 - `AlertSettings` — `@Service(APP)`, persisted to `errorSoundAlert.xml`
-- `ErrorSoundConfigurable` — Settings UI panel under **Tools → Error Sound Alert**
+- `ProjectAlertSettings` — `@Service(PROJECT)`, persisted to workspace storage (`WORKSPACE_FILE`)
+- `ResolvedSettingsResolver` — `@Service(PROJECT)`, merges project over global; `resolve()` returns effective `AlertSettings.State`
+- `ErrorSoundConfigurable` — Settings UI panel under **Tools → Error Sound Alert** (global settings only)
 - `ErrorSoundToolWindowFactory` — **Error Monitor** sidebar panel (right anchor, secondary)
-- Tool window directly mutates `AlertSettings.state` for monitor toggle flags
-- Settings panel uses `apply()` / `reset()` pattern with `loadState()` for all other settings
+  - Project Profile section: mutates `ProjectAlertSettings.state` directly
+  - Global enable checkbox: mutates `AlertSettings.state.enabled` directly
+  - All other settings panel changes use `apply()` / `reset()` pattern with `loadState()`
+
+### Phase 7 merge rule
+```
+ProjectAlertSettings.effectiveEnabledOverride() == null  →  use AlertSettings.state.enabled
+ProjectAlertSettings.effectiveEnabledOverride() == true  →  enabled = true  (regardless of global)
+ProjectAlertSettings.effectiveEnabledOverride() == false →  enabled = false (regardless of global)
+```
+
+The resolver is called at the point of dispatch, not classification:
+```
+ResolvedSettingsResolver.getInstance(project).resolve()  →  AlertSettings.State
+  └─ AlertDispatcher.tryAlert(key, resolvedState, kind, project, soundOverride?)
+```
 
 ## UI Relationships
 
@@ -111,12 +127,14 @@ This policy is consistent, predictable, and avoids "phantom" sounds surprising u
 Settings → Tools → Error Sound Alert
   └── ErrorSoundConfigurable (Configurable)
         └── manages: sound source, built-in/custom sounds, per-kind sounds,
-            volume, duration, global mode, preview
+            volume, duration, global mode, preview (all global/app-level)
 
 Error Monitor (Tool Window, right sidebar)
   └── ErrorSoundToolWindowFactory → ErrorSoundToolWindowPanel
-        └── manages: enable/disable, per-kind monitor toggles,
-            presets (All / Build Only / Runtime Only)
+        └── Project Profile section (Phase 7):
+              uses ProjectAlertSettings.state (per-project enabled override)
+        └── Global Monitoring section:
+              manages: global enable/disable, per-kind monitor toggles, presets
         └── links to: ErrorSoundConfigurable via "Open sound settings" button
 ```
 
@@ -175,4 +193,4 @@ Unsupported targets are deterministically skipped — not reinterpreted.
 4. Built-in chunk accumulation (`builtInDetectedKind`, highest-priority kind seen in chunks)
 5. Built-in `ErrorClassifier.detect()` on full buffer
 
-*Last updated from code scan: 2026-04-07*
+*Last updated from code scan: 2026-04-11*
