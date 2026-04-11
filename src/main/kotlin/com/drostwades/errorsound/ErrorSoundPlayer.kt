@@ -46,13 +46,17 @@ object ErrorSoundPlayer {
                 if (!isErrorKindEnabled(settings, errorKind)) {
                     return@runCatching
                 }
+                // Phase 8: resolve effective volume once per alert and pass it explicitly
+                // to all playback helpers so they never read settings.volumePercent directly.
+                val effectiveVolumePercent = resolveEffectiveVolumePercent(settings, errorKind)
                 if (soundOverride != null) {
-                    // Per-event built-in override: skip custom-file and per-kind resolution
-                    playBuiltInById(soundOverride, settings)
+                    // Per-event built-in override: skip custom-file and per-kind resolution,
+                    // but still apply the resolved kind volume.
+                    playBuiltInById(soundOverride, settings, effectiveVolumePercent)
                 } else {
                     when (settings.soundSource) {
-                        AlertSettings.SoundSource.CUSTOM.name -> playCustom(settings)
-                        else -> playBuiltIn(settings, errorKind)
+                        AlertSettings.SoundSource.CUSTOM.name -> playCustom(settings, effectiveVolumePercent)
+                        else -> playBuiltIn(settings, errorKind, effectiveVolumePercent)
                     }
                 }
             }.onFailure {
@@ -83,69 +87,68 @@ object ErrorSoundPlayer {
         }
     }
 
-    private fun playCustom(settings: AlertSettings.State) {
+    private fun playCustom(settings: AlertSettings.State, volumePercent: Int) {
         val customPath = settings.customSoundPath.trim()
         if (customPath.isEmpty()) {
-            playGeneratedTone(settings)
+            playGeneratedTone(settings, volumePercent)
             return
         }
 
         val file = File(customPath)
         if (!file.exists() || !file.isFile) {
             log.warn("Custom sound file not found: $customPath")
-            playGeneratedTone(settings)
+            playGeneratedTone(settings, volumePercent)
             return
         }
 
         val audioBytes = file.readBytes()
-        playClipLooping(audioBytes, settings)
+        playClipLooping(audioBytes, settings, volumePercent)
     }
 
     /**
      * Plays a specific built-in sound by ID, honoring volume and duration from [settings].
-     * Used when a per-event [soundOverride] is specified. Does not consult the custom-file path
-     * or per-kind sound mapping — the caller has already resolved the desired sound ID.
+     * [volumePercent] is the already-resolved effective volume for this alert kind (Phase 8).
+     * Does not consult the custom-file path or per-kind sound mapping.
      */
-    private fun playBuiltInById(soundId: String, settings: AlertSettings.State) {
+    private fun playBuiltInById(soundId: String, settings: AlertSettings.State, volumePercent: Int) {
         val sound = BuiltInSounds.findByIdOrDefault(soundId)
         val resourceBytes = readResourceBytes(sound.resourcePath)
         if (resourceBytes != null) {
-            runCatching { playClipLooping(resourceBytes, settings) }
+            runCatching { playClipLooping(resourceBytes, settings, volumePercent) }
                 .onSuccess { return }
                 .onFailure { log.warn("Sound override playback failed for id=$soundId, falling back to generated tone", it) }
         } else {
             log.warn("Sound override resource not found: ${sound.resourcePath}")
         }
-        playGeneratedTone(settings)
+        playGeneratedTone(settings, volumePercent)
     }
 
-    private fun playBuiltIn(settings: AlertSettings.State, errorKind: ErrorKind) {
+    private fun playBuiltIn(settings: AlertSettings.State, errorKind: ErrorKind, volumePercent: Int) {
         val selectedSoundId = resolveBuiltInSoundId(settings, errorKind)
         if (selectedSoundId == BuiltInSounds.CUSTOM_FILE_ID) {
-            playCustom(settings)
+            playCustom(settings, volumePercent)
             return
         }
         val selected = BuiltInSounds.findByIdOrDefault(selectedSoundId)
         val resourceBytes = readResourceBytes(selected.resourcePath)
         if (resourceBytes != null) {
-            runCatching { playClipLooping(resourceBytes, settings) }
+            runCatching { playClipLooping(resourceBytes, settings, volumePercent) }
                 .onSuccess { return }
                 .onFailure { log.warn("Built-in sound failed, falling back to generated tone: ${selected.resourcePath}", it) }
         } else {
             log.warn("Built-in sound resource not found: ${selected.resourcePath}")
         }
 
-        playGeneratedTone(settings)
+        playGeneratedTone(settings, volumePercent)
     }
 
-    private fun playGeneratedTone(settings: AlertSettings.State) {
+    private fun playGeneratedTone(settings: AlertSettings.State, volumePercent: Int) {
         val wavBytes = generateToneWavBytes(
             durationSeconds = DEFAULT_TONE_SECONDS,
             frequencyHz = DEFAULT_TONE_HZ,
             sampleRate = SAMPLE_RATE,
         )
-
-        playClipLooping(wavBytes, settings)
+        playClipLooping(wavBytes, settings, volumePercent)
     }
 
     private fun readResourceBytes(resourcePath: String): ByteArray? {
@@ -175,22 +178,43 @@ object ErrorSoundPlayer {
 
         return when (errorKind) {
             ErrorKind.CONFIGURATION -> settings.configurationSoundId
-            ErrorKind.COMPILATION -> settings.compilationSoundId
-            ErrorKind.TEST_FAILURE -> settings.testFailureSoundId
-            ErrorKind.NETWORK -> settings.networkSoundId
-            ErrorKind.EXCEPTION -> settings.exceptionSoundId
-            ErrorKind.GENERIC -> settings.genericSoundId
-            ErrorKind.SUCCESS -> settings.successSoundId
-            ErrorKind.NONE -> settings.genericSoundId
+            ErrorKind.COMPILATION   -> settings.compilationSoundId
+            ErrorKind.TEST_FAILURE  -> settings.testFailureSoundId
+            ErrorKind.NETWORK       -> settings.networkSoundId
+            ErrorKind.EXCEPTION     -> settings.exceptionSoundId
+            ErrorKind.GENERIC       -> settings.genericSoundId
+            ErrorKind.SUCCESS       -> settings.successSoundId
+            ErrorKind.NONE          -> settings.genericSoundId
         }
     }
 
-    private fun playClipLooping(audioBytes: ByteArray, settings: AlertSettings.State) {
+    /**
+     * Resolves the effective playback volume for a given [errorKind] (Phase 8 — Per-Kind Volume).
+     *
+     * Resolution rule:
+     * - If the per-kind volume override for [errorKind] is non-null, use it.
+     * - Otherwise fall back to [settings.volumePercent] (global default).
+     *
+     * [ErrorKind.NONE] has no override field and always falls back to global volume.
+     */
+    fun resolveEffectiveVolumePercent(settings: AlertSettings.State, errorKind: ErrorKind): Int =
+        (when (errorKind) {
+            ErrorKind.CONFIGURATION -> settings.configurationVolumePercent
+            ErrorKind.COMPILATION   -> settings.compilationVolumePercent
+            ErrorKind.TEST_FAILURE  -> settings.testFailureVolumePercent
+            ErrorKind.NETWORK       -> settings.networkVolumePercent
+            ErrorKind.EXCEPTION     -> settings.exceptionVolumePercent
+            ErrorKind.GENERIC       -> settings.genericVolumePercent
+            ErrorKind.SUCCESS       -> settings.successVolumePercent
+            ErrorKind.NONE          -> null
+        } ?: settings.volumePercent)
+
+    private fun playClipLooping(audioBytes: ByteArray, settings: AlertSettings.State, volumePercent: Int) {
         val input = AudioSystem.getAudioInputStream(ByteArrayInputStream(audioBytes))
         val clip = AudioSystem.getClip()
         try {
             clip.open(input)
-            applyVolumeIfSupported(clip, settings.volumePercent)
+            applyVolumeIfSupported(clip, volumePercent)
 
             val totalDurationMillis = (settings.alertDurationSeconds.coerceIn(1, 10) * 1_000L)
             val deadlineNanos = System.nanoTime() + (totalDurationMillis * 1_000_000L)
