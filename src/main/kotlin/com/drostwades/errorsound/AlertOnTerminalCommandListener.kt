@@ -530,6 +530,10 @@ class AlertOnTerminalCommandListener : ProjectActivity {
         val settings = AlertSettings.getInstance()
         val engine = settings.getCompiledRuleEngine()
 
+        // Phase 7: resolve effective settings (only `enabled` may differ per project).
+        // Custom rule engine and exit-code rules remain global — only enabled is project-aware.
+        val resolvedState = ResolvedSettingsResolver.getInstance(project).resolve()
+
         // Step 1 — Phase 5: EXIT_CODE_AND_TEXT custom regex rules (highest priority).
         // LINE_TEXT and FULL_OUTPUT targets are not supported in the terminal path.
         val customKind = if (engine.hasExitCodeAndTextRules) engine.matchExitCodeAndText(command, exitCode) else null
@@ -537,7 +541,7 @@ class AlertOnTerminalCommandListener : ProjectActivity {
             if (customKind == ErrorKind.NONE) return
             log.debug("ErrorSound: [Event] custom regex matched '$command' exitCode=$exitCode kind=$customKind")
             val key = "terminal:${project.locationHash}:${command.trim()}:$exitCode:$customKind"
-            AlertDispatcher.tryAlert(key, settings.state, customKind, project)
+            AlertDispatcher.tryAlert(key, resolvedState, customKind, project)
             return
         }
 
@@ -552,7 +556,7 @@ class AlertOnTerminalCommandListener : ProjectActivity {
 
         log.debug("ErrorSound: [Event] dispatching alert for '$command' exitCode=$exitCode kind=${termResult.kind} soundOverride=${termResult.soundOverride}")
         val key = "terminal:${project.locationHash}:${command.trim()}:$exitCode:${termResult.kind}"
-        AlertDispatcher.tryAlert(key, settings.state, termResult.kind, project, termResult.soundOverride)
+        AlertDispatcher.tryAlert(key, resolvedState, termResult.kind, project, termResult.soundOverride)
     }
 
     private fun extractCommandAndExitCode(event: Any): Pair<String, Int>? {
