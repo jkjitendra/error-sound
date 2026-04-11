@@ -55,6 +55,17 @@ class AlertSettings : PersistentStateComponent<AlertSettings.State> {
         var monitorSuccess: Boolean = false,
 
         var volumePercent: Int = 80,
+
+        // Per-kind volume overrides (Phase 8 — Per-Kind Volume).
+        // null = inherit the global volumePercent; non-null overrides playback volume for that kind only.
+        // Applies regardless of sound-source choice and global built-in mode.
+        var configurationVolumePercent: Int? = null,
+        var compilationVolumePercent:   Int? = null,
+        var testFailureVolumePercent:   Int? = null,
+        var networkVolumePercent:       Int? = null,
+        var exceptionVolumePercent:     Int? = null,
+        var genericVolumePercent:       Int? = null,
+        var successVolumePercent:       Int? = null,
         var soundSource: String = SoundSource.BUNDLED.name,
         var builtInSoundId: String = BuiltInSounds.default.id,
         var useGlobalBuiltInSound: Boolean = true,
@@ -113,6 +124,14 @@ class AlertSettings : PersistentStateComponent<AlertSettings.State> {
     override fun loadState(state: State) {
         this.state = state.copy(
             volumePercent = state.volumePercent.coerceIn(0, 100),
+            // Phase 8: clamp per-kind volume overrides; null is preserved as-is
+            configurationVolumePercent = state.configurationVolumePercent?.coerceIn(0, 100),
+            compilationVolumePercent   = state.compilationVolumePercent?.coerceIn(0, 100),
+            testFailureVolumePercent   = state.testFailureVolumePercent?.coerceIn(0, 100),
+            networkVolumePercent       = state.networkVolumePercent?.coerceIn(0, 100),
+            exceptionVolumePercent     = state.exceptionVolumePercent?.coerceIn(0, 100),
+            genericVolumePercent       = state.genericVolumePercent?.coerceIn(0, 100),
+            successVolumePercent       = state.successVolumePercent?.coerceIn(0, 100),
             builtInSoundId = normalizeSoundId(state.builtInSoundId),
             configurationSoundId = normalizeSoundId(state.configurationSoundId),
             compilationSoundId = normalizeSoundId(state.compilationSoundId),
