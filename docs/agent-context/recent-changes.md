@@ -4,6 +4,50 @@ Engineering-significant changes to the codebase. Not a full changelog — focuse
 
 ---
 
+## 1.1.8 — Per-Kind Volume (Phase 8)
+
+### Scope
+Phase 8 adds **optional per-kind volume overrides** layered on top of the existing global `volumePercent`. When a per-kind override is `null` the global volume applies unchanged, preserving all existing behavior exactly. No other settings are affected.
+
+### `AlertSettings.State` — 7 new fields
+| Field | Type | Default |
+|---|---|---|
+| `configurationVolumePercent` | `Int?` | `null` |
+| `compilationVolumePercent` | `Int?` | `null` |
+| `testFailureVolumePercent` | `Int?` | `null` |
+| `networkVolumePercent` | `Int?` | `null` |
+| `exceptionVolumePercent` | `Int?` | `null` |
+| `genericVolumePercent` | `Int?` | `null` |
+| `successVolumePercent` | `Int?` | `null` |
+
+All are clamped to `0..100` when non-null in `loadState()`. `null` is preserved as-is.
+
+### `ErrorSoundPlayer` — `resolveEffectiveVolumePercent()`
+New `fun resolveEffectiveVolumePercent(settings, errorKind): Int`:
+- Returns the per-kind override when non-null
+- Falls back to `settings.volumePercent` (global) otherwise
+- `ErrorKind.NONE` has no override field — always uses global
+
+`play()` calls this once and passes the resulting `Int` explicitly to every private playback helper (`playCustom`, `playBuiltIn`, `playBuiltInById`, `playGeneratedTone`, `playClipLooping`). No helper reads `settings.volumePercent` directly anymore.
+
+Applies to all paths: built-in sounds, custom files, generated tone fallback, and Phase 6 exit-code sound overrides.
+
+### `ErrorSoundConfigurable` — per-kind volume UI
+Each of the 7 error/success kind rows now has an additional stacked volume row containing:
+- `JBCheckBox("Custom volume")` — activates the override
+- `JBSlider(0, 100)` — shows the stored override (or global fallback when unchecked)
+- `JBLabel("xx%")` — live value display
+
+UI rules:
+- Slider and label are **disabled** (greyed out) when checkbox is unchecked — no layout jumping
+- On `reset()`: slider = stored override ?? global volume; label synced
+- On `apply()`: persists `null` when checkbox unchecked
+- `isModified()` compares both the activation flag and the value when active
+- Per-kind preview uses `kindVolumeMap` — a lazy `Map<ComboBox, () -> Int>` that returns kind-slider value when checked, global slider otherwise
+- Per-kind volume is **independent** of global built-in mode and sound-source choice
+
+---
+
 ## 1.1.7 — Project-Level Profiles (Phase 7)
 
 ### Scope
