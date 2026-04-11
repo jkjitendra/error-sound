@@ -4,6 +4,59 @@ Engineering-significant changes to the codebase. Not a full changelog — focuse
 
 ---
 
+## 1.1.7 — Project-Level Profiles (Phase 7)
+
+### Scope
+Phase 7 adds **per-project overrides for the master `enabled` flag only**. Everything else (sounds, per-kind flags, custom regex rules, exit-code rules) continues to come from global/application settings. No field-by-field project overrides are added in this phase.
+
+### New File: `ProjectAlertSettings.kt`
+- `@Service(Service.Level.PROJECT)`, `@State` with `Storage(StoragePathMacros.WORKSPACE_FILE)`
+- State: `useOverride: Boolean = false`, `enabledOverride: Boolean = true`
+- `effectiveEnabledOverride(): Boolean?` — returns `null` (inherit global), `true`, or `false`
+- `getInstance(project)` companion helper
+- Nullability modelled via two fields (`useOverride` + `enabledOverride`) — XML serializer cannot represent `Boolean?` directly
+
+### New File: `ResolvedSettingsResolver.kt`
+- `@Service(Service.Level.PROJECT)` — thin project service
+- `resolve(): AlertSettings.State` — returns the effective settings for the current project:
+  - If `effectiveEnabledOverride() == null` → returns global `AlertSettings.state` unchanged
+  - If override is set → returns `global.copy(enabled = override)`
+- Only `enabled` may differ; all other fields come from global settings unchanged
+- `getInstance(project)` companion helper
+
+### plugin.xml
+- Registered `ProjectAlertSettings` and `ResolvedSettingsResolver` as project services
+
+### Detection Paths — resolver wired in
+All three alert-entry paths now call `ResolvedSettingsResolver.getInstance(project).resolve()` at dispatch time instead of `AlertSettings.getInstance().state`:
+
+- **`AlertOnErrorExecutionListener`** — `processTerminated()` uses resolved state for `AlertDispatcher.tryAlert()`; classification logic unchanged
+- **`ErrorConsoleFilterProvider`** — `ErrorDetectionFilter.applyFilter()` uses resolved state; custom rule engine remains global
+- **`AlertOnTerminalCommandListener`** — `handleCommandFinished()` resolves state; custom rule engine and exit-code rules remain global (only `enabled` is project-aware)
+
+### `ErrorSoundToolWindowFactory` — Project Profile UI section
+New "Project Profile" section above the existing "Global Monitoring" section:
+- Hint label: "Override the global "Enable monitoring" for this project only."
+- `useProjectOverrideCheckBox` — "Use project override for monitoring enabled"; activates per-project override
+- `projectEnabledCheckBox` — "Enable monitoring for this project"; set the override value; **disabled (greyed out)** when override is off
+- `refreshUiState()` now calls `ResolvedSettingsResolver.resolve()` for the effective enabled value; status label shows `(global)` or `(project override)` to indicate the source
+
+### Effective behavior rules
+```
+projectOverride == null  →  effective enabled = AlertSettings.state.enabled
+projectOverride == true  →  effective enabled = true  (regardless of global)
+projectOverride == false →  effective enabled = false (regardless of global)
+```
+
+### Explicitly NOT changed in Phase 7
+- Per-kind monitor flags remain global
+- Sounds (built-in, per-kind, custom) remain global
+- Custom regex rules remain global
+- Exit-code rules remain global
+- No new settings panel / configurable screen
+
+---
+
 ## 1.1.6 — Exit-Code-Specific Terminal Sounds
 
 ### AlertSettings — New Type
@@ -274,4 +327,4 @@ Engineering-significant changes to the codebase. Not a full changelog — focuse
 - Improved terminal compatibility with 2025.x reworked terminal engine
 
 ---
-*Last updated from code scan: 2026-04-07*
+*Last updated from code scan: 2026-04-11*
