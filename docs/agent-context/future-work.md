@@ -22,18 +22,19 @@ Implemented in Phase 6. See `recent-changes.md` for the full engineering summary
 
 ---
 
-## 4. Per-Project Settings
+## 4. Per-Project Settings — PARTIALLY DONE (v1.1.7, Phase 7)
 
-**Description:** Override global settings per-project (e.g., loud sounds for critical projects, muted for noisy ones).
+**Phase 7 scope (implemented):**
+- Per-project override for the master `enabled` flag only
+- `ProjectAlertSettings` (project service, workspace storage) + `ResolvedSettingsResolver` (merge layer)
+- Project Profile UI section in the Error Monitor tool window
+- All three detection paths use `ResolvedSettingsResolver.resolve()` at dispatch time
 
-**Where it belongs:**
-- Create a `Service.Level.PROJECT` version of `AlertSettings`
-- Modify `AlertDispatcher` and listeners to check project-level settings first, fall back to app-level
-- Add project-level configurable or tool window override
+**Remaining future scope (Phase 8+):**
+- Field-by-field project overrides (per-kind flags, sounds, custom rules, exit-code rules)
+- Consider a dedicated project-level configurable screen for a richer UI
 
-**Files changed:** New `ProjectAlertSettings.kt`, `AlertDispatcher.kt`, `AlertOnErrorExecutionListener.kt`, `ErrorConsoleFilterProvider.kt`, `AlertOnTerminalCommandListener.kt`
-
-**Risks:** High — significant architectural change. Must handle settings merge carefully. Consider incremental approach (project-level enable/disable first).
+**Risks for next field-by-field expansion:** Medium — must handle partial merge of structured state carefully and avoid state explosion in the project-level settings model.
 
 ---
-*Last updated from code scan: 2026-04-07*
+*Last updated from code scan: 2026-04-11*
