@@ -7,7 +7,7 @@ plugins {
 }
 
 group = "com.drostwades"
-version = "1.1.7"
+version = "1.1.8"
 
 repositories {
     mavenCentral()
@@ -59,12 +59,21 @@ intellijPlatform {
               <li>Instant preview from the settings panel</li>
               <li><b>Error Monitor</b> sidebar panel: enable/disable monitoring, filter by error type, and apply presets without leaving your editor</li>
               <li><b>Project-level profiles:</b> override the master monitoring enabled state per project from the Error Monitor sidebar; all other settings remain global</li>
+              <li><b>Per-kind volume:</b> set an independent volume level for each error/success kind; falls back to the global volume when no override is set</li>
             </ul>
             <h3>Supported IDEs</h3>
             <p>All IntelliJ-based IDEs (IntelliJ IDEA, PyCharm, WebStorm, GoLand, etc.) version 2024.3+.</p>
         """.trimIndent()
 
         changeNotes = """
+            <b>1.1.8</b>
+            <ul>
+              <li>New <b>Per-Kind Volume</b>: set an independent volume override for each error/success kind in Settings → Tools → Error Sound Alert</li>
+              <li>When no per-kind override is set the global volume continues to apply, preserving existing behaviour exactly</li>
+              <li>Per-kind volume is independent of sound-source choice (bundled or custom file) and of the global built-in sound mode</li>
+              <li>Per-kind sound preview now plays at that kind&#39;s effective volume (override if set, otherwise global)</li>
+              <li>Exit-code rule sound overrides continue to use the resolved kind&rsquo;s volume policy</li>
+            </ul>
             <b>1.1.7</b>
             <ul>
               <li>New <b>Project-Level Profiles</b>: override the master monitoring <b>enabled</b> flag per project from the Error Monitor sidebar</li>
