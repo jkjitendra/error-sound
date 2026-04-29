@@ -28,6 +28,29 @@ Class-by-class reference for the `com.drostwades.errorsound` package.
 
 ---
 
+## RuleTestService
+
+**File:** `RuleTestService.kt`
+**Purpose:** Pure settings-side evaluator for the Rule Testing Sandbox. It explains how current custom regex rules and built-in classification would handle pasted sample output without participating in runtime detection or dispatch.
+
+| Type / Method | Description |
+|---|---|
+| `SourceMode` | User-facing source selector: Run/Debug, Console, Terminal |
+| `Input` | Sandbox input: rules, sample output, match target, exit code, source mode |
+| `Result` | Sandbox output: custom match, built-in kind, regex validation errors, notes |
+| `evaluate(input)` | Evaluates the selected target/source combination and returns explanation data for the settings UI |
+
+**Behavior:**
+- Reads the current in-memory custom rule table data supplied by `ErrorSoundConfigurable`
+- Uses the same custom rule limits and regex options as runtime matching (`MAX_RULES`, `MAX_PATTERN_LENGTH`, ignore case, multiline)
+- Reports invalid regex patterns for the selected target instead of silently skipping them
+- Mirrors source/target applicability: Run/Debug supports all targets, Console supports LINE_TEXT, Terminal supports EXIT_CODE_AND_TEXT
+- Calculates the built-in classifier result as an explanation only; it never calls `AlertDispatcher`
+
+- **Risk:** LOW — pure computation; settings-side explanation only
+
+---
+
 ## AlertDispatcher
 
 **File:** `AlertDispatcher.kt`  
@@ -292,6 +315,12 @@ Class-by-class reference for the `com.drostwades.errorsound` package.
 - Kind column: `DefaultCellEditor` with `JComboBox` over `ALLOWED_CUSTOM_RULE_KINDS`
 - Help text: rules run before built-in; target scope limitations documented
 
+**Rule Testing Sandbox section (Phase 1 roadmap addition):**
+- Settings-side tool below Custom Regex Rules; does not save settings or trigger alerts
+- Controls: Source, Match Target, optional Exit Code, sample output, Test Rules button, read-only result area
+- Uses `RuleTestService.evaluate()` against the current table model so unsaved rule edits can be tested before Apply
+- Shows custom rule match status, matched rule row/id/pattern, resulting `ErrorKind`, built-in classifier fallback, regex validation errors, no-match message, and source/target applicability notes
+
 **Exit Code Rules section (Phase 6 addition):**
 - `ExitCodeRuleTableModel` (inner class) — `AbstractTableModel` with internal `Row` data class; handles `SoundChoice ↔ soundId` conversion in `setRules()`/`getRules()`
 - `SoundChoice` (inner data class) — wraps nullable built-in sound ID; `null` id = "(default)"; `toString()` returns label for JComboBox rendering
@@ -361,4 +390,4 @@ Class-by-class reference for the `com.drostwades.errorsound` package.
 **Risk:** LOW — additive, no external dependencies.
 
 ---
-*Last updated from code scan: 2026-04-11*
+*Last updated from code scan: 2026-04-29*
