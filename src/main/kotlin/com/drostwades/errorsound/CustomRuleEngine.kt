@@ -15,11 +15,22 @@ import java.util.regex.PatternSyntaxException
  */
 class CustomRuleEngine(rules: List<AlertSettings.CustomRuleState>) {
 
-    private data class CompiledRule(
-        val regex: Regex,
+    data class CustomRuleMatch(
+        val id: String,
+        val pattern: String,
         val target: AlertSettings.MatchTarget,
         val kind: ErrorKind,
     )
+
+    private data class CompiledRule(
+        val id: String,
+        val pattern: String,
+        val regex: Regex,
+        val target: AlertSettings.MatchTarget,
+        val kind: ErrorKind,
+    ) {
+        fun toMatch(): CustomRuleMatch = CustomRuleMatch(id, pattern, target, kind)
+    }
 
     private val compiledRules: List<CompiledRule>
 
@@ -48,7 +59,7 @@ class CustomRuleEngine(rules: List<AlertSettings.CustomRuleState>) {
             } catch (_: PatternSyntaxException) {
                 continue  // invalid pattern — skip at runtime, text is kept in state for UI editing
             }
-            compiled += CompiledRule(regex, target, kind)
+            compiled += CompiledRule(rule.id, pattern, regex, target, kind)
         }
         compiledRules = compiled
         hasLineTextRules = compiled.any { it.target == AlertSettings.MatchTarget.LINE_TEXT }
@@ -61,18 +72,24 @@ class CustomRuleEngine(rules: List<AlertSettings.CustomRuleState>) {
      * Returns the [ErrorKind] of the first matching rule, or null if none match.
      */
     fun matchLineText(line: String): ErrorKind? =
+        explainLineText(line)?.kind
+
+    fun explainLineText(line: String): CustomRuleMatch? =
         compiledRules.firstOrNull {
             it.target == AlertSettings.MatchTarget.LINE_TEXT && it.regex.containsMatchIn(line)
-        }?.kind
+        }?.toMatch()
 
     /**
      * Matches FULL_OUTPUT rules against the complete buffered output text.
      * Returns the [ErrorKind] of the first matching rule, or null if none match.
      */
     fun matchFullOutput(text: String): ErrorKind? =
+        explainFullOutput(text)?.kind
+
+    fun explainFullOutput(text: String): CustomRuleMatch? =
         compiledRules.firstOrNull {
             it.target == AlertSettings.MatchTarget.FULL_OUTPUT && it.regex.containsMatchIn(text)
-        }?.kind
+        }?.toMatch()
 
     /**
      * Matches EXIT_CODE_AND_TEXT rules against a combined context string:
@@ -86,11 +103,15 @@ class CustomRuleEngine(rules: List<AlertSettings.CustomRuleState>) {
      * Returns the [ErrorKind] of the first matching rule, or null if none match.
      */
     fun matchExitCodeAndText(text: String, exitCode: Int): ErrorKind? {
+        return explainExitCodeAndText(text, exitCode)?.kind
+    }
+
+    fun explainExitCodeAndText(text: String, exitCode: Int): CustomRuleMatch? {
         val combined = "exitcode:$exitCode\n$text"
         return compiledRules.firstOrNull {
             it.target == AlertSettings.MatchTarget.EXIT_CODE_AND_TEXT &&
                 it.regex.containsMatchIn(combined)
-        }?.kind
+        }?.toMatch()
     }
 
     companion object {
