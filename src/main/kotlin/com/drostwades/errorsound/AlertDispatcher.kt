@@ -3,6 +3,7 @@ package com.drostwades.errorsound
 import com.intellij.notification.NotificationGroupManager
 import com.intellij.notification.NotificationAction
 import com.intellij.notification.NotificationType
+import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.options.ShowSettingsUtil
 import com.intellij.openapi.project.Project
 
@@ -30,16 +31,29 @@ import com.intellij.openapi.project.Project
  */
 object AlertDispatcher {
 
+    private val log = Logger.getInstance(AlertDispatcher::class.java)
+
     fun tryAlert(
         key: String,
         settings: AlertSettings.State,
         kind: ErrorKind,
         project: Project? = null,
         soundOverride: String? = null,
+        explanation: AlertMatchExplanation? = null,
     ) {
-        if (SnoozeState.isSnoozed()) return
-        if (!AlertMonitoring.shouldMonitor(settings, kind)) return
-        if (!AlertEventGate.shouldPlay(key)) return
+        if (SnoozeState.isSnoozed()) {
+            log.debug("Alert suppressed by snooze: ${explanation?.summary() ?: "no explanation"}")
+            return
+        }
+        if (!AlertMonitoring.shouldMonitor(settings, kind)) {
+            log.debug("Alert suppressed by monitoring settings: ${explanation?.summary() ?: "no explanation"}")
+            return
+        }
+        if (!AlertEventGate.shouldPlay(key)) {
+            log.debug("Alert suppressed by dedup gate: ${explanation?.summary() ?: "no explanation"}")
+            return
+        }
+        log.debug("Alert accepted: ${explanation?.summary() ?: "no explanation"}")
         ErrorSoundPlayer.play(settings, kind, soundOverride)
         if (settings.showVisualNotification && project != null) {
             showNotification(settings, kind, project)
