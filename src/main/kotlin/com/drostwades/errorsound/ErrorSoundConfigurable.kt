@@ -10,6 +10,7 @@ import com.intellij.ui.JBColor
 import com.intellij.ui.ToolbarDecorator
 import com.intellij.ui.components.JBCheckBox
 import com.intellij.ui.components.JBLabel
+import com.intellij.ui.components.JBScrollPane
 import com.intellij.ui.components.JBSlider
 import com.intellij.ui.table.JBTable
 import com.intellij.util.ui.FormBuilder
@@ -26,6 +27,7 @@ import javax.swing.JComponent
 import javax.swing.JLabel
 import javax.swing.JPanel
 import javax.swing.JTable
+import javax.swing.JTextArea
 import javax.swing.event.DocumentEvent
 import javax.swing.event.DocumentListener
 import javax.swing.table.AbstractTableModel
@@ -134,6 +136,24 @@ class ErrorSoundConfigurable : Configurable {
     // Custom regex rules table
     private val customRuleTableModel = CustomRuleTableModel()
     private val customRuleTable = JBTable(customRuleTableModel)
+
+    // Rule testing sandbox (Phase 1 roadmap)
+    private val ruleTestSourceCombo = ComboBox(RuleTestService.SourceMode.entries.toTypedArray())
+    private val ruleTestTargetCombo = ComboBox(AlertSettings.MatchTarget.entries.toTypedArray())
+    private val ruleTestExitCodeSpinner = javax.swing.JSpinner(
+        javax.swing.SpinnerNumberModel(0, -9999, 9999, 1)
+    )
+    private val ruleTestOutputArea = JTextArea(6, 60).apply {
+        lineWrap = true
+        wrapStyleWord = true
+    }
+    private val ruleTestResultArea = JTextArea(8, 60).apply {
+        isEditable = false
+        lineWrap = true
+        wrapStyleWord = true
+        text = "Paste sample output, choose a source and target, then click Test Rules."
+    }
+    private val ruleTestButton = JButton("Test Rules")
 
     // Exit code rules table
     private val soundChoices: List<SoundChoice> =
@@ -342,6 +362,8 @@ class ErrorSoundConfigurable : Configurable {
             )
             .addSeparator(8)
             .addComponent(createCustomRulesPanel(), 1)
+            .addSeparator(8)
+            .addComponent(createRuleTestingSandboxPanel(), 1)
             .addSeparator(8)
             .addComponent(createExitCodeRulesPanel(), 1)
             .addComponentFillVertically(JPanel(), 0)
@@ -691,6 +713,107 @@ class ErrorSoundConfigurable : Configurable {
             add(tablePanel, BorderLayout.CENTER)
             add(helpBottom, BorderLayout.SOUTH)
         }
+    }
+
+    // ── Rule Testing Sandbox ──────────────────────────────────────────────────
+
+    private fun createRuleTestingSandboxPanel(): JPanel {
+        ruleTestButton.addActionListener {
+            if (customRuleTable.isEditing) customRuleTable.cellEditor?.stopCellEditing()
+            runRuleSandbox()
+        }
+
+        val controls = JPanel(FlowLayout(FlowLayout.LEFT, 8, 0)).apply {
+            add(JBLabel("Source:"))
+            add(ruleTestSourceCombo)
+            add(JBLabel("Match target:"))
+            add(ruleTestTargetCombo)
+            add(JBLabel("Exit code:"))
+            add(ruleTestExitCodeSpinner)
+            add(ruleTestButton)
+        }
+
+        val inputScroll = JBScrollPane(ruleTestOutputArea).apply {
+            preferredSize = java.awt.Dimension(0, 120)
+        }
+        val resultScroll = JBScrollPane(ruleTestResultArea).apply {
+            preferredSize = java.awt.Dimension(0, 150)
+        }
+
+        val content = JPanel().apply {
+            layout = javax.swing.BoxLayout(this, javax.swing.BoxLayout.Y_AXIS)
+            add(JBLabel("Rule Testing Sandbox"))
+            add(controls)
+            add(JBLabel("Sample output:"))
+            add(inputScroll)
+            add(JBLabel("Result:"))
+            add(resultScroll)
+        }
+
+        return JPanel(BorderLayout(0, 4)).apply {
+            add(content, BorderLayout.CENTER)
+        }
+    }
+
+    private fun runRuleSandbox() {
+        val sourceMode = ruleTestSourceCombo.selectedItem as? RuleTestService.SourceMode
+            ?: RuleTestService.SourceMode.RUN_DEBUG
+        val matchTarget = ruleTestTargetCombo.selectedItem as? AlertSettings.MatchTarget
+            ?: AlertSettings.MatchTarget.LINE_TEXT
+        val exitCode = (ruleTestExitCodeSpinner.value as? Number)?.toInt() ?: 0
+
+        val result = RuleTestService.evaluate(
+            RuleTestService.Input(
+                rules = customRuleTableModel.getRules(),
+                sampleOutput = ruleTestOutputArea.text.orEmpty(),
+                matchTarget = matchTarget,
+                exitCode = exitCode,
+                sourceMode = sourceMode,
+            )
+        )
+
+        ruleTestResultArea.text = formatRuleTestResult(result)
+        ruleTestResultArea.caretPosition = 0
+    }
+
+    private fun formatRuleTestResult(result: RuleTestService.Result): String {
+        val lines = mutableListOf<String>()
+
+        if (result.customMatched) {
+            val match = result.customMatch!!
+            lines += "Custom rule matched: Yes"
+            lines += "Matched rule: row ${match.rowNumber}, id ${match.id}"
+            lines += "Pattern: ${match.pattern}"
+            lines += "Match target: ${match.target}"
+            lines += "Matched context: ${match.matchedContext}"
+            lines += "Resulting ErrorKind: ${match.kind}"
+        } else {
+            lines += "Custom rule matched: No"
+            lines += "Resulting ErrorKind: ${result.resultingKind}"
+        }
+
+        lines += "Built-in classifier if no custom rule matched: " +
+            if (result.builtInWouldMatch) "Yes (${result.builtInKind})" else "No"
+
+        if (!result.customMatched && !result.builtInWouldMatch) {
+            lines += "No custom rule matched and the built-in classifier would not match this sample."
+        }
+
+        if (result.validationErrors.isNotEmpty()) {
+            lines += ""
+            lines += "Regex validation errors:"
+            result.validationErrors.forEach { error ->
+                lines += "- Row ${error.rowNumber}, id ${error.id}: ${error.message}"
+            }
+        }
+
+        if (result.notes.isNotEmpty()) {
+            lines += ""
+            lines += "Notes:"
+            result.notes.forEach { note -> lines += "- $note" }
+        }
+
+        return lines.joinToString("\n")
     }
 
     // ── Exit Code Rules Panel ──────────────────────────────────────────────────

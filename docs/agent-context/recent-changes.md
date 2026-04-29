@@ -4,6 +4,46 @@ Engineering-significant changes to the codebase. Not a full changelog — focuse
 
 ---
 
+## TBD — Rule Testing Sandbox (Phase 1 Roadmap)
+
+### Scope
+Phase 1 adds a **settings-side Rule Testing Sandbox** for custom regex rules. It is an explanation and validation tool only; it does not participate in runtime detection, alert dispatch, monitoring gates, deduplication, playback, or notifications.
+
+### New File: `RuleTestService.kt`
+- Pure evaluator used by the settings UI
+- Inputs: custom rules, sample output, selected Source, Match Target, and optional Exit Code
+- Outputs: custom rule match details, resulting `ErrorKind`, built-in classifier fallback, regex validation errors, no-match message, and source/target applicability notes
+- Mirrors custom rule limits and runtime target support without mutating settings or invoking `AlertDispatcher`
+
+### `ErrorSoundConfigurable` — Rule Testing Sandbox UI
+- New section under Settings / Preferences -> Tools -> Error Sound Alert
+- Controls: Source, Match Target, Exit Code, sample output, and Test Rules
+- Uses the current Custom Regex Rules table model so unsaved rule edits can be tested before Apply
+- Displays whether a custom rule matched, which row/id/pattern matched, the resulting kind, whether built-in classification would match if no custom rule did, and any regex validation errors
+
+### How to use
+1. Open Settings / Preferences -> Tools -> Error Sound Alert
+2. Find Rule Testing Sandbox
+3. Choose Source and Match Target
+4. Optionally set Exit Code
+5. Paste sample output
+6. Click Test Rules
+
+---
+
+## 2026-04-29 — Phase 0 Documentation Alignment
+
+### Scope
+Phase 0 performed cleanup and baseline stabilization only. No runtime source, Gradle build logic, plugin XML, or resource behavior changed.
+
+### Documentation updates
+- Aligned plugin version references with `build.gradle.kts` version `1.1.8`
+- Updated project overview limitations to reflect the current project-level `enabled` override
+- Refreshed README feature coverage for currently shipped features through 1.1.8
+- Added `docs/agent-context/feature-registry.md` as the available-feature inventory
+
+---
+
 ## 1.1.8 — Per-Kind Volume (Phase 8)
 
 ### Scope
