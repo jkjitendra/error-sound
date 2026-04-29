@@ -14,7 +14,7 @@ Quick lookup for build configuration.
 | Target platform | IC 2024.3 | `build.gradle.kts` |
 | sinceBuild | 243 | `build.gradle.kts` |
 | untilBuild | unset | `build.gradle.kts` |
-| Plugin version | 1.1.8 | `build.gradle.kts` |
+| Plugin version | 1.1.9 | `build.gradle.kts` |
 
 ## Key Commands
 

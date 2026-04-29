@@ -7,7 +7,7 @@ plugins {
 }
 
 group = "com.drostwades"
-version = "1.1.8"
+version = "1.1.9"
 
 repositories {
     mavenCentral()
@@ -49,6 +49,7 @@ intellijPlatform {
               <li>Supports custom audio files (WAV, AIFF, AU)</li>
               <li>Smart error classification: configuration, compilation, test failure, network, exception</li>
               <li><b>Custom regex rules:</b> define your own patterns mapped to error kinds, evaluated before built-in classification</li>
+              <li><b>Rule Testing Sandbox:</b> paste sample output and see which custom rule or built-in classifier would match before applying rule changes</li>
               <li><b>Exit-code rules for terminal commands:</b> map specific exit codes to error kinds, optional per-code sound overrides, or suppress alerts entirely (e.g. silence Ctrl+C / exit&nbsp;130)</li>
               <li>Per-kind sounds, or one global sound for all alerts</li>
               <li><b>Success sounds:</b> optional alert on successful process completion (off by default)</li>
@@ -66,6 +67,13 @@ intellijPlatform {
         """.trimIndent()
 
         changeNotes = """
+            <b>1.1.9</b>
+            <ul>
+              <li>New <b>Rule Testing Sandbox</b> in Settings &rarr; Tools &rarr; Error Sound Alert for testing custom regex rules before applying changes</li>
+              <li>Paste sample output, choose Source and Match Target, optionally set an Exit Code, then click <b>Test Rules</b></li>
+              <li>Shows whether a custom rule matched, which rule matched, the resulting error kind, and whether built-in classification would match if no custom rule did</li>
+              <li>Reports regex validation errors and clear no-match results without triggering runtime alerts, notifications, or playback</li>
+            </ul>
             <b>1.1.8</b>
             <ul>
               <li>New <b>Per-Kind Volume</b>: set an independent volume override for each error/success kind in Settings → Tools → Error Sound Alert</li>

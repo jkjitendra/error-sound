@@ -171,7 +171,7 @@ Lets users define regex patterns mapped to supported error kinds. Rules are eval
 | Field | Value |
 |---|---|
 | Status | Available |
-| Version introduced | TBD (next release after 1.1.8) |
+| Version introduced | 1.1.9 |
 | Relevant classes/files | `RuleTestService.kt`, `ErrorSoundConfigurable.kt`, `CustomRuleEngine.kt`, `ErrorKind.kt` |
 
 Lets users paste sample output and evaluate custom regex behavior from the settings UI. The sandbox reports whether a custom rule matched, which rule matched, the resulting `ErrorKind`, built-in classifier fallback, regex validation errors, and no-match messages. It uses the current in-memory custom rule table, so unsaved edits can be tested before Apply. This is an explanation tool only and never enters runtime detection or dispatch.
