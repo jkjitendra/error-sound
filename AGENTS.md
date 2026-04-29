@@ -26,7 +26,7 @@ IntelliJ Platform plugin that plays an audio alert when a Run/Debug process, con
 | Target platform | IC 2024.3 |
 | `sinceBuild` | 243 |
 | `untilBuild` | unset (open-ended) |
-| **Plugin version** | **1.1.8** |
+| **Plugin version** | **1.1.9** |
 
 ## Completed Phases
 
@@ -38,6 +38,7 @@ IntelliJ Platform plugin that plays an audio alert when a Run/Debug process, con
 - Phase 6 — Exit-Code-Specific Terminal Sounds
 - Phase 7 — Project-Level Profiles (per-project `enabled` override only)
 - Phase 8 — Per-Kind Volume
+- Phase 1 Roadmap — Rule Testing Sandbox
 
 ## Safe Editing Rules
 
