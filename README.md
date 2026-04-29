@@ -21,12 +21,20 @@
 | Smart error detection | Classifies errors as Configuration, Compilation, Test Failure, Network, Exception, or Generic |
 | Error Monitor panel | Handy sidebar tool window to quickly toggle active error categories with presets |
 | Terminal support | Monitors both Run/Debug processes and built-in Terminal commands |
+| Custom regex rules | Define LINE_TEXT, FULL_OUTPUT, and EXIT_CODE_AND_TEXT patterns that run before built-in classification |
+| Rule Testing Sandbox | Paste sample output and see which custom rule or built-in classifier would match |
+| Terminal exit-code rules | Map terminal exit codes to error kinds, optional built-in sound overrides, or suppression |
+| Success sounds | Optional alert when a Run/Debug process completes successfully |
+| Visual notifications | Optional balloon notifications alongside sound alerts, configurable for errors and successes |
+| Snooze / mute | Temporarily silence alerts for 15 minutes or 1 hour from the Error Monitor panel |
+| Project enabled override | Override the master monitoring enabled state per project from the Error Monitor panel |
 | 7 built-in sounds | Boom, Faaa, Huh, Punch, Yeah Boy, Yooo, Dog Laughing |
 | Custom audio support | Point to any local WAV / AIFF / AU file |
 | Per-kind sounds | Assign a different sound to each error category |
 | Global mode | Use one sound for all error types |
-| Volume control | 0 – 100% with dB-accurate scaling |
+| Volume control | Global 0 – 100% volume plus optional per-kind volume overrides |
 | Alert duration | 1 – 10 seconds, with automatic clip looping |
+| Minimum duration threshold | Skip Run/Debug alerts for processes that finish faster than a configured threshold |
 | Instant preview | Hear any sound immediately from the settings panel |
 | Cross-platform | macOS, Windows, Linux (JVM audio backend) |
 
@@ -61,9 +69,9 @@ All IntelliJ-based IDEs — IntelliJ IDEA, PyCharm, WebStorm, GoLand, Rider, and
 
 Open **Settings / Preferences → Tools → Error Sound Alert** to configure audio specifics.
 
-### Error Monitor Tool Window (New!)
+### Error Monitor Tool Window
 
-A handy sidebar panel (View → Tool Windows → Error Monitor) to quickly turn on or off monitoring for specific error types without opening settings. Supports one-click presets:
+A handy sidebar panel (View → Tool Windows → Error Monitor) to quickly turn on or off monitoring for specific error types without opening settings. It also includes snooze controls and the per-project enabled override. Supports one-click presets:
 - **All**: Enable all error types
 - **Build Only**: Focus on Configuration, Compilation, and Test Failures
 - **Runtime Only**: Focus on Network, Exception, and Generic errors
@@ -76,9 +84,21 @@ A handy sidebar panel (View → Tool Windows → Error Monitor) to quickly turn 
 | Sound source | **Built-in** (bundled WAV) or **Custom** (local file path) |
 | Global sound mode | One sound for all error types |
 | Per-kind sounds | Individual sound per error category |
+| Per-kind volume | Optional independent volume for each error/success kind |
 | Custom file path | Absolute path to a WAV / AIFF / AU file |
 | Volume | 0 – 100% |
 | Alert duration | 1 – 10 seconds |
+| Minimum process duration | Suppress Run/Debug alerts for short-lived processes |
+| Visual notifications | Show optional balloon notifications for errors and/or successes |
+| Custom regex rules | Add user-defined regex rules with LINE_TEXT, FULL_OUTPUT, or EXIT_CODE_AND_TEXT targets |
+| Rule Testing Sandbox | Choose Source, Match Target, optional Exit Code, paste sample output, and click **Test Rules** |
+| Exit-code rules | Map terminal exit codes to kinds, sound overrides, or suppression |
+
+### Rule Testing Sandbox
+
+Open **Settings / Preferences → Tools → Error Sound Alert → Rule Testing Sandbox** to test custom regex rules before applying them. Choose **Source**, **Match Target**, optionally set an **Exit Code**, paste sample output, and click **Test Rules**.
+
+The sandbox shows whether a custom rule matched, which rule matched, the resulting `ErrorKind`, whether the built-in classifier would match if no custom rule did, regex validation errors, and a clear no-match message. It is a settings-side evaluation tool only; it does not trigger alerts or participate in runtime detection and dispatch.
 
 ### Error categories detected
 
@@ -133,11 +153,16 @@ src/main/kotlin/com/drostwades/errorsound/
 ├── AlertOnTerminalCommandListener.kt # Terminal command lifecycle listener
 ├── AlertSettings.kt                  # Persistent settings state
 ├── BuiltInSounds.kt                  # Built-in sound registry
+├── CustomRuleEngine.kt               # Compiled custom regex rule matching
 ├── ErrorConsoleFilterProvider.kt     # Log analyzer for error spotting
 ├── ErrorKind.kt                      # Error enum + classifier
 ├── ErrorSoundConfigurable.kt         # Main settings UI panel
 ├── ErrorSoundPlayer.kt               # Audio playback engine
-└── ErrorSoundToolWindowFactory.kt    # Error Monitor sidebar panel
+├── ErrorSoundToolWindowFactory.kt    # Error Monitor sidebar panel
+├── ProjectAlertSettings.kt           # Project-level enabled override state
+├── ResolvedSettingsResolver.kt       # Effective global/project settings resolver
+├── RuleTestService.kt                # Settings-side rule sandbox evaluator
+└── SnoozeState.kt                    # Transient mute state
 
 src/main/resources/
 ├── META-INF/plugin.xml               # Plugin manifest
