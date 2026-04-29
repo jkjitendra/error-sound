@@ -4,7 +4,7 @@ Engineering-significant changes to the codebase. Not a full changelog — focuse
 
 ---
 
-## TBD — Rule Testing Sandbox (Phase 1 Roadmap)
+## 1.1.9 — Rule Testing Sandbox (Phase 1 Roadmap)
 
 ### Scope
 Phase 1 adds a **settings-side Rule Testing Sandbox** for custom regex rules. It is an explanation and validation tool only; it does not participate in runtime detection, alert dispatch, monitoring gates, deduplication, playback, or notifications.
