@@ -19,9 +19,9 @@ class AlertOnErrorExecutionListener : ExecutionListener {
 
         // Custom LINE_TEXT matches are tracked separately so built-in chunk detection
         // (which uses a priority ladder) cannot overwrite a custom match that landed first.
-        val customDetectedKind = AtomicReference(ErrorKind.NONE)
+        val customDetectedMatch = AtomicReference<CustomRuleEngine.CustomRuleMatch?>(null)
         // Built-in chunk matches accumulate via priority — only used if no custom match wins.
-        val builtInDetectedKind = AtomicReference(ErrorKind.NONE)
+        val builtInDetectedResult = AtomicReference<BuiltInClassificationResult?>(null)
 
         val handlerKey = System.identityHashCode(handler)
         handler.addProcessListener(object : ProcessListener {
@@ -34,16 +34,16 @@ class AlertOnErrorExecutionListener : ExecutionListener {
                 }
 
                 val engine = AlertSettings.getInstance().getCompiledRuleEngine()
-                val customKind = if (engine.hasLineTextRules) engine.matchLineText(text) else null
-                if (customKind != null) {
+                val customMatch = if (engine.hasLineTextRules) engine.explainLineText(text) else null
+                if (customMatch != null) {
                     // Custom rule matched: record it in the custom accumulator.
                     // We do NOT also run built-in on this chunk — custom wins for this chunk.
-                    updateDetectedKind(customDetectedKind, customKind)
+                    updateDetectedMatch(customDetectedMatch, customMatch)
                 } else {
                     // No custom match: run built-in classification and accumulate normally.
-                    val builtInKind = ErrorClassifier.detect(text, 0)
-                    if (builtInKind != ErrorKind.NONE) {
-                        updateDetectedKind(builtInDetectedKind, builtInKind)
+                    val builtInResult = ErrorClassifier.detectWithExplanation(text, 0)
+                    if (builtInResult.kind != ErrorKind.NONE) {
+                        updateDetectedResult(builtInDetectedResult, builtInResult)
                     }
                 }
             }
@@ -60,24 +60,52 @@ class AlertOnErrorExecutionListener : ExecutionListener {
                 // 3. Custom LINE_TEXT chunk accumulation
                 // 4. Built-in chunk accumulation (highest-priority kind seen in chunks)
                 // 5. Built-in full-buffer classification
-                val customFinalKind =
-                    (if (engine.hasFullOutputRules) engine.matchFullOutput(fullText) else null)
-                        ?: (if (engine.hasExitCodeAndTextRules) engine.matchExitCodeAndText(fullText, exitCode) else null)
-                        ?: customDetectedKind.get().takeIf { it != ErrorKind.NONE }
+                val customFinalMatch =
+                    (if (engine.hasFullOutputRules) engine.explainFullOutput(fullText) else null)
+                        ?: (if (engine.hasExitCodeAndTextRules) engine.explainExitCodeAndText(fullText, exitCode) else null)
+                        ?: customDetectedMatch.get()
 
-                var errorKind = if (customFinalKind != null) {
-                    customFinalKind
+                var explanation: AlertMatchExplanation?
+                var errorKind = if (customFinalMatch != null) {
+                    explanation = ClassificationExplanationFactory.customRegex(
+                        source = AlertMatchExplanation.Source.RUN_DEBUG,
+                        match = customFinalMatch,
+                        exitCode = exitCode,
+                        context = env.runProfile.name,
+                    )
+                    customFinalMatch.kind
                 } else {
-                    val bufferedKind = ErrorClassifier.detect(fullText, exitCode)
-                    if (builtInDetectedKind.get() != ErrorKind.NONE) builtInDetectedKind.get() else bufferedKind
+                    val bufferedResult = ErrorClassifier.detectWithExplanation(fullText, exitCode)
+                    val finalResult = builtInDetectedResult.get() ?: bufferedResult
+                    explanation = if (finalResult.kind != ErrorKind.NONE) {
+                        ClassificationExplanationFactory.builtIn(
+                            source = AlertMatchExplanation.Source.RUN_DEBUG,
+                            result = finalResult,
+                            exitCode = exitCode,
+                            context = env.runProfile.name,
+                        )
+                    } else {
+                        ClassificationExplanationFactory.noMatch(
+                            source = AlertMatchExplanation.Source.RUN_DEBUG,
+                            exitCode = exitCode,
+                            context = env.runProfile.name,
+                        )
+                    }
+                    finalResult.kind
                 }
 
                 // Success: no error detected and clean exit → convert to SUCCESS
                 if (errorKind == ErrorKind.NONE && exitCode == 0) {
                     errorKind = ErrorKind.SUCCESS
+                    explanation = ClassificationExplanationFactory.successFallback(
+                        source = AlertMatchExplanation.Source.RUN_DEBUG,
+                        exitCode = exitCode,
+                        context = env.runProfile.name,
+                    )
                 }
 
                 if (errorKind == ErrorKind.NONE) {
+                    log.debug("Process produced no alert. ${explanation?.summary() ?: "no explanation"}")
                     return
                 }
 
@@ -89,29 +117,52 @@ class AlertOnErrorExecutionListener : ExecutionListener {
                 val elapsedMillis = System.currentTimeMillis() - startedAtMillis
                 val thresholdMillis = settingsState.minProcessDurationSeconds * 1_000L
                 if (elapsedMillis < thresholdMillis) {
-                    log.debug(
-                        "Alert suppressed by duration threshold: elapsed=${elapsedMillis}ms, threshold=${thresholdMillis}ms, kind=$errorKind"
+                    val suppressedExplanation = ClassificationExplanationFactory.durationThresholdSuppressed(
+                        kind = errorKind,
+                        exitCode = exitCode,
+                        elapsedMillis = elapsedMillis,
+                        thresholdMillis = thresholdMillis,
+                        context = env.runProfile.name,
                     )
+                    log.debug(suppressedExplanation.summary())
                     return
                 }
 
                 log.debug(
-                    "Process detected. executorId=$executorId, profile=${env.runProfile.name}, exitCode=$exitCode, kind=$errorKind, elapsed=${elapsedMillis}ms"
+                    "Process detected. executorId=$executorId, profile=${env.runProfile.name}, exitCode=$exitCode, kind=$errorKind, elapsed=${elapsedMillis}ms, explanation=${explanation?.summary()}"
                 )
                 // Key is stable per run: one handler instance per run configuration launch
                 val key = "exec:$handlerKey:$errorKind"
-                AlertDispatcher.tryAlert(key, settingsState, errorKind, env.project)
+                AlertDispatcher.tryAlert(key, settingsState, errorKind, env.project, explanation = explanation)
             }
         })
     }
 
-    private fun updateDetectedKind(kindRef: AtomicReference<ErrorKind>, candidate: ErrorKind) {
+    private fun updateDetectedMatch(
+        matchRef: AtomicReference<CustomRuleEngine.CustomRuleMatch?>,
+        candidate: CustomRuleEngine.CustomRuleMatch,
+    ) {
         while (true) {
-            val current = kindRef.get()
-            if (priority(candidate) <= priority(current)) {
+            val current = matchRef.get()
+            if (current != null && priority(candidate.kind) <= priority(current.kind)) {
                 return
             }
-            if (kindRef.compareAndSet(current, candidate)) {
+            if (matchRef.compareAndSet(current, candidate)) {
+                return
+            }
+        }
+    }
+
+    private fun updateDetectedResult(
+        resultRef: AtomicReference<BuiltInClassificationResult?>,
+        candidate: BuiltInClassificationResult,
+    ) {
+        while (true) {
+            val current = resultRef.get()
+            if (current != null && priority(candidate.kind) <= priority(current.kind)) {
+                return
+            }
+            if (resultRef.compareAndSet(current, candidate)) {
                 return
             }
         }

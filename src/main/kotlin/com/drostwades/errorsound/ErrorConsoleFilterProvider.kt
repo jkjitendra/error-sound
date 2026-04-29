@@ -39,16 +39,31 @@ private class ErrorDetectionFilter(private val project: Project) : Filter {
 
         // Custom LINE_TEXT rules are checked first on this hot path.
         // FULL_OUTPUT and EXIT_CODE_AND_TEXT are not supported in the console filter path.
-        val customKind = if (engine.hasLineTextRules) engine.matchLineText(line) else null
-        if (customKind == null && !errorPattern.containsMatchIn(line)) return null
+        val customMatch = if (engine.hasLineTextRules) engine.explainLineText(line) else null
+        if (customMatch == null && !errorPattern.containsMatchIn(line)) return null
 
-        val errorKind = customKind ?: ErrorClassifier.detect(line, 1)
+        val builtInResult = if (customMatch == null) ErrorClassifier.detectWithExplanation(line, 1) else null
+        val errorKind = customMatch?.kind ?: builtInResult?.kind ?: ErrorKind.NONE
+        val explanation = if (customMatch != null) {
+            ClassificationExplanationFactory.customRegex(
+                source = AlertMatchExplanation.Source.CONSOLE,
+                match = customMatch,
+            )
+        } else {
+            ClassificationExplanationFactory.builtIn(
+                source = AlertMatchExplanation.Source.CONSOLE,
+                result = builtInResult ?: BuiltInClassificationResult(
+                    ErrorKind.NONE,
+                    BuiltInClassificationResult.Cause.NO_MATCH,
+                ),
+            )
+        }
 
         // Key: project identity + error kind — stable across many console lines from the same project
         val key = "console:${project.locationHash}:$errorKind"
         // Phase 7: use resolved effective settings so the per-project enabled override is respected.
         val resolvedState = ResolvedSettingsResolver.getInstance(project).resolve()
-        AlertDispatcher.tryAlert(key, resolvedState, errorKind, project)
+        AlertDispatcher.tryAlert(key, resolvedState, errorKind, project, explanation = explanation)
 
         // Return null — we only want the sound side-effect, not to modify the line
         return null

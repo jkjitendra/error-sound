@@ -7,7 +7,7 @@ plugins {
 }
 
 group = "com.drostwades"
-version = "1.1.9"
+version = "1.1.10"
 
 repositories {
     mavenCentral()
@@ -67,6 +67,13 @@ intellijPlatform {
         """.trimIndent()
 
         changeNotes = """
+            <b>1.1.10</b>
+            <ul>
+              <li>New internal <b>Rule Match Explanation</b> plumbing records why each alert classification was produced</li>
+              <li>Runtime explanations distinguish custom regex matches, built-in classifier matches, terminal exit-code rules, terminal exit-code suppression, success fallback, no-match, and duration-threshold suppression</li>
+              <li>All alert sources now produce explanation objects near classification time and pass them through the existing dispatcher for future notification/history UI</li>
+              <li>Alert dispatch gate order and playback behavior are unchanged</li>
+            </ul>
             <b>1.1.9</b>
             <ul>
               <li>New <b>Rule Testing Sandbox</b> in Settings &rarr; Tools &rarr; Error Sound Alert for testing custom regex rules before applying changes</li>
