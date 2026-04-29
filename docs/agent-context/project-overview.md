@@ -36,12 +36,19 @@ Error Sound Alert is an IntelliJ Platform plugin that plays an audio alert when 
 | Project-level profile | Per-project override for the master `enabled` flag; all other settings remain global |
 | Deduplication | `AlertEventGate` prevents overlapping alerts with per-key (4s) and global (2s) cooldowns |
 
+## Internal Runtime Plumbing
+
+| Capability | Description |
+|---|---|
+| Rule match explanation | Detection paths create `AlertMatchExplanation` objects near classification time and pass them through `AlertDispatcher` for diagnostics and future notification/history UI |
+
 ## Current Known Limitations
 
 - Terminal listener relies on reflection into private/internal terminal plugin APIs — may break with future IDE updates.
 - `ErrorClassifier.detectTerminal()` only uses exit code (no output analysis for terminal commands).
 - Success sounds only trigger from Run/Debug processes — not from terminal or console filter paths.
 - Project-level profiles currently override only the master `enabled` flag; sounds, rules, per-kind toggles, and volumes remain application-level.
+- Rule match explanations are internal/runtime-facing only; current visual notifications do not yet show detailed explanation content.
 - Console filter can produce false positives for lines containing the word "error" or "exception" in benign contexts.
 
 ## User-Facing Behavior Summary
@@ -51,4 +58,4 @@ When enabled, the plugin runs silently in the background. The moment a process f
 The Rule Testing Sandbox in **Settings → Tools → Error Sound Alert** is an explanation tool only. Users choose Source, Match Target, optional Exit Code, paste sample output, and click **Test Rules** to see whether a custom rule would match, which `ErrorKind` would result, and whether built-in classification would match if no custom rule did. It does not participate in runtime detection, dispatch, monitoring gates, deduplication, or playback.
 
 ---
-*Last updated from code scan: 2026-04-29*
+*Last updated from code scan: 2026-04-30*
