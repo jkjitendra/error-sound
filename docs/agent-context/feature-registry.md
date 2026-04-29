@@ -2,6 +2,8 @@
 
 Current user-facing feature inventory for the shipped plugin state.
 
+Internal runtime plumbing that is not directly user-visible is intentionally omitted from the feature list. For example, Rule Match Explanation is documented in `architecture.md`, `code-map.md`, and `recent-changes.md` rather than listed here as an available user-facing feature.
+
 ---
 
 ## Run/Debug Failure Alerts
@@ -273,4 +275,4 @@ Prevents rapid duplicate alerts when multiple detection paths or repeated output
 **Notes/limitations:** Cooldown values are fixed in code and not currently configurable.
 
 ---
-*Last updated from code scan: 2026-04-29*
+*Last updated from code scan: 2026-04-30*

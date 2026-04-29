@@ -14,8 +14,14 @@ Class-by-class reference for the `com.drostwades.errorsound` package.
 | `matchLineText(line)` | Matches LINE_TEXT rules against a single line/chunk |
 | `matchFullOutput(text)` | Matches FULL_OUTPUT rules against the complete buffered output |
 | `matchExitCodeAndText(text, exitCode)` | Matches EXIT_CODE_AND_TEXT rules against `"exitcode:N\n<text>"` |
+| `explainLineText(line)` | Returns `CustomRuleMatch` with rule id, pattern, target, and kind |
+| `explainFullOutput(text)` | Returns `CustomRuleMatch` for full-output matching |
+| `explainExitCodeAndText(text, exitCode)` | Returns `CustomRuleMatch` for exit-code-and-text matching |
 
 **Guards:** `hasLineTextRules`, `hasFullOutputRules`, `hasExitCodeAndTextRules` — `Boolean` flags to skip evaluation when no applicable rules exist.
+
+**Value types:**
+- `CustomRuleMatch(id, pattern, target, kind)` — richer match data used by runtime explanation plumbing and the settings sandbox
 
 **Constants:**
 - `MAX_RULES = 100` — rules beyond this count are ignored
@@ -25,6 +31,44 @@ Class-by-class reference for the `com.drostwades.errorsound` package.
 **Construction:** Compiles rules once; skips disabled rules, blank patterns, and invalid regex (`PatternSyntaxException` caught silently).
 
 - **Risk:** LOW — pure computation, no side effects
+
+---
+
+## AlertMatchExplanation
+
+**File:** `AlertMatchExplanation.kt`
+**Purpose:** Runtime-facing explanation object describing why an alert classification was produced. This is internal plumbing for future notification/history UI and is separate from playback.
+
+| Field / Type | Description |
+|---|---|
+| `Source` | RUN_DEBUG, CONSOLE, TERMINAL |
+| `Cause` | CUSTOM_REGEX_RULE, BUILT_IN_CLASSIFIER, TERMINAL_EXIT_CODE_RULE, TERMINAL_EXIT_CODE_SUPPRESSED, SUCCESS_FALLBACK, NO_MATCH, DURATION_THRESHOLD_SUPPRESSED |
+| `kind` | Final `ErrorKind` associated with the explanation |
+| `ruleId`, `rulePattern`, `matchTarget` | Custom regex rule details when applicable |
+| `exitCode`, `commandOrConfig`, `soundOverride`, `suppressed` | Context for terminal/run config, sound override, or suppression cases |
+| `summary()` | Compact debug/log representation |
+
+- **Risk:** LOW — immutable data model; does not affect alert decisions by itself
+
+---
+
+## ClassificationExplanationFactory
+
+**File:** `ClassificationExplanationFactory.kt`
+**Purpose:** Small factory for constructing `AlertMatchExplanation` consistently near classification time.
+
+| Method | Description |
+|---|---|
+| `customRegex(...)` | Explanation for custom regex matches |
+| `builtIn(...)` | Explanation for built-in classifier matches |
+| `terminalExitCodeRule(...)` | Explanation for terminal exit-code rule matches |
+| `terminalExitCodeSuppressed(...)` | Explanation for terminal exit-code suppression |
+| `terminalBuiltInFallback(...)` | Explanation for terminal non-zero exit fallback |
+| `successFallback(...)` | Explanation for `NONE + exitCode 0 -> SUCCESS` |
+| `noMatch(...)` | Explanation for no-alert classification outcomes |
+| `durationThresholdSuppressed(...)` | Explanation for Run/Debug duration-threshold suppression |
+
+- **Risk:** LOW — pure object construction; no dispatch or playback side effects
 
 ---
 
@@ -58,12 +102,13 @@ Class-by-class reference for the `com.drostwades.errorsound` package.
 
 | Method | Signature | Description |
 |---|---|---|
-| `tryAlert` | `(key: String, settings: State, kind: ErrorKind, project: Project? = null, soundOverride: String? = null)` | Routes through all gates; optionally shows balloon notification |
+| `tryAlert` | `(key: String, settings: State, kind: ErrorKind, project: Project? = null, soundOverride: String? = null, explanation: AlertMatchExplanation? = null)` | Routes through all gates; optionally logs explanation and shows balloon notification |
 | `showNotification` | `(settings: State, kind: ErrorKind, project: Project)` | Shows BALLOON notification with kind title + "Open Settings" / "Mute 1 hr" actions |
 
 - **Inputs:** deduplication key, current settings state, detected error kind, optional project
 - **Outputs:** none (fire-and-forget side effect)
 - **Side effects:** may trigger audio playback; may show balloon notification
+- **Explanation policy:** `explanation` is for runtime diagnostics/future UI only. It does not alter gate order, playback selection, or notification content.
 - **Risk:** LOW-MEDIUM — thin routing layer, but every detection path depends on it
 
 ---
@@ -118,6 +163,7 @@ Class-by-class reference for the `com.drostwades.errorsound` package.
 - Output buffer capped at 1M characters
 - `onTextAvailable()` — LINE_TEXT custom rules checked first per chunk; falls back to `ErrorClassifier.detect()` if no match
 - `processTerminated()` — FULL_OUTPUT then EXIT_CODE_AND_TEXT custom rules applied to full buffer first; if matched, custom kind overrides everything; otherwise chunk accumulation + full-buffer `ErrorClassifier.detect()`
+- Phase 2: classification accumulators now retain explanation-capable results (`CustomRuleMatch` / `BuiltInClassificationResult`) so the final alert can carry an `AlertMatchExplanation`
 - Priority system for chunk accumulation: CONFIGURATION > COMPILATION > TEST_FAILURE > NETWORK > EXCEPTION > GENERIC > NONE
 - If final kind is NONE and exitCode == 0, converts to SUCCESS
 - Duration threshold: if `elapsedMillis < minProcessDurationSeconds * 1000`, alert suppressed (Run/Debug only)
@@ -277,9 +323,14 @@ Class-by-class reference for the `com.drostwades.errorsound` package.
 
 **`TerminalClassifyResult`** (data class): `(kind: ErrorKind, soundOverride: String?, suppressed: Boolean)` — richer result from terminal classification carrying an optional per-event sound override and a suppression flag.
 
+**Phase 2 explanation value types:**
+- `BuiltInClassificationResult(kind, cause)` — preserves the built-in classifier cause such as CONFIGURATION_PATTERN, NON_ZERO_EXIT_CODE, GENERIC_TEXT_PATTERN, or NO_MATCH
+- `TerminalExitCodeRuleMatch(exitCode, kind, soundId, suppress)` — records which terminal exit-code rule matched
+
 | Method | Description |
 |---|---|
 | `ErrorClassifier.detect(outputText, exitCode)` | Full-text classification against hardcoded string patterns |
+| `ErrorClassifier.detectWithExplanation(outputText, exitCode)` | Same classification as `detect()`, plus built-in cause reporting |
 | `ErrorClassifier.detectTerminal(command, exitCode)` | Terminal-only: returns GENERIC for exitCode ≠ 0, NONE for 0 |
 | `ErrorClassifier.classifyTerminal(command, exitCode, exitCodeRules)` | Iterates exit code rules (first enabled match wins); falls back to `detectTerminal()` |
 
@@ -390,4 +441,4 @@ Class-by-class reference for the `com.drostwades.errorsound` package.
 **Risk:** LOW — additive, no external dependencies.
 
 ---
-*Last updated from code scan: 2026-04-29*
+*Last updated from code scan: 2026-04-30*

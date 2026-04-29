@@ -4,6 +4,29 @@ Engineering-significant changes to the codebase. Not a full changelog — focuse
 
 ---
 
+## 1.1.10 — Rule Match Explanation (Phase 2 Roadmap)
+
+### Scope
+Phase 2 adds internal/runtime-facing explanation plumbing so the plugin can record why an alert classification was produced. It is groundwork for future notification and alert-history UI; current visual notifications are not yet explanation-rich.
+
+### New File: `AlertMatchExplanation.kt`
+- Immutable explanation model with source, cause, final kind, optional custom-rule metadata, exit code, context, sound override, and suppression flag
+- Causes include custom regex rule, built-in classifier, terminal exit-code rule, terminal exit-code suppression, success fallback, no match, and duration-threshold suppression
+- Includes `summary()` for compact diagnostic logging
+
+### New File: `ClassificationExplanationFactory.kt`
+- Pure helper for constructing consistent `AlertMatchExplanation` objects near classification time
+- Covers custom regex matches, built-in matches, terminal exit-code mappings/suppression, terminal fallback, success fallback, no-match, and Run/Debug duration-threshold suppression
+
+### Classification plumbing
+- `CustomRuleEngine` now exposes `CustomRuleMatch` and `explainLineText` / `explainFullOutput` / `explainExitCodeAndText`; existing `match*` methods still return `ErrorKind?`
+- `ErrorClassifier.detectWithExplanation()` returns `BuiltInClassificationResult(kind, cause)` while `detect()` preserves the original `ErrorKind` API
+- `TerminalClassifyResult` now carries optional `TerminalExitCodeRuleMatch` metadata
+- Run/Debug, Console, and Terminal detection paths create explanations before calling `AlertDispatcher`
+- `AlertDispatcher.tryAlert()` accepts an optional explanation and logs gate decisions without changing gate order or playback behavior
+
+---
+
 ## 1.1.9 — Rule Testing Sandbox (Phase 1 Roadmap)
 
 ### Scope
@@ -411,4 +434,4 @@ projectOverride == false →  effective enabled = false (regardless of global)
 - Improved terminal compatibility with 2025.x reworked terminal engine
 
 ---
-*Last updated from code scan: 2026-04-11*
+*Last updated from code scan: 2026-04-30*
