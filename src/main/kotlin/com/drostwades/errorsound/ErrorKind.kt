@@ -22,10 +22,37 @@ data class TerminalClassifyResult(
     val kind: ErrorKind,
     val soundOverride: String?,
     val suppressed: Boolean,
+    val exitCodeRule: TerminalExitCodeRuleMatch? = null,
 )
 
+data class TerminalExitCodeRuleMatch(
+    val exitCode: Int,
+    val kind: ErrorKind,
+    val soundId: String?,
+    val suppress: Boolean,
+)
+
+data class BuiltInClassificationResult(
+    val kind: ErrorKind,
+    val cause: Cause,
+) {
+    enum class Cause {
+        CONFIGURATION_PATTERN,
+        COMPILATION_PATTERN,
+        TEST_FAILURE_PATTERN,
+        NETWORK_PATTERN,
+        EXCEPTION_PATTERN,
+        NON_ZERO_EXIT_CODE,
+        GENERIC_TEXT_PATTERN,
+        NO_MATCH,
+    }
+}
+
 object ErrorClassifier {
-    fun detect(outputText: String, exitCode: Int): ErrorKind {
+    fun detect(outputText: String, exitCode: Int): ErrorKind =
+        detectWithExplanation(outputText, exitCode).kind
+
+    fun detectWithExplanation(outputText: String, exitCode: Int): BuiltInClassificationResult {
         val text = outputText.lowercase()
 
         if (text.contains("could not resolve placeholder") ||
@@ -33,7 +60,10 @@ object ErrorClassifier {
             text.contains("beancreationexception") ||
             text.contains("illegalstateexception")
         ) {
-            return ErrorKind.CONFIGURATION
+            return BuiltInClassificationResult(
+                ErrorKind.CONFIGURATION,
+                BuiltInClassificationResult.Cause.CONFIGURATION_PATTERN,
+            )
         }
 
         if (text.contains("compilation failed") ||
@@ -41,14 +71,20 @@ object ErrorClassifier {
             text.contains("error:") ||
             text.contains("kotlin:") && text.contains("error")
         ) {
-            return ErrorKind.COMPILATION
+            return BuiltInClassificationResult(
+                ErrorKind.COMPILATION,
+                BuiltInClassificationResult.Cause.COMPILATION_PATTERN,
+            )
         }
 
         if (text.contains("tests failed") ||
             text.contains("there were failing tests") ||
             text.contains("assertionerror")
         ) {
-            return ErrorKind.TEST_FAILURE
+            return BuiltInClassificationResult(
+                ErrorKind.TEST_FAILURE,
+                BuiltInClassificationResult.Cause.TEST_FAILURE_PATTERN,
+            )
         }
 
         if (text.contains("connection refused") ||
@@ -56,24 +92,42 @@ object ErrorClassifier {
             text.contains("unknownhostexception") ||
             text.contains("sockettimeoutexception")
         ) {
-            return ErrorKind.NETWORK
+            return BuiltInClassificationResult(
+                ErrorKind.NETWORK,
+                BuiltInClassificationResult.Cause.NETWORK_PATTERN,
+            )
         }
 
         if (text.contains("exception") ||
             text.contains("caused by:") ||
             text.contains("stacktrace")
         ) {
-            return ErrorKind.EXCEPTION
+            return BuiltInClassificationResult(
+                ErrorKind.EXCEPTION,
+                BuiltInClassificationResult.Cause.EXCEPTION_PATTERN,
+            )
         }
 
-        if (exitCode != 0 ||
-            text.contains("failed") ||
+        if (exitCode != 0) {
+            return BuiltInClassificationResult(
+                ErrorKind.GENERIC,
+                BuiltInClassificationResult.Cause.NON_ZERO_EXIT_CODE,
+            )
+        }
+
+        if (text.contains("failed") ||
             text.contains("error")
         ) {
-            return ErrorKind.GENERIC
+            return BuiltInClassificationResult(
+                ErrorKind.GENERIC,
+                BuiltInClassificationResult.Cause.GENERIC_TEXT_PATTERN,
+            )
         }
 
-        return ErrorKind.NONE
+        return BuiltInClassificationResult(
+            ErrorKind.NONE,
+            BuiltInClassificationResult.Cause.NO_MATCH,
+        )
     }
 
     @Suppress("UNUSED_PARAMETER")
@@ -109,6 +163,12 @@ object ErrorClassifier {
                 kind = kind,
                 soundOverride = rule.soundId?.takeIf { it.isNotBlank() },
                 suppressed = rule.suppress,
+                exitCodeRule = TerminalExitCodeRuleMatch(
+                    exitCode = rule.exitCode,
+                    kind = kind,
+                    soundId = rule.soundId,
+                    suppress = rule.suppress,
+                ),
             )
         }
         // No matching exit-code rule — use built-in fallback
