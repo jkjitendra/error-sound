@@ -134,11 +134,13 @@ Output: `build/distributions/error-sound-<version>.zip`
 
 1. The plugin registers process output listeners (`ExecutionListener`, console filters) and terminal command listeners.
 2. As a process runs or a terminal command executes, its output is scanned in real time for known error patterns.
-3. On process termination (or console line match, or terminal command completion), the detection path builds a stable deduplication key and calls **`AlertDispatcher.tryAlert`**.
+3. On process termination (or console line match, or terminal command completion), the detection path creates an internal explanation object, builds a stable deduplication key, and calls **`AlertDispatcher.tryAlert`**.
 4. `AlertDispatcher` checks **`AlertMonitoring`** (is this error category enabled?) and **`AlertEventGate`** (is this a duplicate within the cooldown window?).
 5. If both pass, `ErrorSoundPlayer` plays the configured sound asynchronously.
 6. If the clip is shorter than the alert duration, it loops until time expires.
 7. Fallback chain: custom file → built-in WAV → generated 880 Hz tone → system beep.
+
+Rule match explanations are internal groundwork for future notification/history views. Current visual notifications are not yet explanation-rich.
 
 ---
 
@@ -148,11 +150,13 @@ Output: `build/distributions/error-sound-<version>.zip`
 src/main/kotlin/com/drostwades/errorsound/
 ├── AlertDispatcher.kt                # Single choke-point: routes all alerts through monitoring + gate + player
 ├── AlertEventGate.kt                 # Deduplication gate — per-source and global cooldowns
+├── AlertMatchExplanation.kt          # Internal explanation model for alert classifications
 ├── AlertMonitoring.kt                # Centralized rule gate for error filtering
 ├── AlertOnErrorExecutionListener.kt  # Process lifecycle listener
 ├── AlertOnTerminalCommandListener.kt # Terminal command lifecycle listener
 ├── AlertSettings.kt                  # Persistent settings state
 ├── BuiltInSounds.kt                  # Built-in sound registry
+├── ClassificationExplanationFactory.kt # Explanation helper factory
 ├── CustomRuleEngine.kt               # Compiled custom regex rule matching
 ├── ErrorConsoleFilterProvider.kt     # Log analyzer for error spotting
 ├── ErrorKind.kt                      # Error enum + classifier
