@@ -82,6 +82,9 @@ Detection Source
          ├── AlertEventGate.shouldPlay(key)
          │     └── per-key cooldown (4s) + global cooldown (2s) + eviction
          │
+         ├── AlertHistoryService.record(project, kind, soundOverride, explanation)
+         │     └── accepted alerts only; in-memory, newest first, bounded to 100
+         │
          └── ErrorSoundPlayer.play(settings, kind, soundOverride?)
                └── if soundOverride != null → play that built-in ID directly (playBuiltInById)
                └── else → normal sound resolution (global/per-kind/custom-file)
@@ -114,7 +117,46 @@ Phase 2 adds internal/runtime-facing explanation plumbing. It is not a playback 
 - Explanation is produced at classification time, before dispatch.
 - `AlertDispatcher` accepts the explanation and logs gate decisions, but gate order is unchanged: Snooze → AlertMonitoring → AlertEventGate → ErrorSoundPlayer → optional notification.
 - `ErrorSoundPlayer` does not receive or inspect explanations.
-- Explanation objects are groundwork for future notification/history UI.
+- Explanation objects feed Alert History and remain groundwork for future notification UI.
+
+## Alert History Flow
+
+Phase 3 adds user-visible Alert History in the Error Monitor. History is recorded only after an alert passes all dispatcher acceptance gates:
+
+```
+SnoozeState accepted
+  → AlertMonitoring accepted
+  → AlertEventGate accepted
+  → AlertHistoryService.record(...)
+  → ErrorSoundPlayer.play(...)
+  → optional visual notification
+```
+
+**Service behavior:**
+- `AlertHistoryService` is an application service, in-memory only.
+- Retains the newest 100 accepted alerts and drops older entries.
+- `snapshot()` returns entries newest first.
+- `clear()` removes all entries.
+- Records no persistent console/project output, performs no network calls, and emits no telemetry.
+- Publishes `AlertHistoryService.TOPIC` on the application message bus after record/clear so open Error Monitor panels refresh.
+
+**Entry data:**
+- timestamp
+- project name when available
+- source: Run/Debug, Console, or Terminal
+- final `ErrorKind`
+- `AlertMatchExplanation.Cause`
+- matched custom rule id/pattern when applicable
+- exit code when available
+- command or run configuration context when available
+- whether a sound override was used
+
+**UI behavior:**
+- `ErrorSoundToolWindowFactory` renders a read-only Alert History table in the Error Monitor.
+- Columns: Time, Source, Kind, Cause, Context.
+- Context may include project/config/command, exit code, rule id/pattern, and sound override status.
+- The panel includes a Clear History action and refreshes from the message bus.
+- Suppressed attempts such as snoozed, disabled, or deduplicated alerts are not recorded in this release.
 
 ## soundOverride Policy
 
@@ -171,6 +213,8 @@ Error Monitor (Tool Window, right sidebar)
               uses ProjectAlertSettings.state (per-project enabled override)
         └── Global Monitoring section:
               manages: global enable/disable, per-kind monitor toggles, presets
+        └── Alert History section:
+              read-only accepted-alert table + clear history action
         └── links to: ErrorSoundConfigurable via "Open sound settings" button
 ```
 
@@ -229,4 +273,4 @@ Unsupported targets are deterministically skipped — not reinterpreted.
 4. Built-in chunk accumulation (`builtInDetectedResult`, highest-priority kind seen in chunks)
 5. Built-in `ErrorClassifier.detectWithExplanation()` on full buffer
 
-*Last updated from code scan: 2026-04-30*
+*Last updated from code scan: 2026-05-01*
