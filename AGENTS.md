@@ -11,9 +11,10 @@ IntelliJ Platform plugin that plays an audio alert when a Run/Debug process, con
 1. Listens to Run/Debug process exits via `ExecutionListener`.
 2. Scans console output for error patterns via `ConsoleFilterProvider`.
 3. Monitors terminal command completions via reflection-based listener on Classic/Block and Reworked terminal internals (optional dependency on `org.jetbrains.plugins.terminal`).
-4. Routes detected errors through `AlertDispatcher → AlertMonitoring → AlertEventGate → ErrorSoundPlayer`.
+4. Routes detected errors through `AlertDispatcher → SnoozeState → AlertMonitoring → AlertEventGate → AlertHistoryService → ErrorSoundPlayer`.
 5. Plays a WAV sound (built-in or custom) with configurable volume and duration.
-6. Resolves per-project `enabled` override via `ResolvedSettingsResolver` (Phase 7) before dispatching.
+6. Records accepted alerts in an in-memory Error Monitor history after snooze, monitoring, and deduplication gates accept the event.
+7. Resolves per-project `enabled` override via `ResolvedSettingsResolver` (Phase 7) before dispatching.
 
 ## Minimum Build Baseline
 
@@ -26,7 +27,7 @@ IntelliJ Platform plugin that plays an audio alert when a Run/Debug process, con
 | Target platform | IC 2024.3 |
 | `sinceBuild` | 243 |
 | `untilBuild` | unset (open-ended) |
-| **Plugin version** | **1.1.10** |
+| **Plugin version** | **1.1.11** |
 
 ## Completed Phases
 
@@ -40,6 +41,7 @@ IntelliJ Platform plugin that plays an audio alert when a Run/Debug process, con
 - Phase 8 — Per-Kind Volume
 - Phase 1 Roadmap — Rule Testing Sandbox
 - Phase 2 Roadmap — Rule Match Explanation (internal runtime plumbing)
+- Phase 3 Roadmap — Alert History Panel
 
 ## Safe Editing Rules
 
@@ -85,4 +87,4 @@ IntelliJ Platform plugin that plays an audio alert when a Run/Debug process, con
 7. See `docs/agent-context/maintenance-rules.md` for the full update matrix.
 
 ---
-*Last updated from code scan: 2026-04-30*
+*Last updated from code scan: 2026-05-01*
