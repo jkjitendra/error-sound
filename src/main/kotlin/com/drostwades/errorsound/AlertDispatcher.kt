@@ -54,6 +54,7 @@ object AlertDispatcher {
             return
         }
         log.debug("Alert accepted: ${explanation?.summary() ?: "no explanation"}")
+        AlertHistoryService.getInstance().record(project, kind, soundOverride, explanation)
         ErrorSoundPlayer.play(settings, kind, soundOverride)
         if (settings.showVisualNotification && project != null) {
             showNotification(settings, kind, project)
