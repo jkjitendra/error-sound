@@ -4,10 +4,41 @@ Engineering-significant changes to the codebase. Not a full changelog — focuse
 
 ---
 
+## 1.1.11 — Alert History Panel (Phase 3 Roadmap)
+
+### Scope
+Phase 3 adds a user-facing **Alert History** section to the Error Monitor. It records accepted alert events in memory and makes the Phase 2 explanation plumbing visible without changing runtime classification, dispatch gates, playback selection, or terminal architecture.
+
+### New File: `AlertHistoryService.kt`
+- Application-level service storing recent accepted alerts in memory only
+- Retains a bounded newest-first history of the latest 100 entries
+- `record(project, kind, soundOverride, explanation)` is called only after dispatcher gates accept an alert
+- `snapshot()` returns a stable newest-first list for UI rendering
+- `clear()` removes all entries
+- Publishes an application message-bus topic after record/clear so open Error Monitor panels refresh
+
+### `AlertDispatcher` — accepted-alert recording point
+- Gate order is now: `SnoozeState` -> `AlertMonitoring` -> `AlertEventGate` -> `AlertHistoryService` -> `ErrorSoundPlayer` -> optional visual notification
+- Snoozed, disabled, deduplicated, or otherwise suppressed attempts are not stored in this release
+- History receives the existing `AlertMatchExplanation` object and does not participate in playback decisions
+
+### `ErrorSoundToolWindowFactory` — Alert History UI
+- Adds a read-only Alert History table to the Error Monitor tool window
+- Columns: Time, Source, Kind, Cause, Context
+- Context may include project/config/command, exit code, matched rule id/pattern, and sound override status
+- Adds a Clear History action
+- Refreshes from `AlertHistoryService.TOPIC` on the application message bus
+
+### Marketplace metadata
+- Plugin version is `1.1.11`
+- Marketplace change notes and feature description include Alert History as a shipped feature
+
+---
+
 ## 1.1.10 — Rule Match Explanation (Phase 2 Roadmap)
 
 ### Scope
-Phase 2 adds internal/runtime-facing explanation plumbing so the plugin can record why an alert classification was produced. It is groundwork for future notification and alert-history UI; current visual notifications are not yet explanation-rich.
+Phase 2 adds internal/runtime-facing explanation plumbing so the plugin can record why an alert classification was produced. It now feeds Alert History and remains groundwork for future notification UI; current visual notifications are not yet explanation-rich.
 
 ### New File: `AlertMatchExplanation.kt`
 - Immutable explanation model with source, cause, final kind, optional custom-rule metadata, exit code, context, sound override, and suppression flag
@@ -303,7 +334,7 @@ projectOverride == false →  effective enabled = false (regardless of global)
 
 ---
 
-## 1.4.0 — Snooze / Mute
+## 1.1.3 — Snooze / Mute
 
 ### New File
 - `SnoozeState.kt` — transient singleton using `AtomicLong`. Provides `isSnoozed()`, `snooze(minutes)`, `resume()`, `statusLabel()`.
@@ -324,7 +355,7 @@ projectOverride == false →  effective enabled = false (regardless of global)
 
 ---
 
-## 1.3.0 — Execution Time Threshold
+## 1.1.3 — Minimum Process Duration Threshold
 
 ### New Setting
 - `minProcessDurationSeconds: Int = 0` — suppress alerts if the process finishes faster than this value
@@ -341,7 +372,7 @@ projectOverride == false →  effective enabled = false (regardless of global)
 
 ---
 
-## 1.2.0 — Success Sounds
+## 1.1.2 — Success Sounds
 
 ### ErrorKind.SUCCESS
 - **New enum value** `SUCCESS` added to `ErrorKind`
@@ -434,4 +465,4 @@ projectOverride == false →  effective enabled = false (regardless of global)
 - Improved terminal compatibility with 2025.x reworked terminal engine
 
 ---
-*Last updated from code scan: 2026-04-30*
+*Last updated from code scan: 2026-05-01*
