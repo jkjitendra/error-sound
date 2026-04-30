@@ -37,7 +37,7 @@ Class-by-class reference for the `com.drostwades.errorsound` package.
 ## AlertMatchExplanation
 
 **File:** `AlertMatchExplanation.kt`
-**Purpose:** Runtime-facing explanation object describing why an alert classification was produced. This is internal plumbing for future notification/history UI and is separate from playback.
+**Purpose:** Runtime-facing explanation object describing why an alert classification was produced. This feeds Alert History and remains separate from playback.
 
 | Field / Type | Description |
 |---|---|
@@ -98,7 +98,7 @@ Class-by-class reference for the `com.drostwades.errorsound` package.
 ## AlertDispatcher
 
 **File:** `AlertDispatcher.kt`  
-**Purpose:** Single routing choke-point. Gate order: `SnoozeState` → `AlertMonitoring` → `AlertEventGate` → `ErrorSoundPlayer` → visual notification.
+**Purpose:** Single routing choke-point. Gate order: `SnoozeState` → `AlertMonitoring` → `AlertEventGate` → `AlertHistoryService` → `ErrorSoundPlayer` → visual notification.
 
 | Method | Signature | Description |
 |---|---|---|
@@ -107,9 +107,35 @@ Class-by-class reference for the `com.drostwades.errorsound` package.
 
 - **Inputs:** deduplication key, current settings state, detected error kind, optional project
 - **Outputs:** none (fire-and-forget side effect)
-- **Side effects:** may trigger audio playback; may show balloon notification
-- **Explanation policy:** `explanation` is for runtime diagnostics/future UI only. It does not alter gate order, playback selection, or notification content.
+- **Side effects:** records accepted alert history; may trigger audio playback; may show balloon notification
+- **Explanation policy:** `explanation` is for runtime diagnostics, Alert History context, and future UI. It does not alter gate order, playback selection, or notification content.
+- **History policy:** records only after snooze, monitoring, and deduplication gates accept the alert. Suppressed attempts are not recorded in Phase 3.
 - **Risk:** LOW-MEDIUM — thin routing layer, but every detection path depends on it
+
+---
+
+## AlertHistoryService
+
+**File:** `AlertHistoryService.kt`
+**Purpose:** Application service that stores recent accepted alert events for the Error Monitor Alert History panel.
+
+| Member | Description |
+|---|---|
+| `MAX_ENTRIES = 100` | Hard bound for retained in-memory history |
+| `record(project, kind, soundOverride, explanation)` | Adds a newest-first entry after dispatcher gates accept an alert, then publishes a bus refresh |
+| `snapshot()` | Returns a stable newest-first copy for UI rendering |
+| `clear()` | Removes all entries and publishes a refresh when history was non-empty |
+| `TOPIC` | Application message-bus topic used by the tool window to refresh the table |
+| `Entry` | Timestamp, project name, source, kind, cause, rule id/pattern, exit code, command/config context, and sound override status |
+
+**Behavior:**
+- In-memory only; no persistent storage, network calls, telemetry, or user output archival
+- Bounded to the latest 100 accepted alerts
+- Newest-first ordering is preserved in the service snapshot
+- Clearable from the Error Monitor UI
+- Message-bus refreshed so an open Error Monitor updates when alerts are recorded or cleared
+
+- **Risk:** LOW — bounded application memory state; no detection decisions or playback behavior by itself
 
 ---
 
@@ -410,7 +436,7 @@ Class-by-class reference for the `com.drostwades.errorsound` package.
 ## ErrorSoundToolWindowFactory
 
 **File:** `ErrorSoundToolWindowFactory.kt`  
-**Purpose:** Error Monitor sidebar panel. Provides quick toggles for error monitoring categories.
+**Purpose:** Error Monitor sidebar panel. Provides quick toggles for error monitoring categories and a read-only Alert History view.
 
 **Features:**
 - **Project Profile section (Phase 7):** "Use project override for monitoring enabled" + "Enable monitoring for this project" checkboxes
@@ -418,6 +444,8 @@ Class-by-class reference for the `com.drostwades.errorsound` package.
 - Per-kind checkboxes with descriptions
 - Quick actions: Select All, Clear All
 - Presets: All, Build Only, Runtime Only
+- Alert History table: Time, Source, Kind, Cause, Context
+- Clear history action
 - "Open sound settings" button → opens `ErrorSoundConfigurable`
 
 **Behavior:**
@@ -426,6 +454,8 @@ Class-by-class reference for the `com.drostwades.errorsound` package.
 - `refreshUiState()` uses `ResolvedSettingsResolver.resolve().enabled` as the effective enabled value for greying out per-kind checkboxes and building the status label
 - Status label shows `(global)` or `(project override)` to clarify which setting is in effect
 - When project override is unchecked, `projectEnabledCheckBox` is disabled (greyed out)
+- Alert History subscribes to `AlertHistoryService.TOPIC`, renders newest-first snapshots, and refreshes on the EDT
+- Context may include project/config/command, exit code, matched rule id/pattern, and sound override status
 
 - **Risk:** LOW — UI-only
 
@@ -441,4 +471,4 @@ Class-by-class reference for the `com.drostwades.errorsound` package.
 **Risk:** LOW — additive, no external dependencies.
 
 ---
-*Last updated from code scan: 2026-04-30*
+*Last updated from code scan: 2026-05-01*
