@@ -7,7 +7,7 @@ plugins {
 }
 
 group = "com.drostwades"
-version = "1.1.10"
+version = "1.1.11"
 
 repositories {
     mavenCentral()
@@ -59,6 +59,7 @@ intellijPlatform {
               <li><b>Visual notifications:</b> optional balloon notification alongside each sound alert, configurable per error/success (off by default)</li>
               <li>Instant preview from the settings panel</li>
               <li><b>Error Monitor</b> sidebar panel: enable/disable monitoring, filter by error type, and apply presets without leaving your editor</li>
+              <li><b>Alert History:</b> view recent accepted alerts in the Error Monitor with source, kind, cause, and context details</li>
               <li><b>Project-level profiles:</b> override the master monitoring enabled state per project from the Error Monitor sidebar; all other settings remain global</li>
               <li><b>Per-kind volume:</b> set an independent volume level for each error/success kind; falls back to the global volume when no override is set</li>
             </ul>
@@ -67,11 +68,18 @@ intellijPlatform {
         """.trimIndent()
 
         changeNotes = """
+            <b>1.1.11</b>
+            <ul>
+              <li>New <b>Alert History</b> section in the Error Monitor tool window showing recent accepted alerts in newest-first order</li>
+              <li>History entries are in-memory only, bounded to the latest 100 accepted alerts, and can be cleared at any time</li>
+              <li>Entries include source, kind, explanation cause, project/context, exit code, matched custom rule details, and sound override status when available</li>
+              <li>History is recorded only after alert gates accept an event; suppressed duplicate, snoozed, or disabled alerts are not stored in this release</li>
+            </ul>
             <b>1.1.10</b>
             <ul>
               <li>New internal <b>Rule Match Explanation</b> plumbing records why each alert classification was produced</li>
               <li>Runtime explanations distinguish custom regex matches, built-in classifier matches, terminal exit-code rules, terminal exit-code suppression, success fallback, no-match, and duration-threshold suppression</li>
-              <li>All alert sources now produce explanation objects near classification time and pass them through the existing dispatcher for future notification/history UI</li>
+              <li>All alert sources now produce explanation objects near classification time and pass them through the existing dispatcher for Alert History and future notification UI</li>
               <li>Alert dispatch gate order and playback behavior are unchanged</li>
             </ul>
             <b>1.1.9</b>
