@@ -20,6 +20,7 @@
 |---|---|
 | Smart error detection | Classifies errors as Configuration, Compilation, Test Failure, Network, Exception, or Generic |
 | Error Monitor panel | Handy sidebar tool window to quickly toggle active error categories with presets |
+| Alert History | Read-only Error Monitor table showing recent accepted alerts with source, kind, cause, and context |
 | Terminal support | Monitors both Run/Debug processes and built-in Terminal commands |
 | Custom regex rules | Define LINE_TEXT, FULL_OUTPUT, and EXIT_CODE_AND_TEXT patterns that run before built-in classification |
 | Rule Testing Sandbox | Paste sample output and see which custom rule or built-in classifier would match |
@@ -71,10 +72,12 @@ Open **Settings / Preferences → Tools → Error Sound Alert** to configure aud
 
 ### Error Monitor Tool Window
 
-A handy sidebar panel (View → Tool Windows → Error Monitor) to quickly turn on or off monitoring for specific error types without opening settings. It also includes snooze controls and the per-project enabled override. Supports one-click presets:
+A handy sidebar panel (View → Tool Windows → Error Monitor) to quickly turn on or off monitoring for specific error types without opening settings. It also includes snooze controls, the per-project enabled override, and an Alert History table. Supports one-click presets:
 - **All**: Enable all error types
 - **Build Only**: Focus on Configuration, Compilation, and Test Failures
 - **Runtime Only**: Focus on Network, Exception, and Generic errors
+
+The Alert History section shows recent accepted alerts in newest-first order. It is read-only, clearable, in-memory only, and bounded to the latest 100 entries. Rows show **Time**, **Source**, **Kind**, **Cause**, and **Context**; context may include project/config/command, exit code, matched rule id/pattern, or sound override status.
 
 ### Audio Settings
 
@@ -135,12 +138,12 @@ Output: `build/distributions/error-sound-<version>.zip`
 1. The plugin registers process output listeners (`ExecutionListener`, console filters) and terminal command listeners.
 2. As a process runs or a terminal command executes, its output is scanned in real time for known error patterns.
 3. On process termination (or console line match, or terminal command completion), the detection path creates an internal explanation object, builds a stable deduplication key, and calls **`AlertDispatcher.tryAlert`**.
-4. `AlertDispatcher` checks **`AlertMonitoring`** (is this error category enabled?) and **`AlertEventGate`** (is this a duplicate within the cooldown window?).
-5. If both pass, `ErrorSoundPlayer` plays the configured sound asynchronously.
+4. `AlertDispatcher` checks snooze, **`AlertMonitoring`** (is this error category enabled?), and **`AlertEventGate`** (is this a duplicate within the cooldown window?).
+5. If all gates pass, `AlertHistoryService` records an in-memory history entry, then `ErrorSoundPlayer` plays the configured sound asynchronously.
 6. If the clip is shorter than the alert duration, it loops until time expires.
 7. Fallback chain: custom file → built-in WAV → generated 880 Hz tone → system beep.
 
-Rule match explanations are internal groundwork for future notification/history views. Current visual notifications are not yet explanation-rich.
+Rule match explanations power the Alert History cause/context details. Current visual notifications are not yet explanation-rich.
 
 ---
 
@@ -150,6 +153,7 @@ Rule match explanations are internal groundwork for future notification/history 
 src/main/kotlin/com/drostwades/errorsound/
 ├── AlertDispatcher.kt                # Single choke-point: routes all alerts through monitoring + gate + player
 ├── AlertEventGate.kt                 # Deduplication gate — per-source and global cooldowns
+├── AlertHistoryService.kt            # In-memory accepted-alert history for the Error Monitor
 ├── AlertMatchExplanation.kt          # Internal explanation model for alert classifications
 ├── AlertMonitoring.kt                # Centralized rule gate for error filtering
 ├── AlertOnErrorExecutionListener.kt  # Process lifecycle listener
