@@ -78,6 +78,24 @@ Adds an Error Monitor sidebar for quick operational control. Users can toggle gl
 
 ---
 
+## Alert History
+
+| Field | Value |
+|---|---|
+| Status | Available |
+| Version introduced | 1.1.11 |
+| Relevant classes/files | `AlertHistoryService.kt`, `AlertDispatcher.kt`, `ErrorSoundToolWindowFactory.kt`, `AlertMatchExplanation.kt` |
+
+Shows recent accepted alerts in the Error Monitor so users can see what fired and why after the sound plays. Entries are derived from the runtime explanation object and include source, final kind, cause, and compact context. The history is in-memory only, newest first, bounded to the latest 100 entries, and clearable from the panel. It is intended for local troubleshooting and does not persist console output or send telemetry.
+
+**How to enable/use:** Open View -> Tool Windows -> Error Monitor and use the Alert History section. Alerts appear after they pass snooze, monitoring, and deduplication gates.
+
+**Example usage:** A terminal command exits `137` and matches an exit-code rule; Alert History shows Terminal, GENERIC, terminal exit-code rule, the exit code, command context, and any rule/sound override details available.
+
+**Notes/limitations:** Suppressed attempts are not recorded in this release, including snoozed alerts, disabled kinds, and deduplicated events. The table is read-only and does not yet include actions such as opening the related console or rerunning a process.
+
+---
+
 ## Success Sounds
 
 | Field | Value |
@@ -275,4 +293,4 @@ Prevents rapid duplicate alerts when multiple detection paths or repeated output
 **Notes/limitations:** Cooldown values are fixed in code and not currently configurable.
 
 ---
-*Last updated from code scan: 2026-04-30*
+*Last updated from code scan: 2026-05-01*
