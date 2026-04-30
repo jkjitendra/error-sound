@@ -11,6 +11,7 @@ import com.intellij.ui.components.ActionLink
 import com.intellij.ui.components.JBCheckBox
 import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.JBScrollPane
+import com.intellij.ui.table.JBTable
 import com.intellij.ui.content.ContentFactory
 import com.intellij.util.messages.MessageBusConnection
 import com.intellij.util.ui.JBFont
@@ -26,6 +27,11 @@ import javax.swing.JButton
 import javax.swing.JComponent
 import javax.swing.JPanel
 import javax.swing.ScrollPaneConstants
+import javax.swing.JTable
+import javax.swing.table.AbstractTableModel
+import java.time.Instant
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 
 class ErrorSoundToolWindowFactory : ToolWindowFactory, DumbAware {
 
@@ -113,6 +119,12 @@ private class ErrorSoundToolWindowPanel(
     private val snooze60Link = ActionLink("Mute 1 hour") { doSnooze(60) }
     private val snoozeResumeLink = ActionLink("Resume") { doResume() }
 
+    private val historyTableModel = AlertHistoryTableModel()
+    private val historyTable = JBTable(historyTableModel)
+    private val clearHistoryButton = JButton("Clear history").apply {
+        addActionListener { AlertHistoryService.getInstance().clear() }
+    }
+
     /**
      * Fires every 10 s while snoozed to keep [statusLabel], [snoozeLabel],
      * and the Resume link fresh after expiry. Stopped as soon as snooze ends.
@@ -197,6 +209,12 @@ private class ErrorSoundToolWindowPanel(
                 refreshUiState()
             }
         })
+        connection.subscribe(AlertHistoryService.TOPIC, AlertHistoryService.Listener {
+            ApplicationManager.getApplication().invokeLater {
+                if (!isDisplayable) return@invokeLater
+                refreshHistoryTable()
+            }
+        })
 
         // Reconcile current snooze state immediately — no snoozeChanged() event fires
         // for state that changed while the panel was detached (e.g. reattach while snoozed).
@@ -206,6 +224,7 @@ private class ErrorSoundToolWindowPanel(
             snoozeRefreshTimer.stop()
         }
         refreshUiState()
+        refreshHistoryTable()
     }
 
     override fun removeNotify() {
@@ -263,6 +282,11 @@ private class ErrorSoundToolWindowPanel(
         column.add(compact(buildSnoozeActions()))
         column.add(Box.createVerticalStrut(2))
         column.add(compact(snoozeLabel))
+
+        column.add(Box.createVerticalStrut(10))
+        column.add(compact(TitledSeparator("Alert History")))
+        column.add(Box.createVerticalStrut(6))
+        column.add(compact(buildHistorySection()))
 
         column.add(Box.createVerticalStrut(10))
         column.add(
@@ -382,6 +406,44 @@ private class ErrorSoundToolWindowPanel(
         row.add(snoozeResumeLink)
 
         return row
+    }
+
+    private fun buildHistorySection(): JComponent {
+        historyTable.autoResizeMode = JTable.AUTO_RESIZE_SUBSEQUENT_COLUMNS
+        historyTable.rowHeight = 24
+        historyTable.fillsViewportHeight = true
+        historyTable.emptyText.text = "No accepted alerts yet"
+
+        historyTable.columnModel.getColumn(0).preferredWidth = 68
+        historyTable.columnModel.getColumn(1).preferredWidth = 70
+        historyTable.columnModel.getColumn(2).preferredWidth = 90
+        historyTable.columnModel.getColumn(3).preferredWidth = 130
+        historyTable.columnModel.getColumn(4).preferredWidth = 210
+
+        val scrollPane = JBScrollPane(historyTable).apply {
+            preferredSize = Dimension(0, 165)
+        }
+
+        val wrapper = JPanel()
+        wrapper.layout = BoxLayout(wrapper, BoxLayout.Y_AXIS)
+        wrapper.isOpaque = false
+
+        val hint = JBLabel("Recent accepted alerts only; in memory, newest first, max ${AlertHistoryService.MAX_ENTRIES}.").apply {
+            foreground = UIUtil.getContextHelpForeground()
+            font = JBFont.small()
+        }
+
+        val actions = JPanel()
+        actions.layout = BoxLayout(actions, BoxLayout.X_AXIS)
+        actions.isOpaque = false
+        actions.add(clearHistoryButton)
+
+        wrapper.add(left(hint))
+        wrapper.add(Box.createVerticalStrut(4))
+        wrapper.add(scrollPane)
+        wrapper.add(Box.createVerticalStrut(4))
+        wrapper.add(left(actions))
+        return wrapper
     }
 
     private fun spacerDot(): JComponent {
@@ -550,6 +612,11 @@ private class ErrorSoundToolWindowPanel(
         presetRuntimeOnlyLink.isEnabled = monitoringEnabled
     }
 
+    private fun refreshHistoryTable() {
+        historyTableModel.setEntries(AlertHistoryService.getInstance().snapshot())
+        clearHistoryButton.isEnabled = historyTableModel.rowCount > 0
+    }
+
     private fun <T : JComponent> compact(component: T): T {
         component.alignmentX = Component.LEFT_ALIGNMENT
         val preferred = component.preferredSize
@@ -567,4 +634,66 @@ private class ErrorSoundToolWindowPanel(
         val checkBox: JBCheckBox,
         val description: String,
     )
+
+    private class AlertHistoryTableModel : AbstractTableModel() {
+        private val timeFormatter = DateTimeFormatter.ofPattern("HH:mm:ss")
+            .withZone(ZoneId.systemDefault())
+        private val entries = mutableListOf<AlertHistoryService.Entry>()
+
+        fun setEntries(newEntries: List<AlertHistoryService.Entry>) {
+            entries.clear()
+            entries.addAll(newEntries)
+            fireTableDataChanged()
+        }
+
+        override fun getRowCount(): Int = entries.size
+        override fun getColumnCount(): Int = 5
+        override fun getColumnName(column: Int): String = when (column) {
+            0 -> "Time"
+            1 -> "Source"
+            2 -> "Kind"
+            3 -> "Cause"
+            4 -> "Context"
+            else -> ""
+        }
+
+        override fun getValueAt(rowIndex: Int, columnIndex: Int): Any {
+            val entry = entries[rowIndex]
+            return when (columnIndex) {
+                0 -> timeFormatter.format(Instant.ofEpochMilli(entry.timestampMillis))
+                1 -> entry.source?.label() ?: "Unknown"
+                2 -> entry.kind.name
+                3 -> entry.cause?.label() ?: "Unknown"
+                4 -> entry.contextSummary()
+                else -> ""
+            }
+        }
+
+        private fun AlertHistoryService.Entry.contextSummary(): String {
+            val parts = mutableListOf<String>()
+            projectName?.takeIf { it.isNotBlank() }?.let { parts += "project=$it" }
+            commandOrConfig?.takeIf { it.isNotBlank() }?.let { parts += "context=$it" }
+            exitCode?.let { parts += "exit=$it" }
+            ruleId?.takeIf { it.isNotBlank() }?.let { parts += "rule=$it" }
+            rulePattern?.takeIf { it.isNotBlank() }?.let { parts += "pattern=${it.take(80)}" }
+            if (soundOverrideUsed) parts += "sound override"
+            return parts.joinToString(", ").ifBlank { "Accepted alert" }
+        }
+
+        private fun AlertMatchExplanation.Source.label(): String = when (this) {
+            AlertMatchExplanation.Source.RUN_DEBUG -> "Run/Debug"
+            AlertMatchExplanation.Source.CONSOLE -> "Console"
+            AlertMatchExplanation.Source.TERMINAL -> "Terminal"
+        }
+
+        private fun AlertMatchExplanation.Cause.label(): String = when (this) {
+            AlertMatchExplanation.Cause.CUSTOM_REGEX_RULE -> "Custom regex"
+            AlertMatchExplanation.Cause.BUILT_IN_CLASSIFIER -> "Built-in classifier"
+            AlertMatchExplanation.Cause.TERMINAL_EXIT_CODE_RULE -> "Exit-code rule"
+            AlertMatchExplanation.Cause.TERMINAL_EXIT_CODE_SUPPRESSED -> "Exit-code suppressed"
+            AlertMatchExplanation.Cause.SUCCESS_FALLBACK -> "Success fallback"
+            AlertMatchExplanation.Cause.NO_MATCH -> "No match"
+            AlertMatchExplanation.Cause.DURATION_THRESHOLD_SUPPRESSED -> "Duration suppressed"
+        }
+    }
 }
