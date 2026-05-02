@@ -19,6 +19,13 @@ object BuiltInSounds {
         BuiltInSound("punch", "Punch", "/audios/punch.wav"),
         BuiltInSound("yeah_boy", "Yeah Boy", "/audios/yeah_boy.wav"),
         BuiltInSound("yooo", "Yooo", "/audios/yooo.wav"),
+        BuiltInSound("snoring_meme", "Snoring", "/audios/snoring_meme.wav"),
+        BuiltInSound("bruh", "Bruh", "/audios/bruh.wav"),
+        BuiltInSound("metal_gear", "Metal Gear Alert", "/audios/metal_gear_alert.wav"),
+        BuiltInSound("roblox_death", "Roblox death", "/audios/roblox_death.wav"),
+        BuiltInSound("minecraft_damage_old", "Minecraft Damage (old)", "/audios/minecraft_damage_old.wav"),
+        BuiltInSound("shock_meme", "Shock", "/audios/shock_meme.wav"),
+        BuiltInSound("kiepscy", "Kiepscy", "/audios/swiat_wg_kiepskich.wav"),
     )
 
     private val byId: Map<String, BuiltInSound> = all.associateBy { it.id }
