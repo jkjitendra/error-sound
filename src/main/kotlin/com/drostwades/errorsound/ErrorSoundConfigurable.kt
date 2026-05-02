@@ -120,6 +120,7 @@ class ErrorSoundConfigurable : Configurable {
     private val customPreviewButton = JButton("Preview")
     private val volumeSlider = JBSlider(0, 100, 80)
     private val durationSlider = JBSlider(1, 10, 3)
+    private val useActualSoundDurationCheck = JBCheckBox("Use actual sound file duration (play once)")
     private val volumeValueLabel = JBLabel()
     private val durationValueLabel = JBLabel()
 
@@ -193,6 +194,13 @@ class ErrorSoundConfigurable : Configurable {
         volumeSlider.addChangeListener { updateSliderValueLabels(); refreshUncheckedKindVolumeLabels() }
         durationSlider.addChangeListener {
             updateSliderValueLabels()
+            if (!suppressPreview) {
+                ErrorSoundPlayer.stopPreview()
+            }
+        }
+
+        useActualSoundDurationCheck.addActionListener {
+            updateInputState()
             if (!suppressPreview) {
                 ErrorSoundPlayer.stopPreview()
             }
@@ -339,6 +347,13 @@ class ErrorSoundConfigurable : Configurable {
                 false
             )
             .addLabeledComponent("Volume (%):", createSliderPanel(volumeSlider, volumeValueLabel), 1, false)
+            .addComponent(
+                withHelp(
+                    useActualSoundDurationCheck,
+                    "When enabled, the sound plays once for its actual duration. The duration slider is disabled."
+                ),
+                1
+            )
             .addLabeledComponent("Alert duration (sec):", createSliderPanel(durationSlider, durationValueLabel), 1, false)
             .addLabeledComponent(
                 "Min process duration (sec):",
@@ -416,6 +431,7 @@ class ErrorSoundConfigurable : Configurable {
             customPathField.text.trim() != state.customSoundPath ||
             volumeSlider.value != state.volumePercent ||
             durationSlider.value != state.alertDurationSeconds ||
+            useActualSoundDurationCheck.isSelected != state.useActualSoundDuration ||
             (minDurationSpinner.value as? Int) != state.minProcessDurationSeconds ||
             showVisualNotificationCheck.isSelected != state.showVisualNotification ||
             visualNotificationOnErrorCheck.isSelected != state.visualNotificationOnError ||
@@ -465,6 +481,7 @@ class ErrorSoundConfigurable : Configurable {
                 customSoundPath = customPathField.text.trim(),
                 volumePercent = volumeSlider.value,
                 alertDurationSeconds = durationSlider.value,
+                useActualSoundDuration = useActualSoundDurationCheck.isSelected,
                 minProcessDurationSeconds = (minDurationSpinner.value as? Int) ?: 0,
                 showVisualNotification = showVisualNotificationCheck.isSelected,
                 visualNotificationOnError = visualNotificationOnErrorCheck.isSelected,
@@ -545,6 +562,7 @@ class ErrorSoundConfigurable : Configurable {
 
             volumeSlider.value = state.volumePercent
             durationSlider.value = state.alertDurationSeconds
+            useActualSoundDurationCheck.isSelected = state.useActualSoundDuration
             minDurationSpinner.value = state.minProcessDurationSeconds
             showVisualNotificationCheck.isSelected = state.showVisualNotification
             visualNotificationOnErrorCheck.isSelected = state.visualNotificationOnError
@@ -620,6 +638,10 @@ class ErrorSoundConfigurable : Configurable {
         genericVolumeLabel.isEnabled        = genericVolumeCheck.isSelected
         successVolumeSlider.isEnabled       = successVolumeCheck.isSelected
         successVolumeLabel.isEnabled        = successVolumeCheck.isSelected
+
+        // Disable duration slider when using actual sound duration
+        durationSlider.isEnabled = !useActualSoundDurationCheck.isSelected
+        durationValueLabel.isEnabled = !useActualSoundDurationCheck.isSelected
     }
 
     private fun createNotificationSubRow(): JPanel {

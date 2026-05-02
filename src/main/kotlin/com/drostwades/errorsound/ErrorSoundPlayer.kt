@@ -216,22 +216,33 @@ object ErrorSoundPlayer {
             clip.open(input)
             applyVolumeIfSupported(clip, volumePercent)
 
-            val totalDurationMillis = (settings.alertDurationSeconds.coerceIn(1, 10) * 1_000L)
-            val deadlineNanos = System.nanoTime() + (totalDurationMillis * 1_000_000L)
             val clipLengthMillis = (clip.microsecondLength / 1_000L).coerceAtLeast(1L)
 
-            while (System.nanoTime() < deadlineNanos) {
+            // If useActualSoundDuration is enabled, play the sound once for its actual duration
+            if (settings.useActualSoundDuration) {
                 clip.framePosition = 0
                 clip.start()
-
-                val remainingMillis = ((deadlineNanos - System.nanoTime()) / 1_000_000L).coerceAtLeast(0L)
-                if (remainingMillis <= 0L) {
-                    break
-                }
-
-                Thread.sleep(minOf(clipLengthMillis, remainingMillis))
+                Thread.sleep(clipLengthMillis)
                 clip.stop()
                 clip.flush()
+            } else {
+                // Original looping behavior
+                val totalDurationMillis = (settings.alertDurationSeconds.coerceIn(1, 10) * 1_000L)
+                val deadlineNanos = System.nanoTime() + (totalDurationMillis * 1_000_000L)
+
+                while (System.nanoTime() < deadlineNanos) {
+                    clip.framePosition = 0
+                    clip.start()
+
+                    val remainingMillis = ((deadlineNanos - System.nanoTime()) / 1_000_000L).coerceAtLeast(0L)
+                    if (remainingMillis <= 0L) {
+                        break
+                    }
+
+                    Thread.sleep(minOf(clipLengthMillis, remainingMillis))
+                    clip.stop()
+                    clip.flush()
+                }
             }
         } finally {
             runCatching { input.close() }
