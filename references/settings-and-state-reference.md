@@ -56,12 +56,35 @@ Quick lookup for `AlertSettings.State` fields and their usage.
 | `alertDurationSeconds` | Int | `3` | 1–10 |
 | `minProcessDurationSeconds` | Int | `0` | 0–300. Alerts suppressed if process completes faster. Run/Debug only. |
 
+### Rule Collections
+
+| Field | Type | Default | Description |
+|---|---|---|---|
+| `customRules` | `MutableList<CustomRuleState>` | Empty list | User-defined regex rules evaluated before built-in classification |
+| `exitCodeRules` | `MutableList<ExitCodeRuleState>` | 130 suppress, 127/137/143 GENERIC | Terminal exit-code mappings, sound overrides, or suppression |
+
+`CustomRuleState` fields:
+- `id: String`
+- `enabled: Boolean`
+- `pattern: String`
+- `matchTarget: String` — `LINE_TEXT`, `FULL_OUTPUT`, or `EXIT_CODE_AND_TEXT`
+- `kind: String` — allowed user-facing error kind
+
+`ExitCodeRuleState` fields:
+- `exitCode: Int`
+- `enabled: Boolean`
+- `kind: String` — allowed user-facing error kind
+- `soundId: String?` — bundled sound override, or `null` for default resolution
+- `suppress: Boolean`
+
 ## Validation (in `loadState`)
 
 - `volumePercent` clamped to 0–100
 - `alertDurationSeconds` clamped to 1–10
 - All sound IDs normalized via `BuiltInSounds.findByIdOrDefault()`
 - Custom file ID (`__custom_file__`) preserved as-is
+- Custom rules are normalized to existing limits: first `CustomRuleEngine.MAX_RULES`, patterns trimmed/truncated to `MAX_PATTERN_LENGTH`, blank ids regenerated, unsupported targets default to `LINE_TEXT`, unsupported kinds default to `GENERIC`
+- Exit-code rule kinds are normalized to allowed error kinds, and blank or custom-file sound ids become `null`
 
 ## SoundSource Enum
 
@@ -69,5 +92,69 @@ Quick lookup for `AlertSettings.State` fields and their usage.
 enum class SoundSource { BUNDLED, CUSTOM }
 ```
 
+## Rule Import / Export JSON
+
+Phase 4 import/export is a rules-only local JSON bundle handled by `RuleImportExportBundle` and `RuleImportExportService`. It covers exactly:
+- `customRules`
+- `exitCodeRules`
+
+It does **not** cover:
+- global sound settings
+- per-kind volume
+- success settings
+- project overrides
+- alert history
+- snooze state
+- full plugin settings bundles
+
+### Top-Level Structure
+
+```json
+{
+  "schemaVersion": 1,
+  "exportedAt": "2026-05-02T00:00:00Z",
+  "pluginVersion": "1.1.11",
+  "customRules": [
+    {
+      "id": "8e2d8f2f-4d8b-46cc-8f22-82a904f1d6aa",
+      "enabled": true,
+      "pattern": "lint failed",
+      "matchTarget": "LINE_TEXT",
+      "kind": "COMPILATION"
+    }
+  ],
+  "exitCodeRules": [
+    {
+      "exitCode": 137,
+      "enabled": true,
+      "kind": "GENERIC",
+      "soundId": "boom",
+      "suppress": false
+    }
+  ]
+}
+```
+
+### Import Rules
+
+- `schemaVersion` must be `1`
+- Top-level JSON must be an object
+- `customRules` and `exitCodeRules` sections may be missing; missing sections import as empty lists
+- Unknown top-level fields are rejected to avoid importing full settings bundles accidentally
+- Rule ordering is preserved
+- Rule ids are preserved when present; missing or blank custom rule ids are regenerated with a validation note
+- Unsupported `matchTarget`, `kind`, and bundled sound ids cause that row to be skipped with a user-facing warning
+- Invalid regex text is preserved and reported; runtime continues to skip invalid regex rules until the user edits them
+- Imported table changes are not persisted until Apply is clicked
+- Reset discards imported-but-not-applied table changes
+
+### Export Rules
+
+- Export reads the current settings UI table-model state, including unsaved edits
+- Export writes pretty-printed JSON to a user-selected local file
+- Existing export files are not overwritten silently; the UI asks for confirmation
+- Export does not write any permanent storage outside the selected file
+- Import/export does not use network, telemetry, or imported-content execution
+
 ---
-*Last updated from code scan: 2026-03-22*
+*Last updated from code scan: 2026-05-02*
