@@ -4,6 +4,50 @@ Engineering-significant changes to the codebase. Not a full changelog — focuse
 
 ---
 
+## 1.1.12 — Rule Import / Export (Phase 4)
+
+### Scope
+Phase 4 adds a shipped user-facing **Rule Import / Export** feature in Settings / Preferences -> Tools -> Error Sound Alert. It is rules-only and covers exactly:
+- Custom Regex Rules
+- Terminal Exit-Code Rules
+
+It does not export or import global sound settings, per-kind volume, success settings, project overrides, alert history, snooze state, or a full plugin settings bundle.
+
+### New File: `RuleImportExportBundle.kt`
+- DTO for schema version 1 JSON bundles
+- Top-level fields: `schemaVersion`, `exportedAt`, `pluginVersion`, `customRules`, `exitCodeRules`
+- Nested rule DTOs mirror `AlertSettings.CustomRuleState` and `AlertSettings.ExitCodeRuleState`
+
+### New File: `RuleImportExportResult.kt`
+- Import result value carrying valid custom rules, valid exit-code rules, validation warnings, and skipped-entry count
+- Used by the settings UI to build the confirmation summary before replacing table model contents
+
+### New File: `RuleImportExportService.kt`
+- Pure helper for pretty JSON export and strict JSON import validation
+- Rejects malformed top-level structure, unsupported schema versions, and unsupported top-level fields
+- Validates allowed custom rule targets and allowed error kinds
+- Validates exit-code sound overrides against bundled sound ids
+- Preserves rule ordering and ids when present
+- Preserves invalid regex text but reports it so users can edit it before runtime use
+- Applies existing custom rule limits: `MAX_RULES` and `MAX_PATTERN_LENGTH`
+
+### `ErrorSoundConfigurable` — Import / Export UI
+- Adds **Export Rules…** and **Import Rules…** controls near the rule sections
+- Export serializes the current rule table-model state, including unsaved edits
+- Import reads a local JSON file, validates it, shows a confirmation summary, then replaces only the two rule table models
+- Imported changes follow normal settings semantics: Apply persists; Reset discards imported-but-not-applied changes
+- Export asks before overwriting an existing file
+
+### Safety Boundaries
+- Local file import/export only
+- No network
+- No telemetry
+- No permanent storage outside the selected export file
+- No execution of imported content
+- No direct terminal plugin imports
+
+---
+
 ## 1.1.11 — Alert History Panel (Phase 3 Roadmap)
 
 ### Scope
@@ -465,4 +509,4 @@ projectOverride == false →  effective enabled = false (regardless of global)
 - Improved terminal compatibility with 2025.x reworked terminal engine
 
 ---
-*Last updated from code scan: 2026-05-01*
+*Last updated from code scan: 2026-05-02*

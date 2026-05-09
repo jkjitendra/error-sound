@@ -95,6 +95,69 @@ Class-by-class reference for the `com.drostwades.errorsound` package.
 
 ---
 
+## RuleImportExportBundle
+
+**File:** `RuleImportExportBundle.kt`
+**Purpose:** Rules-only JSON DTO for Phase 4 import/export.
+
+**Shape:**
+- `schemaVersion`
+- `exportedAt`
+- `pluginVersion`
+- `customRules`
+- `exitCodeRules`
+
+**Nested DTOs:**
+- `CustomRule(id, enabled, pattern, matchTarget, kind)`
+- `ExitCodeRule(exitCode, enabled, kind, soundId?, suppress)`
+
+**Scope boundary:** This bundle intentionally excludes full plugin settings, global sound settings, per-kind volume, success settings, project overrides, alert history, and snooze state.
+
+- **Risk:** LOW — serialization data model only
+
+---
+
+## RuleImportExportResult
+
+**File:** `RuleImportExportResult.kt`
+**Purpose:** Import result value passed from the pure validation service to the settings UI.
+
+| Field | Description |
+|---|---|
+| `customRules` | Valid imported custom regex rules, in JSON order |
+| `exitCodeRules` | Valid imported terminal exit-code rules, in JSON order |
+| `warnings` | User-facing validation notes such as generated ids, invalid regex warnings, truncation, and skipped entries |
+| `skippedCount` | Count of invalid or unsupported entries skipped during import |
+
+- **Risk:** LOW — immutable import summary
+
+---
+
+## RuleImportExportService
+
+**File:** `RuleImportExportService.kt`
+**Purpose:** Pure JSON serialization, parsing, and validation helper for Phase 4 rule import/export.
+
+| Method | Description |
+|---|---|
+| `exportRules(customRules, exitCodeRules, pluginVersion)` | Pretty-prints schema version 1 JSON containing only custom regex and terminal exit-code rules |
+| `importRules(json)` | Parses JSON, validates the schema and rule rows, preserves ordering, and returns a `RuleImportExportResult` |
+
+**Validation behavior:**
+- Requires a top-level object with `schemaVersion = 1`
+- Allows missing `customRules` or `exitCodeRules` sections; missing sections import as empty lists
+- Rejects unsupported top-level fields so full settings bundles are not imported accidentally
+- Rejects unsupported `matchTarget`, `kind`, and unknown bundled sound ids
+- Preserves invalid regex text but reports it; runtime will skip the rule until edited
+- Preserves rule ids when present; generates ids only when omitted or blank
+- Clamps custom rule count and pattern length using existing `CustomRuleEngine` limits
+
+**Safety:** No network, telemetry, permanent storage, or execution of imported content.
+
+- **Risk:** LOW — pure validation/serialization logic; does not mutate settings directly
+
+---
+
 ## AlertDispatcher
 
 **File:** `AlertDispatcher.kt`  
@@ -384,6 +447,13 @@ Class-by-class reference for the `com.drostwades.errorsound` package.
 - Custom file path refreshes all combo models to include/exclude custom option
 - `apply()` stops any active preview, stops any in-progress cell edit, then saves
 
+**Rule Import / Export controls (Phase 4 addition):**
+- Adds `Export Rules…` and `Import Rules…` controls near the rule sections
+- Export stops active rule cell editing and serializes the current table-model state, including unsaved edits
+- Import reads a user-selected local JSON file, delegates strict parsing/validation to `RuleImportExportService`, shows a confirmation summary, then replaces only the custom regex and terminal exit-code rule table models
+- Imported changes follow normal settings semantics: they are not persisted until Apply; Reset reloads persisted settings and discards imported-but-not-applied table state
+- Overwrite protection is explicit for export; import/export is local file based only
+
 **Custom Regex Rules section (Phase 5 addition):**
 - `CustomRuleTableModel` (inner class) — `AbstractTableModel` with deep-copy semantics on `setRules()` so table edits don't mutate settings until Apply
 - `PatternValidatingRenderer` (inner class) — renders Pattern column with red tint + tooltip for invalid regex
@@ -471,4 +541,4 @@ Class-by-class reference for the `com.drostwades.errorsound` package.
 **Risk:** LOW — additive, no external dependencies.
 
 ---
-*Last updated from code scan: 2026-05-01*
+*Last updated from code scan: 2026-05-02*

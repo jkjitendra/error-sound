@@ -32,6 +32,7 @@ Error Sound Alert is an IntelliJ Platform plugin that plays an audio alert when 
 | Custom regex rules | User-defined LINE_TEXT, FULL_OUTPUT, and EXIT_CODE_AND_TEXT regex rules evaluated before built-in classification |
 | Rule Testing Sandbox | Settings-side tool for pasting sample output and explaining custom rule and built-in classifier results |
 | Terminal exit-code rules | Map terminal exit codes to error kinds, optional built-in sound overrides, or suppression |
+| Rule import/export | Local JSON import/export for custom regex rules and terminal exit-code rules only |
 | Visual notifications | Optional balloon notifications for error and success alerts |
 | Snooze / mute | Temporarily silence all alerts from the Error Monitor sidebar |
 | Project-level profile | Per-project override for the master `enabled` flag; all other settings remain global |
@@ -51,14 +52,17 @@ Error Sound Alert is an IntelliJ Platform plugin that plays an audio alert when 
 - Success sounds only trigger from Run/Debug processes — not from terminal or console filter paths.
 - Project-level profiles currently override only the master `enabled` flag; sounds, rules, per-kind toggles, and volumes remain application-level.
 - Rule match explanations are internal/runtime-facing only; current visual notifications do not yet show detailed explanation content.
+- Rule import/export is rules-only. It does not include global sound settings, per-kind volume, success settings, project overrides, alert history, snooze state, or a full plugin settings bundle.
 - Alert history is in-memory only, bounded to 100 entries, and records only alerts accepted by snooze, monitoring, and deduplication gates. Snoozed, disabled, duplicate, or otherwise suppressed attempts are not recorded.
 - Console filter can produce false positives for lines containing the word "error" or "exception" in benign contexts.
 
 ## User-Facing Behavior Summary
 
-When enabled, the plugin runs silently in the background. The moment a process fails, an error pattern appears in console output, or a terminal command exits with a non-zero code, a short audio alert plays. Users configure sounds, volume, duration, custom rules, terminal exit-code rules, and notifications via **Settings → Tools → Error Sound Alert**. The **Error Monitor** sidebar controls global monitoring, per-kind monitoring toggles, snooze, presets, the per-project enabled override, and a clearable in-memory Alert History table for recent accepted alerts.
+When enabled, the plugin runs silently in the background. The moment a process fails, an error pattern appears in console output, or a terminal command exits with a non-zero code, a short audio alert plays. Users configure sounds, volume, duration, custom rules, terminal exit-code rules, rules-only import/export, and notifications via **Settings → Tools → Error Sound Alert**. The **Error Monitor** sidebar controls global monitoring, per-kind monitoring toggles, snooze, presets, the per-project enabled override, and a clearable in-memory Alert History table for recent accepted alerts.
+
+Rule import/export in **Settings → Tools → Error Sound Alert** uses local JSON files only. Export reads the current Custom Regex Rules and Terminal Exit-Code Rules table models, including unsaved edits. Import validates JSON strictly, shows a confirmation summary, and replaces only those two table models. Imported changes are not saved until Apply is clicked; Reset discards imported-but-not-applied changes.
 
 The Rule Testing Sandbox in **Settings → Tools → Error Sound Alert** is an explanation tool only. Users choose Source, Match Target, optional Exit Code, paste sample output, and click **Test Rules** to see whether a custom rule would match, which `ErrorKind` would result, and whether built-in classification would match if no custom rule did. It does not participate in runtime detection, dispatch, monitoring gates, deduplication, or playback.
 
 ---
-*Last updated from code scan: 2026-05-01*
+*Last updated from code scan: 2026-05-02*
