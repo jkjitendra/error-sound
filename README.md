@@ -25,6 +25,7 @@
 | Custom regex rules | Define LINE_TEXT, FULL_OUTPUT, and EXIT_CODE_AND_TEXT patterns that run before built-in classification |
 | Rule Testing Sandbox | Paste sample output and see which custom rule or built-in classifier would match |
 | Terminal exit-code rules | Map terminal exit codes to error kinds, optional built-in sound overrides, or suppression |
+| Rule import/export | Export and import custom regex rules plus terminal exit-code rules as local JSON |
 | Success sounds | Optional alert when a Run/Debug process completes successfully |
 | Visual notifications | Optional balloon notifications alongside sound alerts, configurable for errors and successes |
 | Snooze / mute | Temporarily silence alerts for 15 minutes or 1 hour from the Error Monitor panel |
@@ -96,6 +97,17 @@ The Alert History section shows recent accepted alerts in newest-first order. It
 | Custom regex rules | Add user-defined regex rules with LINE_TEXT, FULL_OUTPUT, or EXIT_CODE_AND_TEXT targets |
 | Rule Testing Sandbox | Choose Source, Match Target, optional Exit Code, paste sample output, and click **Test Rules** |
 | Exit-code rules | Map terminal exit codes to kinds, sound overrides, or suppression |
+| Rule import/export | **Export Rules…** / **Import Rules…** for custom regex and terminal exit-code rules only |
+
+### Rule Import / Export
+
+Use **Export Rules…** and **Import Rules…** in **Settings / Preferences → Tools → Error Sound Alert** to move rules between IDEs or share rule presets. The JSON bundle covers only:
+- Custom Regex Rules
+- Terminal Exit-Code Rules
+
+It does **not** include global sound settings, per-kind volume, success settings, project overrides, alert history, snooze state, or a full plugin settings export.
+
+Export uses the current rule tables exactly as shown, including unsaved edits. Import validates the JSON, shows a confirmation summary, and replaces only the two rule tables. Imported changes follow the normal settings workflow: click **Apply** to persist them, or **Reset** to discard imported-but-not-applied changes. Import/export uses local files only; there is no network or telemetry.
 
 ### Rule Testing Sandbox
 
@@ -169,6 +181,9 @@ src/main/kotlin/com/drostwades/errorsound/
 ├── ErrorSoundToolWindowFactory.kt    # Error Monitor sidebar panel
 ├── ProjectAlertSettings.kt           # Project-level enabled override state
 ├── ResolvedSettingsResolver.kt       # Effective global/project settings resolver
+├── RuleImportExportBundle.kt         # Rules-only JSON export DTO
+├── RuleImportExportResult.kt         # Rule import validation result
+├── RuleImportExportService.kt        # Rules-only JSON import/export validation helper
 ├── RuleTestService.kt                # Settings-side rule sandbox evaluator
 └── SnoozeState.kt                    # Transient mute state
 
