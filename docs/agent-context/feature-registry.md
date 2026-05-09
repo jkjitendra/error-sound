@@ -222,6 +222,24 @@ Maps specific terminal exit codes to an error kind, an optional built-in sound o
 
 ---
 
+## Rule Import / Export
+
+| Field | Value |
+|---|---|
+| Status | Available |
+| Version introduced | 1.1.12 |
+| Relevant classes/files | `RuleImportExportBundle.kt`, `RuleImportExportResult.kt`, `RuleImportExportService.kt`, `ErrorSoundConfigurable.kt` |
+
+Lets users export and import rule presets as local JSON. The bundle covers only Custom Regex Rules and Terminal Exit-Code Rules, preserving ordering and ids when present. It is not a full settings export and deliberately excludes global sound settings, per-kind volume, success settings, project overrides, alert history, snooze state, and any runtime data.
+
+**How to enable/use:** Open Settings / Preferences -> Tools -> Error Sound Alert and use **Export Rules…** or **Import Rules…** near the rule sections.
+
+**Example usage:** Configure custom regex rules for a team linter and terminal exit-code rules for common shell failures, export them to JSON, then import that file in another IDE. The imported table changes become persistent only after Apply.
+
+**Notes/limitations:** Import validates JSON strictly, shows a confirmation summary, and replaces only the two rule table models. Reset discards imported-but-not-applied changes. Import/export uses local files only; no network, telemetry, or execution of imported content is involved.
+
+---
+
 ## Project-Level Enabled Override
 
 | Field | Value |
@@ -293,4 +311,4 @@ Prevents rapid duplicate alerts when multiple detection paths or repeated output
 **Notes/limitations:** Cooldown values are fixed in code and not currently configurable.
 
 ---
-*Last updated from code scan: 2026-05-01*
+*Last updated from code scan: 2026-05-02*
