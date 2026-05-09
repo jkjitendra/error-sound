@@ -1,9 +1,15 @@
 package com.drostwades.errorsound
 
+import com.intellij.ide.plugins.PluginManagerCore
+import com.intellij.openapi.extensions.PluginId
+import com.intellij.openapi.fileChooser.FileChooser
 import com.intellij.openapi.fileChooser.FileChooserDescriptor
+import com.intellij.openapi.fileChooser.FileChooserFactory
+import com.intellij.openapi.fileChooser.FileSaverDescriptor
 import com.intellij.openapi.ui.TextBrowseFolderListener
 import com.intellij.openapi.options.Configurable
 import com.intellij.openapi.ui.ComboBox
+import com.intellij.openapi.ui.Messages
 import com.intellij.openapi.ui.TextFieldWithBrowseButton
 import com.intellij.ui.ContextHelpLabel
 import com.intellij.ui.JBColor
@@ -18,6 +24,8 @@ import java.awt.BorderLayout
 import java.awt.Color
 import java.awt.Component
 import java.awt.FlowLayout
+import java.nio.charset.StandardCharsets
+import java.nio.file.Files
 import java.util.regex.PatternSyntaxException
 import javax.swing.BorderFactory
 import javax.swing.DefaultCellEditor
@@ -160,6 +168,9 @@ class ErrorSoundConfigurable : Configurable {
         listOf(SoundChoice(null, "(default)")) + BuiltInSounds.all.map { SoundChoice(it.id, it.toString()) }
     private val exitCodeRuleTableModel = ExitCodeRuleTableModel(soundChoices)
     private val exitCodeRuleTable = JBTable(exitCodeRuleTableModel)
+
+    private val exportRulesButton = JButton("Export Rules…")
+    private val importRulesButton = JButton("Import Rules…")
 
     override fun getDisplayName(): String = "Error Sound Alert"
 
@@ -360,6 +371,8 @@ class ErrorSoundConfigurable : Configurable {
                 1,
                 false
             )
+            .addSeparator(8)
+            .addComponent(createRuleImportExportPanel(), 1)
             .addSeparator(8)
             .addComponent(createCustomRulesPanel(), 1)
             .addSeparator(8)
@@ -627,6 +640,142 @@ class ErrorSoundConfigurable : Configurable {
             add(visualNotificationOnErrorCheck)
             add(visualNotificationOnSuccessCheck)
         }
+    }
+
+    // ── Rule Import / Export ──────────────────────────────────────────────────
+
+    private fun createRuleImportExportPanel(): JPanel {
+        exportRulesButton.addActionListener { exportRules() }
+        importRulesButton.addActionListener { importRules() }
+
+        val actions = JPanel(FlowLayout(FlowLayout.LEFT, 8, 0)).apply {
+            add(exportRulesButton)
+            add(importRulesButton)
+            add(JBLabel("Custom regex and terminal exit-code rules only.").apply {
+                foreground = JBColor.GRAY
+            })
+        }
+
+        return JPanel(BorderLayout(0, 0)).apply {
+            add(actions, BorderLayout.WEST)
+        }
+    }
+
+    private fun exportRules() {
+        stopRuleTableEditing()
+        val parent = panel ?: return
+
+        val descriptor = FileSaverDescriptor(
+            "Export Error Sound Rules",
+            "Export custom regex and terminal exit-code rules to a JSON file.",
+            "json",
+        )
+        val wrapper = FileChooserFactory.getInstance()
+            .createSaveFileDialog(descriptor, parent)
+            .save("error-sound-rules.json")
+            ?: return
+
+        val file = wrapper.file
+        if (Files.exists(file.toPath())) {
+            val choice = Messages.showYesNoDialog(
+                parent,
+                "The selected file already exists. Overwrite it?",
+                "Export Rules",
+                Messages.getQuestionIcon(),
+            )
+            if (choice != Messages.YES) return
+        }
+
+        val json = RuleImportExportService.exportRules(
+            customRules = customRuleTableModel.getRules(),
+            exitCodeRules = exitCodeRuleTableModel.getRules(),
+            pluginVersion = currentPluginVersion(),
+        )
+
+        try {
+            Files.writeString(file.toPath(), json, StandardCharsets.UTF_8)
+            Messages.showInfoMessage(
+                parent,
+                "Exported ${customRuleTableModel.rowCount} custom rule(s) and ${exitCodeRuleTableModel.rowCount} exit-code rule(s).",
+                "Export Rules",
+            )
+        } catch (e: Exception) {
+            Messages.showErrorDialog(
+                parent,
+                "Could not export rules: ${e.message ?: "Unknown error."}",
+                "Export Rules",
+            )
+        }
+    }
+
+    private fun importRules() {
+        stopRuleTableEditing()
+        val parent = panel ?: return
+
+        val descriptor = FileChooserDescriptor(true, false, false, false, false, false).apply {
+            title = "Import Error Sound Rules"
+            description = "Choose a JSON file containing Error Sound Alert rules."
+        }
+        val file = FileChooser.chooseFile(descriptor, null, null) ?: return
+
+        val result = try {
+            RuleImportExportService.importRules(Files.readString(java.nio.file.Path.of(file.path), StandardCharsets.UTF_8))
+        } catch (e: Exception) {
+            Messages.showErrorDialog(
+                parent,
+                e.message ?: "Could not import rules.",
+                "Import Rules",
+            )
+            return
+        }
+
+        val choice = Messages.showOkCancelDialog(
+            parent,
+            formatImportSummary(result),
+            "Import Rules",
+            "Import",
+            "Cancel",
+            Messages.getQuestionIcon(),
+        )
+        if (choice != Messages.OK) return
+
+        customRuleTableModel.setRules(result.customRules)
+        exitCodeRuleTableModel.setRules(result.exitCodeRules)
+    }
+
+    private fun stopRuleTableEditing() {
+        if (customRuleTable.isEditing) customRuleTable.cellEditor?.stopCellEditing()
+        if (exitCodeRuleTable.isEditing) exitCodeRuleTable.cellEditor?.stopCellEditing()
+    }
+
+    private fun formatImportSummary(result: RuleImportExportResult): String {
+        val lines = mutableListOf(
+            "Import ${result.customRules.size} custom rule(s) and ${result.exitCodeRules.size} exit-code rule(s)?",
+            "",
+            "This replaces the current rule tables. Changes are not saved until Apply is clicked.",
+        )
+
+        if (result.skippedCount > 0) {
+            lines += ""
+            lines += "Skipped invalid entries: ${result.skippedCount}"
+        }
+
+        if (result.warnings.isNotEmpty()) {
+            lines += ""
+            lines += "Validation notes:"
+            result.warnings.take(8).forEach { warning -> lines += "- $warning" }
+            val remaining = result.warnings.size - 8
+            if (remaining > 0) {
+                lines += "- ...and $remaining more."
+            }
+        }
+
+        return lines.joinToString("\n")
+    }
+
+    private fun currentPluginVersion(): String {
+        return PluginManagerCore.getPlugin(PluginId.getId("com.drostwades.errorsound"))?.version
+            ?: "unknown"
     }
 
     // ── Custom Rules Panel ─────────────────────────────────────────────────────
