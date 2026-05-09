@@ -7,7 +7,7 @@ plugins {
 }
 
 group = "com.drostwades"
-version = "1.1.11"
+version = "1.1.12"
 
 repositories {
     mavenCentral()
@@ -68,6 +68,13 @@ intellijPlatform {
         """.trimIndent()
 
         changeNotes = """
+            <b>1.1.12</b>
+            <ul>
+              <li>New <b>Rule Import/Export</b> actions in Settings &rarr; Tools &rarr; Error Sound Alert for sharing rules as local JSON</li>
+              <li>Exports and imports <b>Custom Regex Rules</b> and <b>Terminal Exit-Code Rules</b> only; global sound settings, per-kind volume, success settings, project overrides, alert history, snooze state, and full settings bundles are excluded</li>
+              <li>Export uses the current rule table state, including unsaved edits</li>
+              <li>Import validates JSON strictly, shows a confirmation summary, preserves rule ordering, and replaces only the two rule tables; changes are saved only after Apply</li>
+            </ul>
             <b>1.1.11</b>
             <ul>
               <li>New <b>Alert History</b> section in the Error Monitor tool window showing recent accepted alerts in newest-first order</li>
