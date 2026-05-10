@@ -169,6 +169,16 @@ class ErrorSoundConfigurable : Configurable {
     private val exitCodeRuleTableModel = ExitCodeRuleTableModel(soundChoices)
     private val exitCodeRuleTable = JBTable(exitCodeRuleTableModel)
 
+    private val rulePresetCombo = ComboBox(RulePresetService.bundles.toTypedArray())
+    private val rulePresetDescription = JTextArea(2, 60).apply {
+        isEditable = false
+        isOpaque = false
+        lineWrap = true
+        wrapStyleWord = true
+        foreground = JBColor.GRAY
+    }
+    private val addPresetRulesButton = JButton("Add Preset Rules")
+
     private val exportRulesButton = JButton("Export Rules…")
     private val importRulesButton = JButton("Import Rules…")
 
@@ -371,6 +381,8 @@ class ErrorSoundConfigurable : Configurable {
                 1,
                 false
             )
+            .addSeparator(8)
+            .addComponent(createRulePresetPanel(), 1)
             .addSeparator(8)
             .addComponent(createRuleImportExportPanel(), 1)
             .addSeparator(8)
@@ -643,6 +655,90 @@ class ErrorSoundConfigurable : Configurable {
     }
 
     // ── Rule Import / Export ──────────────────────────────────────────────────
+
+    private fun createRulePresetPanel(): JPanel {
+        updateRulePresetDescription()
+        rulePresetCombo.addActionListener { updateRulePresetDescription() }
+        addPresetRulesButton.addActionListener { addSelectedPresetRules() }
+
+        val controls = JPanel(FlowLayout(FlowLayout.LEFT, 8, 0)).apply {
+            add(JBLabel("Rule Presets:"))
+            add(rulePresetCombo)
+            add(addPresetRulesButton)
+        }
+
+        return JPanel(BorderLayout(0, 4)).apply {
+            add(controls, BorderLayout.NORTH)
+            add(rulePresetDescription, BorderLayout.CENTER)
+        }
+    }
+
+    private fun updateRulePresetDescription() {
+        val preset = selectedRulePreset()
+        rulePresetDescription.text = preset.description
+        rulePresetDescription.caretPosition = 0
+    }
+
+    private fun selectedRulePreset(): RulePresetBundle =
+        rulePresetCombo.selectedItem as? RulePresetBundle ?: RulePresetService.bundles.first()
+
+    private fun addSelectedPresetRules() {
+        stopRuleTableEditing()
+        val parent = panel ?: return
+        val preset = selectedRulePreset()
+        val result = RulePresetService.prepareApply(
+            preset = preset,
+            currentCustomRules = customRuleTableModel.getRules(),
+            currentExitCodeRules = exitCodeRuleTableModel.getRules(),
+        )
+
+        val choice = Messages.showOkCancelDialog(
+            parent,
+            formatPresetSummary(result),
+            "Add Preset Rules",
+            "Add Rules",
+            "Cancel",
+            Messages.getQuestionIcon(),
+        )
+        if (choice != Messages.OK) return
+
+        result.customRulesToAdd.forEach { customRuleTableModel.addRule(it) }
+        result.exitCodeRulesToAdd.forEach { exitCodeRuleTableModel.addRule(it) }
+    }
+
+    private fun formatPresetSummary(result: RulePresetApplyResult): String {
+        val lines = mutableListOf(
+            "Add preset rules from ${result.preset.displayName}?",
+            "",
+            "Custom regex rules to add: ${result.addedCustomRuleCount}",
+            "Exit-code rules to add: ${result.addedExitCodeRuleCount}",
+        )
+
+        if (result.skippedDuplicateCount > 0) {
+            lines += ""
+            lines += "Duplicates skipped: ${result.skippedDuplicateCount}"
+            if (result.skippedDuplicateCustomRuleIds.isNotEmpty()) {
+                lines += "Custom rule ids: ${result.skippedDuplicateCustomRuleIds.joinToString(", ")}"
+            }
+            if (result.skippedDuplicateExitCodes.isNotEmpty()) {
+                lines += "Exit codes: ${result.skippedDuplicateExitCodes.joinToString(", ")}"
+            }
+        }
+
+        if (result.warnings.isNotEmpty()) {
+            lines += ""
+            lines += "Warnings:"
+            result.warnings.take(6).forEach { warning -> lines += "- $warning" }
+            val remaining = result.warnings.size - 6
+            if (remaining > 0) {
+                lines += "- ...and $remaining more."
+            }
+        }
+
+        lines += ""
+        lines += "Existing user-created rules are preserved. Added preset rules are not saved until Apply is clicked."
+        return lines.joinToString("\n")
+    }
 
     private fun createRuleImportExportPanel(): JPanel {
         exportRulesButton.addActionListener { exportRules() }
