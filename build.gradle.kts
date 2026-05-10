@@ -7,7 +7,7 @@ plugins {
 }
 
 group = "com.drostwades"
-version = "1.1.12"
+version = "1.1.13"
 
 repositories {
     mavenCentral()
@@ -50,6 +50,7 @@ intellijPlatform {
               <li>Smart error classification: configuration, compilation, test failure, network, exception</li>
               <li><b>Custom regex rules:</b> define your own patterns mapped to error kinds, evaluated before built-in classification</li>
               <li><b>Rule Testing Sandbox:</b> paste sample output and see which custom rule or built-in classifier would match before applying rule changes</li>
+              <li><b>Rule Presets:</b> add bundled custom regex and terminal exit-code rule bundles for common stacks without changing sound, volume, success, project, history, snooze, or full profile settings</li>
               <li><b>Exit-code rules for terminal commands:</b> map specific exit codes to error kinds, optional per-code sound overrides, or suppress alerts entirely (e.g. silence Ctrl+C / exit&nbsp;130)</li>
               <li>Per-kind sounds, or one global sound for all alerts</li>
               <li><b>Success sounds:</b> optional alert on successful process completion (off by default)</li>
@@ -68,6 +69,13 @@ intellijPlatform {
         """.trimIndent()
 
         changeNotes = """
+            <b>1.1.13</b>
+            <ul>
+              <li>New <b>Rule Presets</b> section in Settings &rarr; Tools &rarr; Error Sound Alert for quickly adding built-in rule bundles</li>
+              <li>Preset bundles cover Java / Spring Boot, Gradle / Maven, Node.js / npm / pnpm, Python / pytest, Docker / Kubernetes, and frontend test runners (Jest / Vitest / Cypress / Playwright)</li>
+              <li>Presets append Custom Regex Rules and conservative Terminal Exit-Code Rules only; they do not change sounds, volume, success settings, project overrides, history, snooze, or full profiles</li>
+              <li>Duplicate preset custom rule ids and existing terminal exit codes are skipped, existing user-created rules are preserved, and changes are saved only after Apply</li>
+            </ul>
             <b>1.1.12</b>
             <ul>
               <li>New <b>Rule Import/Export</b> actions in Settings &rarr; Tools &rarr; Error Sound Alert for sharing rules as local JSON</li>
