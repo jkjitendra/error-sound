@@ -24,7 +24,7 @@ Error Sound Alert is an IntelliJ Platform plugin that plays an audio alert when 
 | Success sounds | Optional alert on successful process completion (exit code 0, off by default) |
 | Sound options | 7 built-in WAV files + custom file (WAV/AIFF/AU) |
 | Sound modes | Global (one sound for all) or per-error-type mapping |
-| Volume / Duration | Global 0–100% volume, optional per-kind volume overrides, 1–10 second alert duration with clip looping |
+| Volume / Duration | Global 0–100% volume, optional per-kind volume overrides, 1–10 second alert duration with clip looping by default, plus optional play-once mode using the actual sound file duration |
 | Instant preview | Hear sounds from the settings panel before applying |
 | Error Monitor panel | Sidebar tool window for quick-toggling error types with presets (All, Build Only, Runtime Only) |
 | Alert History | Error Monitor read-only table of recent accepted alerts, newest first, in-memory only |
@@ -34,6 +34,7 @@ Error Sound Alert is an IntelliJ Platform plugin that plays an audio alert when 
 | Terminal exit-code rules | Map terminal exit codes to error kinds, optional built-in sound overrides, or suppression |
 | Rule import/export | Local JSON import/export for custom regex rules and terminal exit-code rules only |
 | Rule presets | Bundled local rule bundles for Java/Spring Boot, Gradle/Maven, Node/npm/pnpm, Python/pytest, Docker/Kubernetes, and frontend test runners (Jest/Vitest/Cypress/Playwright) |
+| Play Once Sound Duration | Optional `Use actual sound file duration (play once)` mode for built-in/custom file playback; disabled by default |
 | Visual notifications | Optional balloon notifications for error and success alerts |
 | Snooze / mute | Temporarily silence all alerts from the Error Monitor sidebar |
 | Project-level profile | Per-project override for the master `enabled` flag; all other settings remain global |
@@ -55,12 +56,15 @@ Error Sound Alert is an IntelliJ Platform plugin that plays an audio alert when 
 - Rule match explanations are internal/runtime-facing only; current visual notifications do not yet show detailed explanation content.
 - Rule import/export is rules-only. It does not include global sound settings, per-kind volume, success settings, project overrides, alert history, snooze state, or a full plugin settings bundle.
 - Rule presets append only Custom Regex Rules and conservative Terminal Exit-Code Rules. They do not modify sound settings, volume settings, success settings, project overrides, alert history, snooze state, or full profiles/settings bundles.
+- Play Once Sound Duration affects only file-based playback duration behavior. It does not alter sound selection, volume, rules, history, notifications, project profiles, or any terminal integration behavior. The seven extra sounds proposed in external PR #32 were not shipped in 1.1.14 because files and licensing were not confirmed.
 - Alert history is in-memory only, bounded to 100 entries, and records only alerts accepted by snooze, monitoring, and deduplication gates. Snoozed, disabled, duplicate, or otherwise suppressed attempts are not recorded.
 - Console filter can produce false positives for lines containing the word "error" or "exception" in benign contexts.
 
 ## User-Facing Behavior Summary
 
-When enabled, the plugin runs silently in the background. The moment a process fails, an error pattern appears in console output, or a terminal command exits with a non-zero code, a short audio alert plays. Users configure sounds, volume, duration, custom rules, rule presets, terminal exit-code rules, rules-only import/export, and notifications via **Settings → Tools → Error Sound Alert**. The **Error Monitor** sidebar controls global monitoring, per-kind monitoring toggles, snooze, presets, the per-project enabled override, and a clearable in-memory Alert History table for recent accepted alerts.
+When enabled, the plugin runs silently in the background. The moment a process fails, an error pattern appears in console output, or a terminal command exits with a non-zero code, a short audio alert plays. Users configure sounds, volume, duration behavior, custom rules, rule presets, terminal exit-code rules, rules-only import/export, and notifications via **Settings → Tools → Error Sound Alert**. The **Error Monitor** sidebar controls global monitoring, per-kind monitoring toggles, snooze, presets, the per-project enabled override, and a clearable in-memory Alert History table for recent accepted alerts.
+
+Play Once Sound Duration in **Settings → Tools → Error Sound Alert** is disabled by default, so existing configured-duration looping remains the default behavior. When **Use actual sound file duration (play once)** is enabled, the selected built-in or custom file-based sound starts once and the configured alert duration is ignored. The settings UI disables the duration slider/value label while the option is selected. Preview follows the same mode where practical. The checkbox change is not saved until Apply is clicked; Reset discards unapplied changes.
 
 Rule presets in **Settings → Tools → Error Sound Alert** are bundled locally. Users choose a preset bundle, review its description, click **Add Preset Rules**, confirm the summary, and the preset appends rules to the existing Custom Regex Rules and Terminal Exit-Code Rules table models. Duplicate preset custom rule IDs and existing terminal exit codes are skipped, while user-created rules are preserved. Preset additions are not saved until Apply is clicked; Reset discards unapplied preset additions. Presets use no network, telemetry, remote downloads, or script execution.
 
@@ -69,4 +73,4 @@ Rule import/export in **Settings → Tools → Error Sound Alert** uses local JS
 The Rule Testing Sandbox in **Settings → Tools → Error Sound Alert** is an explanation tool only. Users choose Source, Match Target, optional Exit Code, paste sample output, and click **Test Rules** to see whether a custom rule would match, which `ErrorKind` would result, and whether built-in classification would match if no custom rule did. It does not participate in runtime detection, dispatch, monitoring gates, deduplication, or playback.
 
 ---
-*Last updated from code scan: 2026-05-10*
+*Last updated from code scan: 2026-05-11*

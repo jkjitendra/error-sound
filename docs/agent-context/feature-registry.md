@@ -312,6 +312,24 @@ Provides bundled WAV alerts and optional custom local audio files. Users can use
 
 ---
 
+## Play Once Sound Duration
+
+| Field | Value |
+|---|---|
+| Status | Available |
+| Version introduced | 1.1.14 |
+| Relevant classes/files | `AlertSettings.kt`, `ErrorSoundConfigurable.kt`, `ErrorSoundPlayer.kt`, `build.gradle.kts` |
+
+Adds **Use actual sound file duration (play once)** for users who want a selected built-in or custom clip to play exactly once instead of looping/restarting until the configured alert duration expires. The option is disabled by default, so existing configured-duration playback remains unchanged. When enabled, file-based playback ignores `alertDurationSeconds`; the selected clip starts once and playback waits for the actual clip length or stop/close event.
+
+**How to enable/use:** Open Settings / Preferences -> Tools -> Error Sound Alert, enable **Use actual sound file duration (play once)**, then click Apply. The duration slider/value label are disabled while the option is selected.
+
+**Example usage:** Use a custom WAV that already includes a full notification phrase or longer effect, enable play-once mode, and preview it from settings; the clip plays once instead of being restarted to fill the configured duration.
+
+**Notes/limitations:** Preview follows play-once mode where practical. The checkbox change is not persisted until Apply; Reset discards unapplied changes. This feature was ported cleanly from the idea in external PR #32; the PR branch was not merged directly. The seven proposed new sounds from PR #32 were not shipped in 1.1.14 because the files were not present and licensing was not confirmed.
+
+---
+
 ## Alert Deduplication
 
 | Field | Value |
@@ -329,4 +347,4 @@ Prevents rapid duplicate alerts when multiple detection paths or repeated output
 **Notes/limitations:** Cooldown values are fixed in code and not currently configurable.
 
 ---
-*Last updated from code scan: 2026-05-10*
+*Last updated from code scan: 2026-05-11*

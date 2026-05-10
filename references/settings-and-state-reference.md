@@ -54,6 +54,7 @@ Quick lookup for `AlertSettings.State` fields and their usage.
 |---|---|---|---|
 | `volumePercent` | Int | `80` | 0–100 |
 | `alertDurationSeconds` | Int | `3` | 1–10 |
+| `useActualSoundDuration` | Boolean | `false` | Disabled by default. When `true`, file-based playback uses the selected clip's actual duration and ignores `alertDurationSeconds` |
 | `minProcessDurationSeconds` | Int | `0` | 0–300. Alerts suppressed if process completes faster. Run/Debug only. |
 
 ### Rule Collections
@@ -81,6 +82,7 @@ Quick lookup for `AlertSettings.State` fields and their usage.
 
 - `volumePercent` clamped to 0–100
 - `alertDurationSeconds` clamped to 1–10
+- `useActualSoundDuration` preserved as a Boolean setting; default `false` keeps existing configured-duration looping behavior
 - All sound IDs normalized via `BuiltInSounds.findByIdOrDefault()`
 - Custom file ID (`__custom_file__`) preserved as-is
 - Custom rules are normalized to existing limits: first `CustomRuleEngine.MAX_RULES`, patterns trimmed/truncated to `MAX_PATTERN_LENGTH`, blank ids regenerated, unsupported targets default to `LINE_TEXT`, unsupported kinds default to `GENERIC`
@@ -91,6 +93,19 @@ Quick lookup for `AlertSettings.State` fields and their usage.
 ```kotlin
 enum class SoundSource { BUNDLED, CUSTOM }
 ```
+
+## Play Once Sound Duration
+
+`useActualSoundDuration` controls playback duration behavior only. It does not alter sound selection, global volume, per-kind volume, success settings, custom rules, exit-code rules, alert history, visual notifications, snooze state, or project profiles.
+
+Behavior:
+- Default `false`: existing behavior remains active. Short file-based clips loop/restart until `alertDurationSeconds` expires.
+- `true`: selected file-based sounds start once and use their actual clip length; the configured alert duration is ignored for playback.
+- In settings, **Use actual sound file duration (play once)** disables the alert duration slider/value label while selected.
+- Preview follows the same play-once vs configured-duration behavior where practical.
+- The checkbox follows standard settings semantics: changes are not persisted until Apply, and Reset discards unapplied changes.
+
+The 1.1.14 implementation ports the feature idea from external PR #32 into the current architecture without merging the PR branch directly. The seven proposed new sounds from that PR were not shipped in 1.1.14 because audio files and licensing were not confirmed.
 
 ## Rule Import / Export JSON
 
@@ -113,7 +128,7 @@ It does **not** cover:
 {
   "schemaVersion": 1,
   "exportedAt": "2026-05-02T00:00:00Z",
-  "pluginVersion": "1.1.13",
+  "pluginVersion": "1.1.14",
   "customRules": [
     {
       "id": "8e2d8f2f-4d8b-46cc-8f22-82a904f1d6aa",
@@ -182,4 +197,4 @@ Preset behavior:
 - Presets are bundled locally; no network, telemetry, remote preset downloads, script execution, or file writes are involved
 
 ---
-*Last updated from code scan: 2026-05-10*
+*Last updated from code scan: 2026-05-11*

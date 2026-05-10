@@ -85,6 +85,7 @@ class AlertSettings : PersistentStateComponent<AlertSettings.State> {
         var successSoundId: String = "yeah_boy",
         var customSoundPath: String = "",
         var alertDurationSeconds: Int = 3,
+        var useActualSoundDuration: Boolean = false,
         var minProcessDurationSeconds: Int = 0,
 
         // Visual notification (balloon) settings — off by default

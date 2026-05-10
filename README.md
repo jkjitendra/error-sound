@@ -37,6 +37,7 @@
 | Global mode | Use one sound for all error types |
 | Volume control | Global 0 – 100% volume plus optional per-kind volume overrides |
 | Alert duration | 1 – 10 seconds, with automatic clip looping |
+| Play once sound duration | Optional mode to play the selected sound once using its actual clip length |
 | Minimum duration threshold | Skip Run/Debug alerts for processes that finish faster than a configured threshold |
 | Instant preview | Hear any sound immediately from the settings panel |
 | Cross-platform | macOS, Windows, Linux (JVM audio backend) |
@@ -92,7 +93,8 @@ The Alert History section shows recent accepted alerts in newest-first order. It
 | Per-kind volume | Optional independent volume for each error/success kind |
 | Custom file path | Absolute path to a WAV / AIFF / AU file |
 | Volume | 0 – 100% |
-| Alert duration | 1 – 10 seconds |
+| Alert duration | 1 – 10 seconds; used by default to loop/restart short clips until time expires |
+| Use actual sound file duration (play once) | Disabled by default. When enabled, the selected file-based sound starts once, ignores the configured alert duration, and disables the duration slider/value label |
 | Minimum process duration | Suppress Run/Debug alerts for short-lived processes |
 | Visual notifications | Show optional balloon notifications for errors and/or successes |
 | Custom regex rules | Add user-defined regex rules with LINE_TEXT, FULL_OUTPUT, or EXIT_CODE_AND_TEXT targets |
@@ -100,6 +102,8 @@ The Alert History section shows recent accepted alerts in newest-first order. It
 | Exit-code rules | Map terminal exit codes to kinds, sound overrides, or suppression |
 | Rule import/export | **Export Rules…** / **Import Rules…** for custom regex and terminal exit-code rules only |
 | Rule presets | Choose a bundled preset and click **Add Preset Rules** to append rules to the current tables |
+
+The **Use actual sound file duration (play once)** checkbox is useful when a bundled or custom clip already has the exact length you want. The checkbox follows normal settings behavior: it is not persisted until **Apply** is clicked, and **Reset** discards unapplied checkbox changes. Preview follows the same mode where practical: play once when enabled, configured-duration looping when disabled.
 
 ### Rule Presets
 
@@ -168,7 +172,7 @@ Output: `build/distributions/error-sound-<version>.zip`
 3. On process termination (or console line match, or terminal command completion), the detection path creates an internal explanation object, builds a stable deduplication key, and calls **`AlertDispatcher.tryAlert`**.
 4. `AlertDispatcher` checks snooze, **`AlertMonitoring`** (is this error category enabled?), and **`AlertEventGate`** (is this a duplicate within the cooldown window?).
 5. If all gates pass, `AlertHistoryService` records an in-memory history entry, then `ErrorSoundPlayer` plays the configured sound asynchronously.
-6. If the clip is shorter than the alert duration, it loops until time expires.
+6. By default, if the clip is shorter than the alert duration, it loops/restarts until time expires. If **Use actual sound file duration (play once)** is enabled, the selected clip starts once and the configured alert duration is ignored for file-based playback.
 7. Fallback chain: custom file → built-in WAV → generated 880 Hz tone → system beep.
 
 Rule match explanations power the Alert History cause/context details. Current visual notifications are not yet explanation-rich.

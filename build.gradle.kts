@@ -7,7 +7,7 @@ plugins {
 }
 
 group = "com.drostwades"
-version = "1.1.13"
+version = "1.1.14"
 
 repositories {
     mavenCentral()
@@ -55,6 +55,7 @@ intellijPlatform {
               <li>Per-kind sounds, or one global sound for all alerts</li>
               <li><b>Success sounds:</b> optional alert on successful process completion (off by default)</li>
               <li>Configurable volume (0–100%) and alert duration (1–10 seconds)</li>
+              <li><b>Play once option:</b> use the actual sound file duration instead of looping until the configured alert duration</li>
               <li>Minimum process duration threshold: skip alerts for processes that finish too quickly (Run/Debug only)</li>
               <li>Snooze / mute: temporarily silence all alerts for 15 minutes or 1 hour from the Error Monitor sidebar</li>
               <li><b>Visual notifications:</b> optional balloon notification alongside each sound alert, configurable per error/success (off by default)</li>
@@ -69,6 +70,13 @@ intellijPlatform {
         """.trimIndent()
 
         changeNotes = """
+            <b>1.1.14</b>
+            <ul>
+              <li>Added a new <b>Use actual sound file duration (play once)</b> setting inspired by contributor PR #32</li>
+              <li>When enabled, file-based built-in and custom sounds play once for their actual clip length, and the alert duration slider is disabled</li>
+              <li>When disabled, the existing configured-duration looping behavior remains the default</li>
+              <li>Settings preview now follows the same play-once vs configured-duration behavior</li>
+            </ul>
             <b>1.1.13</b>
             <ul>
               <li>New <b>Rule Presets</b> section in Settings &rarr; Tools &rarr; Error Sound Alert for quickly adding built-in rule bundles</li>
