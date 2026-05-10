@@ -158,6 +158,65 @@ Class-by-class reference for the `com.drostwades.errorsound` package.
 
 ---
 
+## RulePresetBundle
+
+**File:** `RulePresetBundle.kt`
+**Purpose:** Built-in preset data model for Phase 5 Rule Presets.
+
+| Field | Description |
+|---|---|
+| `id` | Stable bundle id |
+| `displayName` | User-facing combo-box label |
+| `description` | Short UI description for the selected preset |
+| `customRules` | Preset Custom Regex Rules to append |
+| `exitCodeRules` | Conservative Terminal Exit-Code Rules to append |
+
+**Bundles:** Java / Spring Boot, Gradle / Maven, Node.js / npm / pnpm, Python / pytest, Docker / Kubernetes, and Frontend test runners (Jest / Vitest / Cypress / Playwright).
+
+- **Risk:** LOW — immutable bundled data model
+
+---
+
+## RulePresetApplyResult
+
+**File:** `RulePresetApplyResult.kt`
+**Purpose:** Summary of a planned preset append operation before the settings UI mutates table models.
+
+| Field | Description |
+|---|---|
+| `preset` | Selected preset bundle |
+| `customRulesToAdd` | Non-duplicate custom rules to append |
+| `exitCodeRulesToAdd` | Non-duplicate exit-code rules to append |
+| `skippedDuplicateCustomRuleIds` | Preset custom rule ids already present in the current table model |
+| `skippedDuplicateExitCodes` | Preset exit codes already present in the current table model |
+| `warnings` | User-facing notes, mainly custom rule count-limit skips |
+
+- **Risk:** LOW — immutable append summary
+
+---
+
+## RulePresetService
+
+**File:** `RulePresetService.kt`
+**Purpose:** Pure helper containing bundled local preset definitions and duplicate-aware append planning.
+
+| Method / Member | Description |
+|---|---|
+| `bundles` | Ordered list of available preset bundles |
+| `prepareApply(preset, currentCustomRules, currentExitCodeRules)` | Computes which preset rules can be appended without mutating settings |
+
+**Behavior:**
+- Appends only Custom Regex Rules and conservative Terminal Exit-Code Rules
+- Skips duplicate custom rules by stable rule id
+- Skips exit-code rules when the current table already has the same exit code
+- Preserves all existing user-created rules and appends preset rules after them
+- Uses existing custom rule limits and allowed kinds from `CustomRuleEngine`
+- Presets are bundled locally; no network, telemetry, remote preset downloads, script execution, file writes, or terminal imports
+
+- **Risk:** LOW — pure settings-side planning; does not change runtime alert behavior
+
+---
+
 ## AlertDispatcher
 
 **File:** `AlertDispatcher.kt`  
@@ -454,6 +513,13 @@ Class-by-class reference for the `com.drostwades.errorsound` package.
 - Imported changes follow normal settings semantics: they are not persisted until Apply; Reset reloads persisted settings and discards imported-but-not-applied table state
 - Overwrite protection is explicit for export; import/export is local file based only
 
+**Rule Presets section (Phase 5 addition):**
+- Adds a Rule Presets combo, selected-preset description, and **Add Preset Rules** action near the rule controls
+- Uses `RulePresetService.prepareApply()` to build a confirmation summary before appending anything
+- Appends only non-duplicate preset custom regex rules and terminal exit-code rules to the current table models
+- Duplicate custom rule ids and existing exit codes are skipped; existing user-created rules are preserved
+- Added preset rules follow normal settings semantics: they are not persisted until Apply; Reset discards unapplied preset additions
+
 **Custom Regex Rules section (Phase 5 addition):**
 - `CustomRuleTableModel` (inner class) — `AbstractTableModel` with deep-copy semantics on `setRules()` so table edits don't mutate settings until Apply
 - `PatternValidatingRenderer` (inner class) — renders Pattern column with red tint + tooltip for invalid regex
@@ -541,4 +607,4 @@ Class-by-class reference for the `com.drostwades.errorsound` package.
 **Risk:** LOW — additive, no external dependencies.
 
 ---
-*Last updated from code scan: 2026-05-02*
+*Last updated from code scan: 2026-05-10*
