@@ -113,7 +113,7 @@ It does **not** cover:
 {
   "schemaVersion": 1,
   "exportedAt": "2026-05-02T00:00:00Z",
-  "pluginVersion": "1.1.11",
+  "pluginVersion": "1.1.13",
   "customRules": [
     {
       "id": "8e2d8f2f-4d8b-46cc-8f22-82a904f1d6aa",
@@ -156,5 +156,30 @@ It does **not** cover:
 - Export does not write any permanent storage outside the selected file
 - Import/export does not use network, telemetry, or imported-content execution
 
+## Rule Presets
+
+Phase 5 presets do not add any new persisted state. `RulePresetService` supplies bundled local preset data and `ErrorSoundConfigurable` appends accepted preset rows to the existing settings UI table models before Apply.
+
+Presets populate only:
+- `customRules`
+- `exitCodeRules`
+
+Available preset bundles:
+- Java / Spring Boot
+- Gradle / Maven
+- Node.js / npm / pnpm
+- Python / pytest
+- Docker / Kubernetes
+- Frontend test runners (Jest / Vitest / Cypress / Playwright)
+
+Preset behavior:
+- Adds rows to the current table models only; no settings are persisted until Apply
+- Reset discards preset additions that have not been applied
+- Duplicate custom rule IDs are skipped
+- Existing terminal exit codes are skipped
+- Existing user-created rules are preserved and preset rules are appended after them
+- Presets do not modify sound settings, volume settings, success settings, project overrides, alert history, snooze state, or full profiles/settings bundles
+- Presets are bundled locally; no network, telemetry, remote preset downloads, script execution, or file writes are involved
+
 ---
-*Last updated from code scan: 2026-05-02*
+*Last updated from code scan: 2026-05-10*

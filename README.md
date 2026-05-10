@@ -26,6 +26,7 @@
 | Rule Testing Sandbox | Paste sample output and see which custom rule or built-in classifier would match |
 | Terminal exit-code rules | Map terminal exit codes to error kinds, optional built-in sound overrides, or suppression |
 | Rule import/export | Export and import custom regex rules plus terminal exit-code rules as local JSON |
+| Rule presets | Add bundled custom regex and terminal exit-code rule bundles for common stacks |
 | Success sounds | Optional alert when a Run/Debug process completes successfully |
 | Visual notifications | Optional balloon notifications alongside sound alerts, configurable for errors and successes |
 | Snooze / mute | Temporarily silence alerts for 15 minutes or 1 hour from the Error Monitor panel |
@@ -98,6 +99,21 @@ The Alert History section shows recent accepted alerts in newest-first order. It
 | Rule Testing Sandbox | Choose Source, Match Target, optional Exit Code, paste sample output, and click **Test Rules** |
 | Exit-code rules | Map terminal exit codes to kinds, sound overrides, or suppression |
 | Rule import/export | **Export Rules…** / **Import Rules…** for custom regex and terminal exit-code rules only |
+| Rule presets | Choose a bundled preset and click **Add Preset Rules** to append rules to the current tables |
+
+### Rule Presets
+
+Use **Rule Presets** in **Settings / Preferences → Tools → Error Sound Alert** to add bundled rules for common stacks:
+- Java / Spring Boot
+- Gradle / Maven
+- Node.js / npm / pnpm
+- Python / pytest
+- Docker / Kubernetes
+- Frontend test runners (Jest / Vitest / Cypress / Playwright)
+
+Presets append only Custom Regex Rules and conservative Terminal Exit-Code Rules. They do **not** modify sound settings, volume settings, success settings, project overrides, alert history, snooze state, or full profiles/settings bundles.
+
+Choose a preset, review its description, then click **Add Preset Rules**. The confirmation summary shows how many custom regex and exit-code rules will be added and which duplicates will be skipped. Duplicate custom rule IDs are skipped, existing terminal exit codes are skipped, and user-created rules are preserved. Preset additions are written only to the current settings table models; click **Apply** to persist them, or **Reset** to discard unapplied preset additions. Presets are bundled locally: no network, telemetry, remote preset downloads, or script execution.
 
 ### Rule Import / Export
 
@@ -184,6 +200,9 @@ src/main/kotlin/com/drostwades/errorsound/
 ├── RuleImportExportBundle.kt         # Rules-only JSON export DTO
 ├── RuleImportExportResult.kt         # Rule import validation result
 ├── RuleImportExportService.kt        # Rules-only JSON import/export validation helper
+├── RulePresetApplyResult.kt          # Rule preset duplicate/append summary
+├── RulePresetBundle.kt               # Built-in rule preset data model
+├── RulePresetService.kt              # Bundled rule preset definitions and append planner
 ├── RuleTestService.kt                # Settings-side rule sandbox evaluator
 └── SnoozeState.kt                    # Transient mute state
 

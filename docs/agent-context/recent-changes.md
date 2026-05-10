@@ -4,6 +4,59 @@ Engineering-significant changes to the codebase. Not a full changelog — focuse
 
 ---
 
+## 1.1.13 — Rule Presets (Phase 5)
+
+### Scope
+Phase 5 adds a shipped user-facing **Rule Presets** section in Settings / Preferences -> Tools -> Error Sound Alert. Presets append bundled local rules to the existing rule tables only:
+- Custom Regex Rules
+- conservative Terminal Exit-Code Rules
+
+Presets do not modify sound settings, volume settings, success settings, project overrides, alert history, snooze state, or full profiles/settings bundles.
+
+### New File: `RulePresetBundle.kt`
+- Data model for a bundled preset
+- Fields: `id`, `displayName`, `description`, `customRules`, `exitCodeRules`
+- `toString()` returns `displayName` for combo-box rendering
+
+### New File: `RulePresetApplyResult.kt`
+- Result object for a planned preset append operation
+- Carries selected preset, custom rules to add, exit-code rules to add, duplicate custom rule ids, duplicate exit codes, warnings, and derived added/skipped counts
+- Used by the settings UI to build the confirmation summary before table models are changed
+
+### New File: `RulePresetService.kt`
+- Pure helper containing bundled local preset definitions and duplicate-aware append planning
+- Available bundles:
+  - Java / Spring Boot
+  - Gradle / Maven
+  - Node.js / npm / pnpm
+  - Python / pytest
+  - Docker / Kubernetes
+  - Frontend test runners (Jest / Vitest / Cypress / Playwright)
+- `prepareApply()` skips duplicate preset custom rule ids and existing terminal exit codes
+- Existing user-created rules are preserved; accepted preset rules are appended after them
+- Uses existing `CustomRuleEngine` limits and allowed kinds
+
+### `ErrorSoundConfigurable` — Rule Presets UI
+- Adds Rule Presets dropdown, selected-preset description, and **Add Preset Rules** button near the rule controls
+- On click, stops active rule table editing and shows a confirmation summary
+- Adds accepted preset rules to the current table models only
+- Preset additions follow normal settings semantics: Apply persists; Reset discards unapplied additions
+
+### Marketplace metadata
+- Plugin version is `1.1.13`
+- Marketplace change notes and feature description include Rule Presets as a shipped feature
+
+### Safety Boundaries
+- Bundled presets only
+- No network
+- No telemetry
+- No remote preset downloads
+- No script execution
+- No file writes
+- No direct terminal plugin imports or terminal reflection changes
+
+---
+
 ## 1.1.12 — Rule Import / Export (Phase 4)
 
 ### Scope
@@ -509,4 +562,4 @@ projectOverride == false →  effective enabled = false (regardless of global)
 - Improved terminal compatibility with 2025.x reworked terminal engine
 
 ---
-*Last updated from code scan: 2026-05-02*
+*Last updated from code scan: 2026-05-10*

@@ -240,6 +240,24 @@ Lets users export and import rule presets as local JSON. The bundle covers only 
 
 ---
 
+## Rule Presets
+
+| Field | Value |
+|---|---|
+| Status | Available |
+| Version introduced | 1.1.13 |
+| Relevant classes/files | `RulePresetBundle.kt`, `RulePresetApplyResult.kt`, `RulePresetService.kt`, `ErrorSoundConfigurable.kt`, `AlertSettings.kt` |
+
+Lets users add bundled rule sets for common stacks without replacing existing rules. Available preset bundles are Java / Spring Boot, Gradle / Maven, Node.js / npm / pnpm, Python / pytest, Docker / Kubernetes, and Frontend test runners (Jest / Vitest / Cypress / Playwright). Presets append only Custom Regex Rules and conservative Terminal Exit-Code Rules to the current settings table models.
+
+**How to enable/use:** Open Settings / Preferences -> Tools -> Error Sound Alert. Choose a Rule Presets entry, review its description, click **Add Preset Rules**, then confirm the summary.
+
+**Example usage:** Choose Docker / Kubernetes and click **Add Preset Rules** to append rules for `Error response from daemon`, `ImagePullBackOff`, `CrashLoopBackOff`, `OOMKilled`, and common terminal exit codes not already present.
+
+**Notes/limitations:** Preset additions are not persisted until Apply; Reset discards unapplied additions. Duplicate preset custom rule ids and existing terminal exit codes are skipped, while user-created rules are preserved. Presets do not modify sound settings, volume settings, success settings, project overrides, alert history, snooze state, or full profiles/settings bundles. Presets are bundled locally: no network, telemetry, remote preset downloads, or script execution.
+
+---
+
 ## Project-Level Enabled Override
 
 | Field | Value |
@@ -311,4 +329,4 @@ Prevents rapid duplicate alerts when multiple detection paths or repeated output
 **Notes/limitations:** Cooldown values are fixed in code and not currently configurable.
 
 ---
-*Last updated from code scan: 2026-05-02*
+*Last updated from code scan: 2026-05-10*
