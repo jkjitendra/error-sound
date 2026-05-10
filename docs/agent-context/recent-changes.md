@@ -4,6 +4,46 @@ Engineering-significant changes to the codebase. Not a full changelog — focuse
 
 ---
 
+## 1.1.14 — Play Once Sound Duration (PR #32 Integration)
+
+### Scope
+Adds shipped user-facing **Use actual sound file duration (play once)** behavior for file-based alert playback. The feature idea was ported from external PR #32 into the current architecture; the PR branch was not merged directly.
+
+Default behavior remains unchanged: the option is disabled by default, and sounds continue to loop/restart until the configured alert duration expires.
+
+### `AlertSettings.State`
+- Adds `useActualSoundDuration: Boolean = false`
+- The field affects playback duration behavior only
+- It does not modify sound selection, volume settings, success settings, rules, alert history, visual notifications, snooze state, or project profiles
+
+### `ErrorSoundConfigurable`
+- Adds **Use actual sound file duration (play once)** checkbox in Settings / Preferences -> Tools -> Error Sound Alert
+- Disables the alert duration slider/value label while selected
+- Checkbox follows standard settings semantics: Apply persists; Reset discards unapplied checkbox changes
+- Preview passes the selected mode to `ErrorSoundPlayer` where practical
+
+### `ErrorSoundPlayer`
+- When `useActualSoundDuration == true`, file-based built-in/custom playback opens the clip, applies volume, starts once, waits for clip length or stop/close, then stops/flushes/closes safely
+- When `useActualSoundDuration == false`, the existing configured-duration looping behavior remains the default
+- Preview uses the same play-once vs configured-duration branch
+
+### Marketplace metadata
+- Plugin version is `1.1.14`
+- Marketplace change notes credit contributor PR #32
+- Marketplace feature description includes the play-once option
+
+### New sounds status
+- The seven proposed PR #32 sounds were not shipped in 1.1.14
+- Audio files were not present in the repository, and licensing/approval was not confirmed
+- Future inclusion should verify file provenance and Marketplace-safe licensing before adding bundled sound entries
+
+### Safety Boundaries
+- No terminal reflection changes
+- No rule preset, import/export, alert history, or custom rule behavior changes
+- No network, telemetry, remote sound downloads, script execution, or file writes
+
+---
+
 ## 1.1.13 — Rule Presets (Phase 5)
 
 ### Scope
@@ -562,4 +602,4 @@ projectOverride == false →  effective enabled = false (regardless of global)
 - Improved terminal compatibility with 2025.x reworked terminal engine
 
 ---
-*Last updated from code scan: 2026-05-10*
+*Last updated from code scan: 2026-05-11*

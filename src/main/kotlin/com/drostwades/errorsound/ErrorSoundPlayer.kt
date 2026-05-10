@@ -6,12 +6,15 @@ import java.awt.Toolkit
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.io.File
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
 import kotlin.concurrent.thread
 import javax.sound.sampled.AudioFormat
 import javax.sound.sampled.AudioInputStream
 import javax.sound.sampled.AudioSystem
 import javax.sound.sampled.Clip
 import javax.sound.sampled.FloatControl
+import javax.sound.sampled.LineEvent
 
 object ErrorSoundPlayer {
 
@@ -66,18 +69,28 @@ object ErrorSoundPlayer {
         }
     }
 
-    fun previewBuiltIn(soundId: String, volumePercent: Int, durationSeconds: Int) {
+    fun previewBuiltIn(
+        soundId: String,
+        volumePercent: Int,
+        durationSeconds: Int,
+        useActualSoundDuration: Boolean = false,
+    ) {
         val sound = BuiltInSounds.findByIdOrDefault(soundId)
         val bytes = readResourceBytes(sound.resourcePath) ?: return
-        startPreview(bytes, volumePercent, durationSeconds)
+        startPreview(bytes, volumePercent, durationSeconds, useActualSoundDuration)
     }
 
-    fun previewCustom(customPath: String, volumePercent: Int, durationSeconds: Int) {
+    fun previewCustom(
+        customPath: String,
+        volumePercent: Int,
+        durationSeconds: Int,
+        useActualSoundDuration: Boolean = false,
+    ) {
         val file = File(customPath)
         if (!file.exists() || !file.isFile) {
             return
         }
-        startPreview(file.readBytes(), volumePercent, durationSeconds)
+        startPreview(file.readBytes(), volumePercent, durationSeconds, useActualSoundDuration)
     }
 
     fun stopPreview() {
@@ -216,6 +229,11 @@ object ErrorSoundPlayer {
             clip.open(input)
             applyVolumeIfSupported(clip, volumePercent)
 
+            if (settings.useActualSoundDuration) {
+                playClipOnce(clip)
+                return
+            }
+
             val totalDurationMillis = (settings.alertDurationSeconds.coerceIn(1, 10) * 1_000L)
             val deadlineNanos = System.nanoTime() + (totalDurationMillis * 1_000_000L)
             val clipLengthMillis = (clip.microsecondLength / 1_000L).coerceAtLeast(1L)
@@ -229,13 +247,46 @@ object ErrorSoundPlayer {
                     break
                 }
 
-                Thread.sleep(minOf(clipLengthMillis, remainingMillis))
+                try {
+                    Thread.sleep(minOf(clipLengthMillis, remainingMillis))
+                } catch (_: InterruptedException) {
+                    Thread.currentThread().interrupt()
+                    break
+                }
                 clip.stop()
                 clip.flush()
             }
         } finally {
             runCatching { input.close() }
             runCatching { clip.close() }
+        }
+    }
+
+    private fun playClipOnce(clip: Clip) {
+        val done = CountDownLatch(1)
+        val listener = javax.sound.sampled.LineListener { event ->
+            if (event.type == LineEvent.Type.STOP || event.type == LineEvent.Type.CLOSE) {
+                done.countDown()
+            }
+        }
+        clip.addLineListener(listener)
+        try {
+            clip.framePosition = 0
+            clip.start()
+            awaitClipEnd(clip, done)
+            clip.stop()
+            clip.flush()
+        } finally {
+            clip.removeLineListener(listener)
+        }
+    }
+
+    private fun awaitClipEnd(clip: Clip, done: CountDownLatch) {
+        val clipLengthMillis = (clip.microsecondLength / 1_000L).coerceAtLeast(1L)
+        try {
+            done.await(clipLengthMillis + 250L, TimeUnit.MILLISECONDS)
+        } catch (_: InterruptedException) {
+            Thread.currentThread().interrupt()
         }
     }
 
@@ -253,7 +304,12 @@ object ErrorSoundPlayer {
         gainControl.value = dB
     }
 
-    private fun startPreview(audioBytes: ByteArray, volumePercent: Int, durationSeconds: Int) {
+    private fun startPreview(
+        audioBytes: ByteArray,
+        volumePercent: Int,
+        durationSeconds: Int,
+        useActualSoundDuration: Boolean,
+    ) {
         val safeSeconds = durationSeconds.coerceIn(1, 10)
         val token = synchronized(previewLock) {
             previewToken += 1
@@ -263,7 +319,7 @@ object ErrorSoundPlayer {
 
         val t = thread(start = true, isDaemon = true, name = "ErrorSoundPreview") {
             runCatching {
-                playPreviewLoop(audioBytes, volumePercent, safeSeconds, token)
+                playPreviewLoop(audioBytes, volumePercent, safeSeconds, useActualSoundDuration, token)
             }.onFailure {
                 log.warn("Failed to preview sound", it)
             }
@@ -278,7 +334,13 @@ object ErrorSoundPlayer {
         }
     }
 
-    private fun playPreviewLoop(audioBytes: ByteArray, volumePercent: Int, durationSeconds: Int, token: Long) {
+    private fun playPreviewLoop(
+        audioBytes: ByteArray,
+        volumePercent: Int,
+        durationSeconds: Int,
+        useActualSoundDuration: Boolean,
+        token: Long,
+    ) {
         val input = AudioSystem.getAudioInputStream(ByteArrayInputStream(audioBytes))
         val clip = AudioSystem.getClip()
         try {
@@ -290,6 +352,11 @@ object ErrorSoundPlayer {
                     return
                 }
                 previewClip = clip
+            }
+
+            if (useActualSoundDuration) {
+                playPreviewOnce(clip, token)
+                return
             }
 
             val totalDurationMillis = durationSeconds * 1_000L
@@ -321,6 +388,26 @@ object ErrorSoundPlayer {
                     previewThread = null
                 }
             }
+        }
+    }
+
+    private fun playPreviewOnce(clip: Clip, token: Long) {
+        if (!isPreviewActive(token)) return
+        val done = CountDownLatch(1)
+        val listener = javax.sound.sampled.LineListener { event ->
+            if (event.type == LineEvent.Type.STOP || event.type == LineEvent.Type.CLOSE) {
+                done.countDown()
+            }
+        }
+        clip.addLineListener(listener)
+        try {
+            clip.framePosition = 0
+            clip.start()
+            awaitClipEnd(clip, done)
+            clip.stop()
+            clip.flush()
+        } finally {
+            clip.removeLineListener(listener)
         }
     }
 

@@ -359,6 +359,7 @@ Class-by-class reference for the `com.drostwades.errorsound` package.
 - `monitorConfiguration/Compilation/TestFailure/Network/Exception/Generic` — per-kind monitor flags
 - `monitorSuccess` — success monitoring flag (default: `false`)
 - `volumePercent` (0–100), `alertDurationSeconds` (1–10)
+- `useActualSoundDuration: Boolean = false` — optional play-once mode; when true, file-based playback uses the selected clip's actual length instead of the configured alert duration
 - `soundSource` — `BUNDLED` or `CUSTOM`
 - `builtInSoundId` — global sound ID
 - `useGlobalBuiltInSound` — one sound for all kinds
@@ -520,6 +521,12 @@ Class-by-class reference for the `com.drostwades.errorsound` package.
 - Duplicate custom rule ids and existing exit codes are skipped; existing user-created rules are preserved
 - Added preset rules follow normal settings semantics: they are not persisted until Apply; Reset discards unapplied preset additions
 
+**Play Once Sound Duration controls (1.1.14 addition):**
+- Adds **Use actual sound file duration (play once)** checkbox in the audio settings area
+- Disables the alert duration slider and value label while selected
+- Preview calls pass the checkbox state through to `ErrorSoundPlayer`
+- Checkbox changes follow normal settings semantics: they are not persisted until Apply; Reset discards unapplied changes
+
 **Custom Regex Rules section (Phase 5 addition):**
 - `CustomRuleTableModel` (inner class) — `AbstractTableModel` with deep-copy semantics on `setRules()` so table edits don't mutate settings until Apply
 - `PatternValidatingRenderer` (inner class) — renders Pattern column with red tint + tooltip for invalid regex
@@ -554,14 +561,17 @@ Class-by-class reference for the `com.drostwades.errorsound` package.
 |---|---|
 | `play(settings, kind, soundOverride?)` | Main alert path. Calls `resolveEffectiveVolumePercent()` once and passes result to all playback helpers |
 | `resolveEffectiveVolumePercent(settings, kind)` | **Phase 8** — returns per-kind override Int? or falls back to `settings.volumePercent` |
-| `previewBuiltIn(id, vol, dur)` | Preview a built-in sound |
-| `previewCustom(path, vol, dur)` | Preview a custom file |
+| `previewBuiltIn(id, vol, dur, useActualSoundDuration)` | Preview a built-in sound, using play-once mode when requested |
+| `previewCustom(path, vol, dur, useActualSoundDuration)` | Preview a custom file, using play-once mode when requested |
 | `stopPreview()` | Cancel active preview |
 
 **Internals:**
 - Single-threaded bounded executor for alerts
 - Preview uses daemon threads with token-based cancellation
 - `playClipLooping(bytes, settings, volumePercent)` — explicit `volumePercent` arg (Phase 8); no longer reads `settings.volumePercent` internally
+- `settings.useActualSoundDuration == false` keeps the default configured-duration looping/restart behavior
+- `settings.useActualSoundDuration == true` starts the opened clip once, waits for the clip length or stop/close event, then stops/flushes/closes safely
+- Preview follows the same play-once vs configured-duration branch where practical
 - Volume: `FloatControl.MASTER_GAIN` with dB scaling (`20 * log10(linear)`)
 - Tone fallback: generates 880 Hz WAV in-memory
 
@@ -607,4 +617,4 @@ Class-by-class reference for the `com.drostwades.errorsound` package.
 **Risk:** LOW — additive, no external dependencies.
 
 ---
-*Last updated from code scan: 2026-05-10*
+*Last updated from code scan: 2026-05-11*

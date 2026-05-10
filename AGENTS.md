@@ -12,7 +12,7 @@ IntelliJ Platform plugin that plays an audio alert when a Run/Debug process, con
 2. Scans console output for error patterns via `ConsoleFilterProvider`.
 3. Monitors terminal command completions via reflection-based listener on Classic/Block and Reworked terminal internals (optional dependency on `org.jetbrains.plugins.terminal`).
 4. Routes detected errors through `AlertDispatcher → SnoozeState → AlertMonitoring → AlertEventGate → AlertHistoryService → ErrorSoundPlayer`.
-5. Plays a WAV sound (built-in or custom) with configurable volume and duration.
+5. Plays a WAV sound (built-in or custom) with configurable volume, configured duration looping, or the optional actual sound file duration play-once mode.
 6. Records accepted alerts in an in-memory Error Monitor history after snooze, monitoring, and deduplication gates accept the event.
 7. Resolves per-project `enabled` override via `ResolvedSettingsResolver` (Phase 7) before dispatching.
 8. Provides bundled local Rule Presets that append Custom Regex Rules and conservative Terminal Exit-Code Rules in the settings UI.
@@ -28,7 +28,7 @@ IntelliJ Platform plugin that plays an audio alert when a Run/Debug process, con
 | Target platform | IC 2024.3 |
 | `sinceBuild` | 243 |
 | `untilBuild` | unset (open-ended) |
-| **Plugin version** | **1.1.13** |
+| **Plugin version** | **1.1.14** |
 
 ## Completed Phases
 
@@ -45,6 +45,7 @@ IntelliJ Platform plugin that plays an audio alert when a Run/Debug process, con
 - Phase 3 Roadmap — Alert History Panel
 - Phase 4 Roadmap — Rule Import/Export
 - Phase 5 Roadmap — Preset Bundles
+- PR #32 Integration — Play Once Sound Duration
 
 ## Safe Editing Rules
 
@@ -90,4 +91,4 @@ IntelliJ Platform plugin that plays an audio alert when a Run/Debug process, con
 7. See `docs/agent-context/maintenance-rules.md` for the full update matrix.
 
 ---
-*Last updated from code scan: 2026-05-10*
+*Last updated from code scan: 2026-05-11*
