@@ -65,6 +65,30 @@ object ClassificationExplanationFactory {
             suppressed = true,
         )
 
+    fun suppressionRule(
+        source: AlertMatchExplanation.Source,
+        match: SuppressionRuleEngine.SuppressionRuleMatch,
+        kind: ErrorKind = ErrorKind.NONE,
+        exitCode: Int? = null,
+        context: String? = null,
+    ): AlertMatchExplanation =
+        AlertMatchExplanation(
+            source = source,
+            cause = AlertMatchExplanation.Cause.SUPPRESSION_RULE,
+            kind = kind,
+            message = if (match.description.isBlank()) {
+                "Suppression rule matched ${match.target}"
+            } else {
+                "Suppression rule matched ${match.target}: ${match.description}"
+            },
+            ruleId = match.id,
+            rulePattern = match.pattern,
+            matchTarget = match.target,
+            exitCode = exitCode,
+            commandOrConfig = context,
+            suppressed = true,
+        )
+
     fun terminalBuiltInFallback(command: String, exitCode: Int, kind: ErrorKind): AlertMatchExplanation =
         AlertMatchExplanation(
             source = AlertMatchExplanation.Source.TERMINAL,
