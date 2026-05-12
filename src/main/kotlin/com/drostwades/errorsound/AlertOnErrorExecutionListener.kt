@@ -33,7 +33,22 @@ class AlertOnErrorExecutionListener : ExecutionListener {
                     outputBuffer.delete(0, outputBuffer.length - maxCapturedOutputChars)
                 }
 
-                val engine = AlertSettings.getInstance().getCompiledRuleEngine()
+                val alertSettings = AlertSettings.getInstance()
+                val suppressionEngine = alertSettings.getCompiledSuppressionRuleEngine()
+                if (suppressionEngine.hasLineTextRules) {
+                    val suppressionMatch = suppressionEngine.explainLineText(text)
+                    if (suppressionMatch != null) {
+                        val explanation = ClassificationExplanationFactory.suppressionRule(
+                            source = AlertMatchExplanation.Source.RUN_DEBUG,
+                            match = suppressionMatch,
+                            context = env.runProfile.name,
+                        )
+                        log.debug("Process chunk suppressed. ${explanation.summary()}")
+                        return
+                    }
+                }
+
+                val engine = alertSettings.getCompiledRuleEngine()
                 val customMatch = if (engine.hasLineTextRules) engine.explainLineText(text) else null
                 if (customMatch != null) {
                     // Custom rule matched: record it in the custom accumulator.
@@ -52,7 +67,22 @@ class AlertOnErrorExecutionListener : ExecutionListener {
                 val exitCode = event.exitCode
                 val settings = AlertSettings.getInstance()
                 val engine = settings.getCompiledRuleEngine()
+                val suppressionEngine = settings.getCompiledSuppressionRuleEngine()
                 val fullText = outputBuffer.toString()
+
+                val finalSuppressionMatch =
+                    (if (suppressionEngine.hasFullOutputRules) suppressionEngine.explainFullOutput(fullText) else null)
+                        ?: (if (suppressionEngine.hasExitCodeAndTextRules) suppressionEngine.explainExitCodeAndText(fullText, exitCode) else null)
+                if (finalSuppressionMatch != null) {
+                    val explanation = ClassificationExplanationFactory.suppressionRule(
+                        source = AlertMatchExplanation.Source.RUN_DEBUG,
+                        match = finalSuppressionMatch,
+                        exitCode = exitCode,
+                        context = env.runProfile.name,
+                    )
+                    log.debug("Process alert suppressed. ${explanation.summary()}")
+                    return
+                }
 
                 // Priority order (custom always beats built-in):
                 // 1. Custom FULL_OUTPUT rule on full buffer

@@ -146,6 +146,10 @@ class ErrorSoundConfigurable : Configurable {
     private val customRuleTableModel = CustomRuleTableModel()
     private val customRuleTable = JBTable(customRuleTableModel)
 
+    // Suppression rules table
+    private val suppressionRuleTableModel = SuppressionRuleTableModel()
+    private val suppressionRuleTable = JBTable(suppressionRuleTableModel)
+
     // Rule testing sandbox (Phase 1 roadmap)
     private val ruleTestSourceCombo = ComboBox(RuleTestService.SourceMode.entries.toTypedArray())
     private val ruleTestTargetCombo = ComboBox(AlertSettings.MatchTarget.entries.toTypedArray())
@@ -406,6 +410,8 @@ class ErrorSoundConfigurable : Configurable {
             .addSeparator(8)
             .addComponent(createRuleImportExportPanel(), 1)
             .addSeparator(8)
+            .addComponent(createSuppressionRulesPanel(), 1)
+            .addSeparator(8)
             .addComponent(createCustomRulesPanel(), 1)
             .addSeparator(8)
             .addComponent(createRuleTestingSandboxPanel(), 1)
@@ -467,6 +473,7 @@ class ErrorSoundConfigurable : Configurable {
             visualNotificationOnErrorCheck.isSelected != state.visualNotificationOnError ||
             visualNotificationOnSuccessCheck.isSelected != state.visualNotificationOnSuccess ||
             customRuleTableModel.getRules() != state.customRules ||
+            suppressionRuleTableModel.getRules() != state.suppressionRules ||
             exitCodeRuleTableModel.getRules() != state.exitCodeRules
     }
 
@@ -474,6 +481,7 @@ class ErrorSoundConfigurable : Configurable {
         ErrorSoundPlayer.stopPreview()
         // Stop any in-progress cell edit before reading table data
         if (customRuleTable.isEditing) customRuleTable.cellEditor?.stopCellEditing()
+        if (suppressionRuleTable.isEditing) suppressionRuleTable.cellEditor?.stopCellEditing()
         if (exitCodeRuleTable.isEditing) exitCodeRuleTable.cellEditor?.stopCellEditing()
 
         val selectedSource = (sourceCombo.selectedItem as? AlertSettings.SoundSource)?.name
@@ -517,11 +525,13 @@ class ErrorSoundConfigurable : Configurable {
                 visualNotificationOnError = visualNotificationOnErrorCheck.isSelected,
                 visualNotificationOnSuccess = visualNotificationOnSuccessCheck.isSelected,
                 customRules = customRuleTableModel.getRules().toMutableList(),
+                suppressionRules = suppressionRuleTableModel.getRules().toMutableList(),
                 exitCodeRules = exitCodeRuleTableModel.getRules().toMutableList(),
             )
         )
         // Sync tables back to normalized state so isModified() returns false immediately after Apply.
         customRuleTableModel.setRules(settings.state.customRules)
+        suppressionRuleTableModel.setRules(settings.state.suppressionRules)
         exitCodeRuleTableModel.setRules(settings.state.exitCodeRules)
     }
 
@@ -605,6 +615,7 @@ class ErrorSoundConfigurable : Configurable {
             updateInputState()
 
             customRuleTableModel.setRules(state.customRules)
+            suppressionRuleTableModel.setRules(state.suppressionRules)
             exitCodeRuleTableModel.setRules(state.exitCodeRules)
         } finally {
             suppressPreview = false
@@ -774,7 +785,7 @@ class ErrorSoundConfigurable : Configurable {
         val actions = JPanel(FlowLayout(FlowLayout.LEFT, 8, 0)).apply {
             add(exportRulesButton)
             add(importRulesButton)
-            add(JBLabel("Custom regex and terminal exit-code rules only.").apply {
+            add(JBLabel("Custom regex, suppression, and terminal exit-code rules only.").apply {
                 foreground = JBColor.GRAY
             })
         }
@@ -790,7 +801,7 @@ class ErrorSoundConfigurable : Configurable {
 
         val descriptor = FileSaverDescriptor(
             "Export Error Sound Rules",
-            "Export custom regex and terminal exit-code rules to a JSON file.",
+            "Export custom regex, suppression, and terminal exit-code rules to a JSON file.",
             "json",
         )
         val wrapper = FileChooserFactory.getInstance()
@@ -811,6 +822,7 @@ class ErrorSoundConfigurable : Configurable {
 
         val json = RuleImportExportService.exportRules(
             customRules = customRuleTableModel.getRules(),
+            suppressionRules = suppressionRuleTableModel.getRules(),
             exitCodeRules = exitCodeRuleTableModel.getRules(),
             pluginVersion = currentPluginVersion(),
         )
@@ -819,7 +831,7 @@ class ErrorSoundConfigurable : Configurable {
             Files.writeString(file.toPath(), json, StandardCharsets.UTF_8)
             Messages.showInfoMessage(
                 parent,
-                "Exported ${customRuleTableModel.rowCount} custom rule(s) and ${exitCodeRuleTableModel.rowCount} exit-code rule(s).",
+                "Exported ${customRuleTableModel.rowCount} custom rule(s), ${suppressionRuleTableModel.rowCount} suppression rule(s), and ${exitCodeRuleTableModel.rowCount} exit-code rule(s).",
                 "Export Rules",
             )
         } catch (e: Exception) {
@@ -863,17 +875,19 @@ class ErrorSoundConfigurable : Configurable {
         if (choice != Messages.OK) return
 
         customRuleTableModel.setRules(result.customRules)
+        suppressionRuleTableModel.setRules(result.suppressionRules)
         exitCodeRuleTableModel.setRules(result.exitCodeRules)
     }
 
     private fun stopRuleTableEditing() {
         if (customRuleTable.isEditing) customRuleTable.cellEditor?.stopCellEditing()
+        if (suppressionRuleTable.isEditing) suppressionRuleTable.cellEditor?.stopCellEditing()
         if (exitCodeRuleTable.isEditing) exitCodeRuleTable.cellEditor?.stopCellEditing()
     }
 
     private fun formatImportSummary(result: RuleImportExportResult): String {
         val lines = mutableListOf(
-            "Import ${result.customRules.size} custom rule(s) and ${result.exitCodeRules.size} exit-code rule(s)?",
+            "Import ${result.customRules.size} custom rule(s), ${result.suppressionRules.size} suppression rule(s), and ${result.exitCodeRules.size} exit-code rule(s)?",
             "",
             "This replaces the current rule tables. Changes are not saved until Apply is clicked.",
         )
@@ -899,6 +913,82 @@ class ErrorSoundConfigurable : Configurable {
     private fun currentPluginVersion(): String {
         return PluginManagerCore.getPlugin(PluginId.getId("com.drostwades.errorsound"))?.version
             ?: "unknown"
+    }
+
+    // ── Suppression Rules Panel ───────────────────────────────────────────────
+
+    private fun createSuppressionRulesPanel(): JPanel {
+        suppressionRuleTable.autoResizeMode = JTable.AUTO_RESIZE_SUBSEQUENT_COLUMNS
+        suppressionRuleTable.fillsViewportHeight = true
+        suppressionRuleTable.rowHeight = 24
+
+        val cm = suppressionRuleTable.columnModel
+        cm.getColumn(0).apply {
+            preferredWidth = 55
+            maxWidth = 65
+        }
+        cm.getColumn(1).apply {
+            preferredWidth = 220
+            cellRenderer = PatternValidatingRenderer()
+        }
+        cm.getColumn(2).apply {
+            preferredWidth = 130
+            cellEditor = DefaultCellEditor(
+                javax.swing.JComboBox(AlertSettings.MatchTarget.entries.map { it.name }.toTypedArray())
+            )
+        }
+        cm.getColumn(3).preferredWidth = 180
+
+        val tablePanel = ToolbarDecorator.createDecorator(suppressionRuleTable)
+            .disableUpAction()
+            .disableDownAction()
+            .setAddAction {
+                if (suppressionRuleTable.isEditing) suppressionRuleTable.cellEditor?.stopCellEditing()
+                suppressionRuleTableModel.addRule(AlertSettings.SuppressionRuleState())
+                val newRow = suppressionRuleTableModel.rowCount - 1
+                suppressionRuleTable.setRowSelectionInterval(newRow, newRow)
+                suppressionRuleTable.scrollRectToVisible(suppressionRuleTable.getCellRect(newRow, 1, true))
+            }
+            .setRemoveAction {
+                if (suppressionRuleTable.isEditing) suppressionRuleTable.cellEditor?.stopCellEditing()
+                suppressionRuleTable.selectedRows.sortedDescending().forEach { suppressionRuleTableModel.removeRule(it) }
+            }
+            .createPanel().apply {
+                preferredSize = java.awt.Dimension(0, 160)
+            }
+
+        val helpTop = JBLabel(
+            """
+        <html>
+          Suppression rules run <b>before</b> alerts are dispatched — first matching enabled suppression rule silences the alert.
+          <br/>
+          Disabled rules and invalid patterns are ignored.
+        </html>
+        """.trimIndent()
+        ).apply {
+            border = BorderFactory.createEmptyBorder(0, 0, 4, 0)
+        }
+
+        val helpBottom = JBLabel(
+            """
+        <html>
+          <b>Target scope —</b><br/>
+          LINE_TEXT: per line/chunk in Run/Debug and Console.<br/>
+          FULL_OUTPUT: Run/Debug final buffered output only.<br/>
+          EXIT_CODE_AND_TEXT: Run/Debug final output and Terminal command context
+          (matches against <tt>exitcode:N\n&lt;text&gt;</tt>).
+        </html>
+        """.trimIndent()
+        ).apply {
+            foreground = JBColor.GRAY
+            border = BorderFactory.createEmptyBorder(4, 0, 0, 0)
+        }
+
+        return JPanel(BorderLayout(0, 0)).apply {
+            add(helpTop, BorderLayout.NORTH)
+            add(tablePanel, BorderLayout.CENTER)
+            add(helpBottom, BorderLayout.SOUTH)
+        }
     }
 
     // ── Custom Rules Panel ─────────────────────────────────────────────────────
@@ -1228,6 +1318,62 @@ class ErrorSoundConfigurable : Configurable {
                 1 -> rules[row].pattern = value as? String ?: ""
                 2 -> rules[row].matchTarget = value as? String ?: AlertSettings.MatchTarget.LINE_TEXT.name
                 3 -> rules[row].kind = value as? String ?: ErrorKind.GENERIC.name
+            }
+            fireTableCellUpdated(row, col)
+        }
+    }
+
+    private class SuppressionRuleTableModel : AbstractTableModel() {
+        private val rules: MutableList<AlertSettings.SuppressionRuleState> = mutableListOf()
+
+        fun setRules(newRules: List<AlertSettings.SuppressionRuleState>) {
+            rules.clear()
+            rules.addAll(newRules.map { it.copy() })
+            fireTableDataChanged()
+        }
+
+        fun getRules(): List<AlertSettings.SuppressionRuleState> = rules.toList()
+
+        fun addRule(rule: AlertSettings.SuppressionRuleState) {
+            rules.add(rule)
+            fireTableRowsInserted(rules.size - 1, rules.size - 1)
+        }
+
+        fun removeRule(index: Int) {
+            if (index in rules.indices) {
+                rules.removeAt(index)
+                fireTableRowsDeleted(index, index)
+            }
+        }
+
+        override fun getRowCount(): Int = rules.size
+        override fun getColumnCount(): Int = 4
+        override fun getColumnName(col: Int): String = when (col) {
+            0 -> "Enabled"
+            1 -> "Pattern"
+            2 -> "Match Target"
+            3 -> "Description"
+            else -> ""
+        }
+        override fun getColumnClass(col: Int): Class<*> =
+            if (col == 0) Boolean::class.javaObjectType else String::class.java
+        override fun isCellEditable(row: Int, col: Int): Boolean = true
+
+        override fun getValueAt(row: Int, col: Int): Any = when (col) {
+            0 -> rules[row].enabled
+            1 -> rules[row].pattern
+            2 -> rules[row].matchTarget
+            3 -> rules[row].description
+            else -> ""
+        }
+
+        override fun setValueAt(value: Any?, row: Int, col: Int) {
+            if (row !in rules.indices) return
+            when (col) {
+                0 -> rules[row].enabled = value as? Boolean ?: true
+                1 -> rules[row].pattern = value as? String ?: ""
+                2 -> rules[row].matchTarget = value as? String ?: AlertSettings.MatchTarget.LINE_TEXT.name
+                3 -> rules[row].description = value as? String ?: ""
             }
             fireTableCellUpdated(row, col)
         }
