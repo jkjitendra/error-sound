@@ -5,6 +5,7 @@ data class RuleImportExportBundle(
     val exportedAt: String,
     val pluginVersion: String,
     val customRules: List<CustomRule>,
+    val suppressionRules: List<SuppressionRule>,
     val exitCodeRules: List<ExitCodeRule>,
 ) {
     data class CustomRule(
@@ -13,6 +14,14 @@ data class RuleImportExportBundle(
         val pattern: String,
         val matchTarget: String,
         val kind: String,
+    )
+
+    data class SuppressionRule(
+        val id: String,
+        val enabled: Boolean,
+        val pattern: String,
+        val matchTarget: String,
+        val description: String,
     )
 
     data class ExitCodeRule(
