@@ -691,6 +691,7 @@ private class ErrorSoundToolWindowPanel(
             AlertMatchExplanation.Cause.BUILT_IN_CLASSIFIER -> "Built-in classifier"
             AlertMatchExplanation.Cause.TERMINAL_EXIT_CODE_RULE -> "Exit-code rule"
             AlertMatchExplanation.Cause.TERMINAL_EXIT_CODE_SUPPRESSED -> "Exit-code suppressed"
+            AlertMatchExplanation.Cause.SUPPRESSION_RULE -> "Suppression rule"
             AlertMatchExplanation.Cause.SUCCESS_FALLBACK -> "Success fallback"
             AlertMatchExplanation.Cause.NO_MATCH -> "No match"
             AlertMatchExplanation.Cause.DURATION_THRESHOLD_SUPPRESSED -> "Duration suppressed"

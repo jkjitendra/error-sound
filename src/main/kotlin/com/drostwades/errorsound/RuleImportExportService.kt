@@ -11,7 +11,8 @@ import java.util.UUID
 import java.util.regex.PatternSyntaxException
 
 object RuleImportExportService {
-    private const val SCHEMA_VERSION = 1
+    private const val SCHEMA_VERSION = 2
+    private val SUPPORTED_SCHEMA_VERSIONS = setOf(1, 2)
 
     private val gson = GsonBuilder()
         .serializeNulls()
@@ -23,13 +24,16 @@ object RuleImportExportService {
         "exportedAt",
         "pluginVersion",
         "customRules",
+        "suppressionRules",
         "exitCodeRules",
     )
     private val customRuleFields = setOf("id", "enabled", "pattern", "matchTarget", "kind")
+    private val suppressionRuleFields = setOf("id", "enabled", "pattern", "matchTarget", "description")
     private val exitCodeRuleFields = setOf("exitCode", "enabled", "kind", "soundId", "suppress")
 
     fun exportRules(
         customRules: List<AlertSettings.CustomRuleState>,
+        suppressionRules: List<AlertSettings.SuppressionRuleState>,
         exitCodeRules: List<AlertSettings.ExitCodeRuleState>,
         pluginVersion: String,
     ): String {
@@ -44,6 +48,15 @@ object RuleImportExportService {
                     pattern = rule.pattern,
                     matchTarget = rule.matchTarget,
                     kind = rule.kind,
+                )
+            },
+            suppressionRules = suppressionRules.map { rule ->
+                RuleImportExportBundle.SuppressionRule(
+                    id = rule.id,
+                    enabled = rule.enabled,
+                    pattern = rule.pattern,
+                    matchTarget = rule.matchTarget,
+                    description = rule.description,
                 )
             },
             exitCodeRules = exitCodeRules.map { rule ->
@@ -70,8 +83,10 @@ object RuleImportExportService {
         rejectUnknownFields(rootObject, topLevelFields, "Top-level object")
 
         val schemaVersion = rootObject.requiredInt("schemaVersion", "schemaVersion")
-        if (schemaVersion != SCHEMA_VERSION) {
-            throw IllegalArgumentException("Unsupported rules schema version: $schemaVersion. Supported version is $SCHEMA_VERSION.")
+        if (schemaVersion !in SUPPORTED_SCHEMA_VERSIONS) {
+            throw IllegalArgumentException(
+                "Unsupported rules schema version: $schemaVersion. Supported versions are ${SUPPORTED_SCHEMA_VERSIONS.joinToString(", ")}."
+            )
         }
 
         rootObject.optionalString("exportedAt", "exportedAt")
@@ -80,6 +95,7 @@ object RuleImportExportService {
         val warnings = mutableListOf<String>()
         var skippedCount = 0
         val customRules = mutableListOf<AlertSettings.CustomRuleState>()
+        val suppressionRules = mutableListOf<AlertSettings.SuppressionRuleState>()
         val exitCodeRules = mutableListOf<AlertSettings.ExitCodeRuleState>()
 
         rootObject.optionalArray("customRules", "customRules")?.forEachIndexed { index, element ->
@@ -101,6 +117,25 @@ object RuleImportExportService {
             if (rule != null) customRules += rule
         }
 
+        rootObject.optionalArray("suppressionRules", "suppressionRules")?.forEachIndexed { index, element ->
+            if (index >= SuppressionRuleEngine.MAX_RULES) {
+                if (index == SuppressionRuleEngine.MAX_RULES) {
+                    warnings += "Skipped suppression rules after row ${SuppressionRuleEngine.MAX_RULES}; only ${SuppressionRuleEngine.MAX_RULES} suppression rules are supported."
+                }
+                skippedCount++
+                return@forEachIndexed
+            }
+
+            val path = "suppressionRules[${index + 1}]"
+            val rule = runCatching { parseSuppressionRule(element, path, warnings) }
+                .getOrElse { error ->
+                    warnings += "Skipped $path: ${error.message ?: "Invalid rule."}"
+                    skippedCount++
+                    null
+                }
+            if (rule != null) suppressionRules += rule
+        }
+
         rootObject.optionalArray("exitCodeRules", "exitCodeRules")?.forEachIndexed { index, element ->
             val path = "exitCodeRules[${index + 1}]"
             val rule = runCatching { parseExitCodeRule(element, path, warnings) }
@@ -114,9 +149,64 @@ object RuleImportExportService {
 
         return RuleImportExportResult(
             customRules = customRules,
+            suppressionRules = suppressionRules,
             exitCodeRules = exitCodeRules,
             warnings = warnings,
             skippedCount = skippedCount,
+        )
+    }
+
+    private fun parseSuppressionRule(
+        element: JsonElement,
+        path: String,
+        warnings: MutableList<String>,
+    ): AlertSettings.SuppressionRuleState {
+        val obj = element.asObject(path)
+        rejectUnknownFields(obj, suppressionRuleFields, path)
+
+        val id = obj.optionalString("id", "$path.id")?.trim()
+            ?.takeIf { it.isNotEmpty() }
+            ?: UUID.randomUUID().toString().also {
+                warnings += "$path has no id; generated a new one."
+            }
+        val enabled = obj.optionalBoolean("enabled", "$path.enabled") ?: true
+        val rawPattern = obj.requiredString("pattern", "$path.pattern")
+        val pattern = rawPattern.trim().let {
+            if (it.length > SuppressionRuleEngine.MAX_PATTERN_LENGTH) {
+                warnings += "$path.pattern was truncated to ${SuppressionRuleEngine.MAX_PATTERN_LENGTH} characters."
+                it.take(SuppressionRuleEngine.MAX_PATTERN_LENGTH)
+            } else {
+                it
+            }
+        }
+        val matchTarget = obj.requiredString("matchTarget", "$path.matchTarget")
+        validateMatchTarget(matchTarget, "$path.matchTarget")
+        val description = obj.optionalString("description", "$path.description")
+            ?.trim()
+            ?.let {
+                if (it.length > SuppressionRuleEngine.MAX_DESCRIPTION_LENGTH) {
+                    warnings += "$path.description was truncated to ${SuppressionRuleEngine.MAX_DESCRIPTION_LENGTH} characters."
+                    it.take(SuppressionRuleEngine.MAX_DESCRIPTION_LENGTH)
+                } else {
+                    it
+                }
+            }
+            ?: ""
+
+        if (pattern.isNotBlank()) {
+            try {
+                Regex(pattern, setOf(RegexOption.IGNORE_CASE, RegexOption.MULTILINE))
+            } catch (e: PatternSyntaxException) {
+                warnings += "$path.pattern is not a valid regex and will be ignored at runtime until edited: ${e.description ?: e.message ?: "Invalid regex pattern"}"
+            }
+        }
+
+        return AlertSettings.SuppressionRuleState(
+            id = id,
+            enabled = enabled,
+            pattern = pattern,
+            matchTarget = matchTarget,
+            description = description,
         )
     }
 
