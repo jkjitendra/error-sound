@@ -2,6 +2,7 @@ package com.drostwades.errorsound
 
 import com.intellij.execution.filters.ConsoleFilterProvider
 import com.intellij.execution.filters.Filter
+import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.project.Project
 
 /**
@@ -15,6 +16,8 @@ class ErrorConsoleFilterProvider : ConsoleFilterProvider {
 }
 
 private class ErrorDetectionFilter(private val project: Project) : Filter {
+
+    private val log = Logger.getInstance(ErrorDetectionFilter::class.java)
 
     // Patterns that reliably indicate an error in console output
     private val errorPattern = Regex(
@@ -35,6 +38,17 @@ private class ErrorDetectionFilter(private val project: Project) : Filter {
 
     override fun applyFilter(line: String, entireLength: Int): Filter.Result? {
         val settings = AlertSettings.getInstance()
+        val suppressionEngine = settings.getCompiledSuppressionRuleEngine()
+        val suppressionMatch = if (suppressionEngine.hasLineTextRules) suppressionEngine.explainLineText(line) else null
+        if (suppressionMatch != null) {
+            val explanation = ClassificationExplanationFactory.suppressionRule(
+                source = AlertMatchExplanation.Source.CONSOLE,
+                match = suppressionMatch,
+            )
+            log.debug("Console alert suppressed. ${explanation.summary()}")
+            return null
+        }
+
         val engine = settings.getCompiledRuleEngine()
 
         // Custom LINE_TEXT rules are checked first on this hot path.
