@@ -27,6 +27,18 @@ class AlertSettings : PersistentStateComponent<AlertSettings.State> {
     )
 
     /**
+     * A user-defined suppression rule. Matching enabled rules silence an alert before dispatch.
+     * Invalid regex text is preserved so users can fix it later in settings.
+     */
+    data class SuppressionRuleState(
+        var id: String = UUID.randomUUID().toString(),
+        var enabled: Boolean = true,
+        var pattern: String = "",
+        var matchTarget: String = MatchTarget.LINE_TEXT.name,
+        var description: String = "",
+    )
+
+    /**
      * A single exit-code-to-kind mapping rule for terminal alerts (Phase 6).
      * All fields have defaults for XML serializer compatibility.
      *
@@ -96,6 +108,9 @@ class AlertSettings : PersistentStateComponent<AlertSettings.State> {
         // Custom regex rules — evaluated before built-in classification (Phase 5)
         var customRules: MutableList<CustomRuleState> = mutableListOf(),
 
+        // Suppression rules — evaluated before custom and built-in classification.
+        var suppressionRules: MutableList<SuppressionRuleState> = mutableListOf(),
+
         // Exit-code rules for terminal alerts (Phase 6).
         // Default rules cover common shell exit codes.
         var exitCodeRules: MutableList<ExitCodeRuleState> = mutableListOf(
@@ -119,6 +134,9 @@ class AlertSettings : PersistentStateComponent<AlertSettings.State> {
 
     @Volatile
     private var compiledRuleEngine: CustomRuleEngine? = null
+
+    @Volatile
+    private var compiledSuppressionRuleEngine: SuppressionRuleEngine? = null
 
     override fun getState(): State = state
 
@@ -157,6 +175,18 @@ class AlertSettings : PersistentStateComponent<AlertSettings.State> {
                     )
                 }
                 .toMutableList(),
+            suppressionRules = state.suppressionRules
+                .take(SuppressionRuleEngine.MAX_RULES)
+                .map { r ->
+                    r.copy(
+                        id = r.id.ifBlank { UUID.randomUUID().toString() },
+                        pattern = r.pattern.trim().take(SuppressionRuleEngine.MAX_PATTERN_LENGTH),
+                        matchTarget = (MatchTarget.entries.find { it.name == r.matchTarget }
+                            ?: MatchTarget.LINE_TEXT).name,
+                        description = r.description.trim().take(SuppressionRuleEngine.MAX_DESCRIPTION_LENGTH),
+                    )
+                }
+                .toMutableList(),
             exitCodeRules = state.exitCodeRules.map { r ->
                 r.copy(
                     kind = (ErrorKind.entries.find { it.name == r.kind }
@@ -170,6 +200,7 @@ class AlertSettings : PersistentStateComponent<AlertSettings.State> {
             }.toMutableList(),
         )
         compiledRuleEngine = null  // invalidate cached engine whenever settings change
+        compiledSuppressionRuleEngine = null
     }
 
     /**
@@ -179,6 +210,12 @@ class AlertSettings : PersistentStateComponent<AlertSettings.State> {
     fun getCompiledRuleEngine(): CustomRuleEngine {
         return compiledRuleEngine ?: CustomRuleEngine(state.customRules).also {
             compiledRuleEngine = it
+        }
+    }
+
+    fun getCompiledSuppressionRuleEngine(): SuppressionRuleEngine {
+        return compiledSuppressionRuleEngine ?: SuppressionRuleEngine(state.suppressionRules).also {
+            compiledSuppressionRuleEngine = it
         }
     }
 
