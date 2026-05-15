@@ -34,6 +34,30 @@ Class-by-class reference for the `com.drostwades.errorsound` package.
 
 ---
 
+## SuppressionRuleEngine
+
+**File:** `SuppressionRuleEngine.kt`
+**Purpose:** Compiles and caches user-defined ignore/suppression regex rules from `AlertSettings.State.suppressionRules`. Provides target-specific match methods that detection paths use before alert dispatch.
+
+| Method | Description |
+|---|---|
+| `matchLineText(line)` | Returns true when a LINE_TEXT suppression rule matches a single line/chunk |
+| `matchFullOutput(text)` | Returns true when a FULL_OUTPUT suppression rule matches complete buffered output |
+| `matchExitCodeAndText(text, exitCode)` | Returns true when an EXIT_CODE_AND_TEXT suppression rule matches `"exitcode:N\n<text>"` |
+| `explainLineText(line)` | Returns `SuppressionRuleMatch` with rule id, pattern, target, and description |
+| `explainFullOutput(text)` | Returns `SuppressionRuleMatch` for full-output matching |
+| `explainExitCodeAndText(text, exitCode)` | Returns `SuppressionRuleMatch` for exit-code-and-text matching |
+
+**Guards:** `hasLineTextRules`, `hasFullOutputRules`, `hasExitCodeAndTextRules`.
+
+**Constants:** Reuses custom rule limits: `MAX_RULES = 100`, `MAX_PATTERN_LENGTH = 500`; adds `MAX_DESCRIPTION_LENGTH = 200`.
+
+**Runtime policy:** Disabled rules, blank patterns, and invalid regex patterns are skipped safely. Matching suppression rules return before `AlertDispatcher`, so no sound, notification, or Alert History entry is produced.
+
+- **Risk:** LOW — pure computation, no side effects
+
+---
+
 ## AlertMatchExplanation
 
 **File:** `AlertMatchExplanation.kt`
@@ -42,7 +66,7 @@ Class-by-class reference for the `com.drostwades.errorsound` package.
 | Field / Type | Description |
 |---|---|
 | `Source` | RUN_DEBUG, CONSOLE, TERMINAL |
-| `Cause` | CUSTOM_REGEX_RULE, BUILT_IN_CLASSIFIER, TERMINAL_EXIT_CODE_RULE, TERMINAL_EXIT_CODE_SUPPRESSED, SUCCESS_FALLBACK, NO_MATCH, DURATION_THRESHOLD_SUPPRESSED |
+| `Cause` | CUSTOM_REGEX_RULE, BUILT_IN_CLASSIFIER, TERMINAL_EXIT_CODE_RULE, TERMINAL_EXIT_CODE_SUPPRESSED, SUPPRESSION_RULE, SUCCESS_FALLBACK, NO_MATCH, DURATION_THRESHOLD_SUPPRESSED |
 | `kind` | Final `ErrorKind` associated with the explanation |
 | `ruleId`, `rulePattern`, `matchTarget` | Custom regex rule details when applicable |
 | `exitCode`, `commandOrConfig`, `soundOverride`, `suppressed` | Context for terminal/run config, sound override, or suppression cases |
@@ -63,6 +87,7 @@ Class-by-class reference for the `com.drostwades.errorsound` package.
 | `builtIn(...)` | Explanation for built-in classifier matches |
 | `terminalExitCodeRule(...)` | Explanation for terminal exit-code rule matches |
 | `terminalExitCodeSuppressed(...)` | Explanation for terminal exit-code suppression |
+| `suppressionRule(...)` | Debug explanation for ignore/suppression rule matches before dispatch |
 | `terminalBuiltInFallback(...)` | Explanation for terminal non-zero exit fallback |
 | `successFallback(...)` | Explanation for `NONE + exitCode 0 -> SUCCESS` |
 | `noMatch(...)` | Explanation for no-alert classification outcomes |
@@ -105,10 +130,12 @@ Class-by-class reference for the `com.drostwades.errorsound` package.
 - `exportedAt`
 - `pluginVersion`
 - `customRules`
+- `suppressionRules` (schema version 2)
 - `exitCodeRules`
 
 **Nested DTOs:**
 - `CustomRule(id, enabled, pattern, matchTarget, kind)`
+- `SuppressionRule(id, enabled, pattern, matchTarget, description)`
 - `ExitCodeRule(exitCode, enabled, kind, soundId?, suppress)`
 
 **Scope boundary:** This bundle intentionally excludes full plugin settings, global sound settings, per-kind volume, success settings, project overrides, alert history, and snooze state.
@@ -125,6 +152,7 @@ Class-by-class reference for the `com.drostwades.errorsound` package.
 | Field | Description |
 |---|---|
 | `customRules` | Valid imported custom regex rules, in JSON order |
+| `suppressionRules` | Valid imported suppression rules, in JSON order |
 | `exitCodeRules` | Valid imported terminal exit-code rules, in JSON order |
 | `warnings` | User-facing validation notes such as generated ids, invalid regex warnings, truncation, and skipped entries |
 | `skippedCount` | Count of invalid or unsupported entries skipped during import |
@@ -140,17 +168,18 @@ Class-by-class reference for the `com.drostwades.errorsound` package.
 
 | Method | Description |
 |---|---|
-| `exportRules(customRules, exitCodeRules, pluginVersion)` | Pretty-prints schema version 1 JSON containing only custom regex and terminal exit-code rules |
+| `exportRules(customRules, suppressionRules, exitCodeRules, pluginVersion)` | Pretty-prints schema version 2 JSON containing custom regex, suppression, and terminal exit-code rules |
 | `importRules(json)` | Parses JSON, validates the schema and rule rows, preserves ordering, and returns a `RuleImportExportResult` |
 
 **Validation behavior:**
-- Requires a top-level object with `schemaVersion = 1`
-- Allows missing `customRules` or `exitCodeRules` sections; missing sections import as empty lists
+- Requires a top-level object with `schemaVersion = 1` or `schemaVersion = 2`
+- Exports `schemaVersion = 2`; schema version 1 imports remain supported for older exports without `suppressionRules`
+- Allows missing `customRules`, `suppressionRules`, or `exitCodeRules` sections; missing sections import as empty lists
 - Rejects unsupported top-level fields so full settings bundles are not imported accidentally
 - Rejects unsupported `matchTarget`, `kind`, and unknown bundled sound ids
 - Preserves invalid regex text but reports it; runtime will skip the rule until edited
 - Preserves rule ids when present; generates ids only when omitted or blank
-- Clamps custom rule count and pattern length using existing `CustomRuleEngine` limits
+- Clamps custom/suppression rule count and pattern length using existing rule limits; suppression descriptions are trimmed and capped
 
 **Safety:** No network, telemetry, permanent storage, or execution of imported content.
 
@@ -309,14 +338,14 @@ Class-by-class reference for the `com.drostwades.errorsound` package.
 
 **Internal logic:**
 - Output buffer capped at 1M characters
-- `onTextAvailable()` — LINE_TEXT custom rules checked first per chunk; falls back to `ErrorClassifier.detect()` if no match
-- `processTerminated()` — FULL_OUTPUT then EXIT_CODE_AND_TEXT custom rules applied to full buffer first; if matched, custom kind overrides everything; otherwise chunk accumulation + full-buffer `ErrorClassifier.detect()`
+- `onTextAvailable()` — LINE_TEXT suppression rules checked first; if not suppressed, LINE_TEXT custom rules run per chunk and fall back to `ErrorClassifier.detect()` when no custom match exists
+- `processTerminated()` — FULL_OUTPUT and EXIT_CODE_AND_TEXT suppression rules checked first; if not suppressed, FULL_OUTPUT then EXIT_CODE_AND_TEXT custom rules apply to the full buffer before built-in fallback
 - Phase 2: classification accumulators now retain explanation-capable results (`CustomRuleMatch` / `BuiltInClassificationResult`) so the final alert can carry an `AlertMatchExplanation`
 - Priority system for chunk accumulation: CONFIGURATION > COMPILATION > TEST_FAILURE > NETWORK > EXCEPTION > GENERIC > NONE
 - If final kind is NONE and exitCode == 0, converts to SUCCESS
 - Duration threshold: if `elapsedMillis < minProcessDurationSeconds * 1000`, alert suppressed (Run/Debug only)
 - Dedup key: `"exec:{handlerIdentityHash}:{errorKind}"`
-- Routes through `AlertDispatcher.tryAlert()`
+- Routes through `AlertDispatcher.tryAlert()` only when no suppression rule matched
 
 - Phase 7: `processTerminated()` resolves effective settings via `ResolvedSettingsResolver.getInstance(env.project).resolve()` — project-level `enabled` override is honoured at dispatch time
 - **Risk:** LOW — straightforward listener pattern
@@ -335,7 +364,7 @@ Class-by-class reference for the `com.drostwades.errorsound` package.
 | `attachBlockTerminal` | private | Block/Classic terminal: `TerminalToolWindowManager` → widgets → session |
 | `attachReworkedTerminal` | private | Reworked terminal: `TerminalToolWindowTabsManager` → tabs → view → shell integration |
 | `buildListenerProxy` | private | Creates JDK `Proxy` implementing 1–2 listener interfaces |
-| `handleCommandFinished` | private | Three-tier precedence: (1) custom EXIT_CODE_AND_TEXT regex, (2) exit code rules via `classifyTerminal()` with suppression check, (3) built-in fallback. Phase 7: uses `ResolvedSettingsResolver` for the settings state passed to `AlertDispatcher` |
+| `handleCommandFinished` | private | Precedence: (1) suppression EXIT_CODE_AND_TEXT regex returns before dispatch, (2) custom EXIT_CODE_AND_TEXT regex, (3) exit code rules via `classifyTerminal()` with suppression check, (4) built-in fallback. Phase 7: uses `ResolvedSettingsResolver` for the settings state passed to `AlertDispatcher` |
 | `extractCommandAndExitCode` | private | Reflection-based extraction from event objects |
 | `getShellIntegration` | private | 4-strategy fallback to get shell integration from a view |
 
@@ -352,6 +381,7 @@ Class-by-class reference for the `com.drostwades.errorsound` package.
 **Nested types:**
 - `enum class MatchTarget { LINE_TEXT, FULL_OUTPUT, EXIT_CODE_AND_TEXT }` — where a custom rule pattern applies
 - `data class CustomRuleState(id, enabled, pattern, matchTarget, kind)` — a single user-defined rule
+- `data class SuppressionRuleState(id, enabled, pattern, matchTarget, description)` — a single user-defined suppression rule
 - `data class ExitCodeRuleState(exitCode, enabled, kind, soundId?, suppress)` — a single terminal exit-code rule
 
 **State fields:**
@@ -371,12 +401,14 @@ Class-by-class reference for the `com.drostwades.errorsound` package.
 - `visualNotificationOnError: Boolean = true` — show balloon on error alerts (when master is on)
 - `visualNotificationOnSuccess: Boolean = true` — show balloon on success alerts (when master is on)
 - `customRules: MutableList<CustomRuleState> = mutableListOf()` — user-defined regex rules (evaluated before built-in classification)
+- `suppressionRules: MutableList<SuppressionRuleState> = mutableListOf()` — user-defined regex rules that silence matching contexts before dispatch
 - `exitCodeRules: MutableList<ExitCodeRuleState>` — terminal exit code → kind/sound/suppress mapping (4 defaults: 130 suppress, 127/137/143 GENERIC)
 
 **Methods:**
 - `getCompiledRuleEngine(): CustomRuleEngine` — returns cached compiled rule engine; lazily created, invalidated by `loadState()`
+- `getCompiledSuppressionRuleEngine(): SuppressionRuleEngine` — returns cached compiled suppression engine; lazily created, invalidated by `loadState()`
 
-**Validation:** `loadState()` normalizes sound IDs, clamps numeric values, normalizes custom rules (count, pattern length, matchTarget, kind, IDs), and normalizes exit code rules (kind, soundId blank/CUSTOM_FILE → null).
+**Validation:** `loadState()` normalizes sound IDs, clamps numeric values, normalizes custom rules (count, pattern length, matchTarget, kind, IDs), normalizes suppression rules (count, pattern length, matchTarget, IDs, description length), and normalizes exit code rules (kind, soundId blank/CUSTOM_FILE → null).
 
 - **Risk:** LOW — standard `PersistentStateComponent` pattern
 
@@ -448,17 +480,18 @@ Class-by-class reference for the `com.drostwades.errorsound` package.
 **Purpose:** Registered as `consoleFilterProvider` extension. Provides an `ErrorDetectionFilter` that matches error patterns in every console line.
 
 **Detection order:**
-1. Custom LINE_TEXT rules (via `CustomRuleEngine.matchLineText()`) — checked first on every line
-2. Built-in `errorPattern` regex — only reached if no custom LINE_TEXT rule matched
+1. Suppression LINE_TEXT rules — checked first; matching rules return before dispatch
+2. Custom LINE_TEXT rules (via `CustomRuleEngine.matchLineText()`)
+3. Built-in `errorPattern` regex — only reached if no custom LINE_TEXT rule matched
 
-**FULL_OUTPUT and EXIT_CODE_AND_TEXT targets are explicitly skipped** — unsupported in this path.
+**FULL_OUTPUT and EXIT_CODE_AND_TEXT targets are explicitly skipped** — unsupported in this path for both custom and suppression rules.
 
 **ErrorDetectionFilter patterns (built-in):** Exception, Error, FATAL, `Caused by:`, stack trace lines, BUILD FAILED, FAILURE:, Tests failed, compilation failed, command not found.
 
 **Dedup key format:** `"console:{project.locationHash}:{errorKind}"`
 
 - Phase 7: `AlertDispatcher.tryAlert()` call uses `ResolvedSettingsResolver.getInstance(project).resolve()` for the settings state — project-level `enabled` override is honoured
-- **Side effects:** Calls `AlertDispatcher.tryAlert()` — returns `null` filter result (no text modification)
+- **Side effects:** Calls `AlertDispatcher.tryAlert()` only when not suppressed — returns `null` filter result (no text modification)
 - **Risk:** LOW-MEDIUM — false positives possible for benign lines containing "error"; hot path — `hasLineTextRules` guard keeps overhead minimal when no custom rules exist
 
 ---
@@ -510,7 +543,7 @@ Class-by-class reference for the `com.drostwades.errorsound` package.
 **Rule Import / Export controls (Phase 4 addition):**
 - Adds `Export Rules…` and `Import Rules…` controls near the rule sections
 - Export stops active rule cell editing and serializes the current table-model state, including unsaved edits
-- Import reads a user-selected local JSON file, delegates strict parsing/validation to `RuleImportExportService`, shows a confirmation summary, then replaces only the custom regex and terminal exit-code rule table models
+- Import reads a user-selected local JSON file, delegates strict parsing/validation to `RuleImportExportService`, shows a confirmation summary, then replaces only the custom regex, suppression, and terminal exit-code rule table models
 - Imported changes follow normal settings semantics: they are not persisted until Apply; Reset reloads persisted settings and discards imported-but-not-applied table state
 - Overwrite protection is explicit for export; import/export is local file based only
 
@@ -526,6 +559,14 @@ Class-by-class reference for the `com.drostwades.errorsound` package.
 - Disables the alert duration slider and value label while selected
 - Preview calls pass the checkbox state through to `ErrorSoundPlayer`
 - Checkbox changes follow normal settings semantics: they are not persisted until Apply; Reset discards unapplied changes
+
+**Suppression Rules section (Phase 6 roadmap addition):**
+- Adds Suppression Rules table near rule controls
+- Columns: Enabled, Pattern, Match Target, Description
+- Uses `PatternValidatingRenderer` so invalid regex text is preserved and highlighted for editing
+- `SuppressionRuleTableModel` deep-copies state so table edits do not mutate settings until Apply
+- Apply persists `suppressionRules`; Reset discards unapplied suppression-rule changes
+- Import/export uses current suppression table-model state, including unsaved edits
 
 **Custom Regex Rules section (Phase 5 addition):**
 - `CustomRuleTableModel` (inner class) — `AbstractTableModel` with deep-copy semantics on `setRules()` so table edits don't mutate settings until Apply
