@@ -186,6 +186,24 @@ Lets users define regex patterns mapped to supported error kinds. Rules are eval
 
 ---
 
+## Ignore / Suppression Rules
+
+| Field | Value |
+|---|---|
+| Status | Available |
+| Version introduced | 1.1.15 |
+| Relevant classes/files | `SuppressionRuleEngine.kt`, `AlertSettings.kt`, `ErrorSoundConfigurable.kt`, `AlertOnErrorExecutionListener.kt`, `ErrorConsoleFilterProvider.kt`, `AlertOnTerminalCommandListener.kt`, `RuleImportExportService.kt` |
+
+Lets users silence known noisy false positives before an alert is dispatched. Suppression rules are local regex rules with LINE_TEXT, FULL_OUTPUT, or EXIT_CODE_AND_TEXT targets. A matching enabled suppression rule wins over custom regex classification and built-in classification, and returns before `AlertDispatcher.tryAlert()`.
+
+**How to enable/use:** Open Settings / Preferences -> Tools -> Error Sound Alert, add a row under Suppression Rules, choose the target, enter the pattern and optional description, then click Apply.
+
+**Example usage:** Add a LINE_TEXT suppression rule for `Known harmless lint warning` so a noisy linter message does not play sound even if another rule or broad built-in pattern would classify it as COMPILATION.
+
+**Notes/limitations:** Run/Debug supports LINE_TEXT, FULL_OUTPUT, and EXIT_CODE_AND_TEXT where applicable; Console supports LINE_TEXT only; Terminal supports EXIT_CODE_AND_TEXT only. Suppressed matches do not play sound, show visual notifications, or enter Alert History. Invalid regex text is preserved for editing and skipped safely at runtime. Suppression rules do not change sound, volume, play-once duration, project profiles, history persistence, telemetry, network behavior, or remote rule downloads.
+
+---
+
 ## Rule Testing Sandbox
 
 | Field | Value |
@@ -230,13 +248,13 @@ Maps specific terminal exit codes to an error kind, an optional built-in sound o
 | Version introduced | 1.1.12 |
 | Relevant classes/files | `RuleImportExportBundle.kt`, `RuleImportExportResult.kt`, `RuleImportExportService.kt`, `ErrorSoundConfigurable.kt` |
 
-Lets users export and import rule presets as local JSON. The bundle covers only Custom Regex Rules and Terminal Exit-Code Rules, preserving ordering and ids when present. It is not a full settings export and deliberately excludes global sound settings, per-kind volume, success settings, project overrides, alert history, snooze state, and any runtime data.
+Lets users export and import rule presets as local JSON. The schema version 2 bundle covers Custom Regex Rules, Suppression Rules, and Terminal Exit-Code Rules, preserving ordering and ids when present. Schema version 1 files remain import-compatible for older exports without suppression rules. It is not a full settings export and deliberately excludes global sound settings, per-kind volume, success settings, project overrides, alert history, snooze state, and any runtime data.
 
 **How to enable/use:** Open Settings / Preferences -> Tools -> Error Sound Alert and use **Export Rules…** or **Import Rules…** near the rule sections.
 
-**Example usage:** Configure custom regex rules for a team linter and terminal exit-code rules for common shell failures, export them to JSON, then import that file in another IDE. The imported table changes become persistent only after Apply.
+**Example usage:** Configure custom regex rules for a team linter, suppression rules for harmless noisy messages, and terminal exit-code rules for common shell failures, export them to JSON, then import that file in another IDE. The imported table changes become persistent only after Apply.
 
-**Notes/limitations:** Import validates JSON strictly, shows a confirmation summary, and replaces only the two rule table models. Reset discards imported-but-not-applied changes. Import/export uses local files only; no network, telemetry, or execution of imported content is involved.
+**Notes/limitations:** Import validates JSON strictly, shows a confirmation summary, and replaces only the rule table models. Reset discards imported-but-not-applied changes. Import/export uses local files only; no network, telemetry, or execution of imported content is involved.
 
 ---
 
