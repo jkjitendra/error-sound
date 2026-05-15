@@ -4,6 +4,61 @@ Engineering-significant changes to the codebase. Not a full changelog — focuse
 
 ---
 
+## 1.1.15 — Ignore / Suppression Rules (Phase 6)
+
+### Scope
+Phase 6 adds shipped user-facing **Suppression Rules** in Settings / Preferences -> Tools -> Error Sound Alert. Suppression rules silence known noisy false positives before alerts are dispatched.
+
+Suppression wins over both custom regex classification and built-in classification. Suppressed matches do not call `AlertDispatcher`, play sound, show visual notifications, or enter Alert History.
+
+### New File: `SuppressionRuleEngine.kt`
+- Pure compiled regex helper for `AlertSettings.State.suppressionRules`
+- Supports LINE_TEXT, FULL_OUTPUT, and EXIT_CODE_AND_TEXT targets
+- Exposes `hasLineTextRules`, `hasFullOutputRules`, `hasExitCodeAndTextRules`, and target-specific match/explain methods
+- Skips disabled rules, blank patterns, and invalid regex safely at runtime while preserving text in settings
+
+### `AlertSettings.State`
+- Adds `SuppressionRuleState(id, enabled, pattern, matchTarget, description)`
+- Adds `suppressionRules: MutableList<SuppressionRuleState> = mutableListOf()`
+- Adds cached `getCompiledSuppressionRuleEngine()`
+- `loadState()` normalizes rule count, pattern length, match target, id, and description length
+
+### `ErrorSoundConfigurable`
+- Adds Suppression Rules table with Enabled, Pattern, Match Target, and Description columns
+- Invalid regex is highlighted but preserved for editing
+- Suppression rules are table-model-only until Apply
+- Reset discards unapplied suppression-rule changes
+
+### Detection paths
+- Run/Debug: LINE_TEXT suppression can skip chunk-level classification; FULL_OUTPUT and EXIT_CODE_AND_TEXT suppression can skip final full-buffer alerts
+- Console: LINE_TEXT suppression only
+- Terminal: EXIT_CODE_AND_TEXT suppression only
+- No terminal reflection attachment logic changed
+- No direct imports from `org.jetbrains.plugins.terminal` were added
+
+### Rule Import / Export
+- Export now writes `schemaVersion = 2`
+- Schema version 2 includes `customRules`, `suppressionRules`, and `exitCodeRules`
+- Schema version 1 remains import-compatible for older exports without suppression rules
+- Imported suppression rules update the settings UI table model only and are not persisted until Apply
+
+### Marketplace metadata
+- Plugin version is `1.1.15`
+- Marketplace change notes and feature description include Suppression Rules as a shipped feature
+
+### Safety Boundaries
+- No sound changes
+- No volume changes
+- No play-once duration changes
+- No project profile changes
+- No alert history persistence changes
+- No telemetry
+- No network calls
+- No remote rule downloads
+- No script execution
+
+---
+
 ## 1.1.14 — Play Once Sound Duration (PR #32 Integration)
 
 ### Scope
