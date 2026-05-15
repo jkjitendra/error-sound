@@ -7,7 +7,7 @@ plugins {
 }
 
 group = "com.drostwades"
-version = "1.1.14"
+version = "1.1.15"
 
 repositories {
     mavenCentral()
@@ -51,6 +51,7 @@ intellijPlatform {
               <li><b>Custom regex rules:</b> define your own patterns mapped to error kinds, evaluated before built-in classification</li>
               <li><b>Rule Testing Sandbox:</b> paste sample output and see which custom rule or built-in classifier would match before applying rule changes</li>
               <li><b>Rule Presets:</b> add bundled custom regex and terminal exit-code rule bundles for common stacks without changing sound, volume, success, project, history, snooze, or full profile settings</li>
+              <li><b>Suppression Rules:</b> silence known noisy false positives with local regex rules before alerts are dispatched</li>
               <li><b>Exit-code rules for terminal commands:</b> map specific exit codes to error kinds, optional per-code sound overrides, or suppress alerts entirely (e.g. silence Ctrl+C / exit&nbsp;130)</li>
               <li>Per-kind sounds, or one global sound for all alerts</li>
               <li><b>Success sounds:</b> optional alert on successful process completion (off by default)</li>
@@ -70,6 +71,13 @@ intellijPlatform {
         """.trimIndent()
 
         changeNotes = """
+            <b>1.1.15</b>
+            <ul>
+              <li>New <b>Suppression Rules</b> section in Settings &rarr; Tools &rarr; Error Sound Alert for silencing known noisy false positives</li>
+              <li>Suppression rules support LINE_TEXT, FULL_OUTPUT, and EXIT_CODE_AND_TEXT regex targets and run before custom regex or built-in classification dispatches an alert</li>
+              <li>Suppressed matches do not play sound, show visual notifications, or appear in Alert History</li>
+              <li>Rules-only import/export now includes suppression rules with schema version 2 while preserving compatibility with older schema version 1 exports</li>
+            </ul>
             <b>1.1.14</b>
             <ul>
               <li>Added a new <b>Use actual sound file duration (play once)</b> setting inspired by contributor PR #32</li>
