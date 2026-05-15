@@ -11,11 +11,12 @@ IntelliJ Platform plugin that plays an audio alert when a Run/Debug process, con
 1. Listens to Run/Debug process exits via `ExecutionListener`.
 2. Scans console output for error patterns via `ConsoleFilterProvider`.
 3. Monitors terminal command completions via reflection-based listener on Classic/Block and Reworked terminal internals (optional dependency on `org.jetbrains.plugins.terminal`).
-4. Routes detected errors through `AlertDispatcher → SnoozeState → AlertMonitoring → AlertEventGate → AlertHistoryService → ErrorSoundPlayer`.
+4. Checks user suppression rules before dispatch, then routes accepted errors through `AlertDispatcher → SnoozeState → AlertMonitoring → AlertEventGate → AlertHistoryService → ErrorSoundPlayer`.
 5. Plays a WAV sound (built-in or custom) with configurable volume, configured duration looping, or the optional actual sound file duration play-once mode.
 6. Records accepted alerts in an in-memory Error Monitor history after snooze, monitoring, and deduplication gates accept the event.
 7. Resolves per-project `enabled` override via `ResolvedSettingsResolver` (Phase 7) before dispatching.
 8. Provides bundled local Rule Presets that append Custom Regex Rules and conservative Terminal Exit-Code Rules in the settings UI.
+9. Provides local Ignore / Suppression Rules that silence known noisy false positives before alert dispatch.
 
 ## Minimum Build Baseline
 
@@ -28,7 +29,7 @@ IntelliJ Platform plugin that plays an audio alert when a Run/Debug process, con
 | Target platform | IC 2024.3 |
 | `sinceBuild` | 243 |
 | `untilBuild` | unset (open-ended) |
-| **Plugin version** | **1.1.14** |
+| **Plugin version** | **1.1.15** |
 
 ## Completed Phases
 
@@ -46,6 +47,7 @@ IntelliJ Platform plugin that plays an audio alert when a Run/Debug process, con
 - Phase 4 Roadmap — Rule Import/Export
 - Phase 5 Roadmap — Preset Bundles
 - PR #32 Integration — Play Once Sound Duration
+- Phase 6 Roadmap — Ignore / Suppression Rules
 
 ## Safe Editing Rules
 

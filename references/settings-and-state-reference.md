@@ -62,6 +62,7 @@ Quick lookup for `AlertSettings.State` fields and their usage.
 | Field | Type | Default | Description |
 |---|---|---|---|
 | `customRules` | `MutableList<CustomRuleState>` | Empty list | User-defined regex rules evaluated before built-in classification |
+| `suppressionRules` | `MutableList<SuppressionRuleState>` | Empty list | User-defined regex rules that silence matching contexts before alert dispatch |
 | `exitCodeRules` | `MutableList<ExitCodeRuleState>` | 130 suppress, 127/137/143 GENERIC | Terminal exit-code mappings, sound overrides, or suppression |
 
 `CustomRuleState` fields:
@@ -70,6 +71,13 @@ Quick lookup for `AlertSettings.State` fields and their usage.
 - `pattern: String`
 - `matchTarget: String` — `LINE_TEXT`, `FULL_OUTPUT`, or `EXIT_CODE_AND_TEXT`
 - `kind: String` — allowed user-facing error kind
+
+`SuppressionRuleState` fields:
+- `id: String`
+- `enabled: Boolean`
+- `pattern: String`
+- `matchTarget: String` — `LINE_TEXT`, `FULL_OUTPUT`, or `EXIT_CODE_AND_TEXT`
+- `description: String`
 
 `ExitCodeRuleState` fields:
 - `exitCode: Int`
@@ -86,6 +94,7 @@ Quick lookup for `AlertSettings.State` fields and their usage.
 - All sound IDs normalized via `BuiltInSounds.findByIdOrDefault()`
 - Custom file ID (`__custom_file__`) preserved as-is
 - Custom rules are normalized to existing limits: first `CustomRuleEngine.MAX_RULES`, patterns trimmed/truncated to `MAX_PATTERN_LENGTH`, blank ids regenerated, unsupported targets default to `LINE_TEXT`, unsupported kinds default to `GENERIC`
+- Suppression rules are normalized to existing limits: first `SuppressionRuleEngine.MAX_RULES`, patterns trimmed/truncated to `MAX_PATTERN_LENGTH`, blank ids regenerated, unsupported targets default to `LINE_TEXT`, and descriptions trimmed/truncated to `MAX_DESCRIPTION_LENGTH`
 - Exit-code rule kinds are normalized to allowed error kinds, and blank or custom-file sound ids become `null`
 
 ## SoundSource Enum
@@ -109,8 +118,9 @@ The 1.1.14 implementation ports the feature idea from external PR #32 into the c
 
 ## Rule Import / Export JSON
 
-Phase 4 import/export is a rules-only local JSON bundle handled by `RuleImportExportBundle` and `RuleImportExportService`. It covers exactly:
+Rules-only local JSON import/export is handled by `RuleImportExportBundle` and `RuleImportExportService`. Schema version 2 covers exactly:
 - `customRules`
+- `suppressionRules`
 - `exitCodeRules`
 
 It does **not** cover:
@@ -126,9 +136,9 @@ It does **not** cover:
 
 ```json
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "exportedAt": "2026-05-02T00:00:00Z",
-  "pluginVersion": "1.1.14",
+  "pluginVersion": "1.1.15",
   "customRules": [
     {
       "id": "8e2d8f2f-4d8b-46cc-8f22-82a904f1d6aa",
@@ -136,6 +146,15 @@ It does **not** cover:
       "pattern": "lint failed",
       "matchTarget": "LINE_TEXT",
       "kind": "COMPILATION"
+    }
+  ],
+  "suppressionRules": [
+    {
+      "id": "known-harmless-lint-warning",
+      "enabled": true,
+      "pattern": "Known harmless lint warning",
+      "matchTarget": "LINE_TEXT",
+      "description": "Noisy linter warning that should not alert"
     }
   ],
   "exitCodeRules": [
@@ -150,22 +169,34 @@ It does **not** cover:
 }
 ```
 
+### Suppression Rule Runtime Semantics
+
+- Suppression wins over custom regex classification and built-in classification
+- Run/Debug supports LINE_TEXT chunks, FULL_OUTPUT final buffer checks, and EXIT_CODE_AND_TEXT final output plus exit-code checks
+- Console supports LINE_TEXT only
+- Terminal supports EXIT_CODE_AND_TEXT only against command context plus exit code
+- Matching enabled suppression rules return before `AlertDispatcher.tryAlert()`
+- Suppressed alerts do not play sound, show visual notifications, or enter Alert History
+- Suppression rules do not alter sound selection, volume, play-once duration, project profiles, alert history persistence, telemetry, network behavior, or remote rule downloads
+
 ### Import Rules
 
-- `schemaVersion` must be `1`
+- `schemaVersion` must be `1` or `2`
+- Schema version `1` remains import-compatible and simply imports no suppression rules unless the section is present
 - Top-level JSON must be an object
-- `customRules` and `exitCodeRules` sections may be missing; missing sections import as empty lists
+- `customRules`, `suppressionRules`, and `exitCodeRules` sections may be missing; missing sections import as empty lists
 - Unknown top-level fields are rejected to avoid importing full settings bundles accidentally
 - Rule ordering is preserved
 - Rule ids are preserved when present; missing or blank custom rule ids are regenerated with a validation note
 - Unsupported `matchTarget`, `kind`, and bundled sound ids cause that row to be skipped with a user-facing warning
-- Invalid regex text is preserved and reported; runtime continues to skip invalid regex rules until the user edits them
+- Invalid regex text is preserved and reported; runtime continues to skip invalid custom/suppression regex rules until the user edits them
 - Imported table changes are not persisted until Apply is clicked
 - Reset discards imported-but-not-applied table changes
 
 ### Export Rules
 
 - Export reads the current settings UI table-model state, including unsaved edits
+- Export writes `schemaVersion = 2`
 - Export writes pretty-printed JSON to a user-selected local file
 - Existing export files are not overwritten silently; the UI asks for confirmation
 - Export does not write any permanent storage outside the selected file

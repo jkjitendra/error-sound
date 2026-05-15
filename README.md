@@ -23,9 +23,10 @@
 | Alert History | Read-only Error Monitor table showing recent accepted alerts with source, kind, cause, and context |
 | Terminal support | Monitors both Run/Debug processes and built-in Terminal commands |
 | Custom regex rules | Define LINE_TEXT, FULL_OUTPUT, and EXIT_CODE_AND_TEXT patterns that run before built-in classification |
+| Suppression rules | Silence known noisy false positives with local regex rules before alert dispatch |
 | Rule Testing Sandbox | Paste sample output and see which custom rule or built-in classifier would match |
 | Terminal exit-code rules | Map terminal exit codes to error kinds, optional built-in sound overrides, or suppression |
-| Rule import/export | Export and import custom regex rules plus terminal exit-code rules as local JSON |
+| Rule import/export | Export and import custom regex rules, suppression rules, and terminal exit-code rules as local JSON |
 | Rule presets | Add bundled custom regex and terminal exit-code rule bundles for common stacks |
 | Success sounds | Optional alert when a Run/Debug process completes successfully |
 | Visual notifications | Optional balloon notifications alongside sound alerts, configurable for errors and successes |
@@ -98,12 +99,26 @@ The Alert History section shows recent accepted alerts in newest-first order. It
 | Minimum process duration | Suppress Run/Debug alerts for short-lived processes |
 | Visual notifications | Show optional balloon notifications for errors and/or successes |
 | Custom regex rules | Add user-defined regex rules with LINE_TEXT, FULL_OUTPUT, or EXIT_CODE_AND_TEXT targets |
+| Suppression rules | Add regex rules that silence matching Run/Debug, Console, or Terminal contexts before alerts are dispatched |
 | Rule Testing Sandbox | Choose Source, Match Target, optional Exit Code, paste sample output, and click **Test Rules** |
 | Exit-code rules | Map terminal exit codes to kinds, sound overrides, or suppression |
-| Rule import/export | **Export Rules…** / **Import Rules…** for custom regex and terminal exit-code rules only |
+| Rule import/export | **Export Rules…** / **Import Rules…** for custom regex, suppression, and terminal exit-code rules only |
 | Rule presets | Choose a bundled preset and click **Add Preset Rules** to append rules to the current tables |
 
 The **Use actual sound file duration (play once)** checkbox is useful when a bundled or custom clip already has the exact length you want. The checkbox follows normal settings behavior: it is not persisted until **Apply** is clicked, and **Reset** discards unapplied checkbox changes. Preview follows the same mode where practical: play once when enabled, configured-duration looping when disabled.
+
+### Suppression Rules
+
+Use **Suppression Rules** in **Settings / Preferences → Tools → Error Sound Alert** to silence known harmless output before an alert is dispatched. Suppression wins over both custom regex classification and built-in classification.
+
+Targets:
+- **LINE_TEXT**: Run/Debug chunks and Console lines
+- **FULL_OUTPUT**: Run/Debug final buffered output
+- **EXIT_CODE_AND_TEXT**: Run/Debug final output plus exit code, and Terminal command context
+
+Example: add a LINE_TEXT suppression rule for `Known harmless lint warning` to prevent a noisy linter message from playing a sound even if a custom regex or built-in pattern would classify it as a failure.
+
+Suppression rules are saved only after **Apply**. **Reset** discards unapplied suppression-rule changes. Invalid regex text is preserved for editing and skipped safely at runtime. Suppressed matches do not call `AlertDispatcher`, play sound, show visual notifications, or enter Alert History. Suppression rules are local only: no network, telemetry, remote downloads, or script execution.
 
 ### Rule Presets
 
@@ -123,11 +138,12 @@ Choose a preset, review its description, then click **Add Preset Rules**. The co
 
 Use **Export Rules…** and **Import Rules…** in **Settings / Preferences → Tools → Error Sound Alert** to move rules between IDEs or share rule presets. The JSON bundle covers only:
 - Custom Regex Rules
+- Suppression Rules
 - Terminal Exit-Code Rules
 
 It does **not** include global sound settings, per-kind volume, success settings, project overrides, alert history, snooze state, or a full plugin settings export.
 
-Export uses the current rule tables exactly as shown, including unsaved edits. Import validates the JSON, shows a confirmation summary, and replaces only the two rule tables. Imported changes follow the normal settings workflow: click **Apply** to persist them, or **Reset** to discard imported-but-not-applied changes. Import/export uses local files only; there is no network or telemetry.
+Export uses the current rule tables exactly as shown, including unsaved edits. Import validates the JSON, shows a confirmation summary, and replaces only the rule tables. Exports use schema version 2 with `customRules`, `suppressionRules`, and `exitCodeRules`; schema version 1 files remain import-compatible. Imported changes follow the normal settings workflow: click **Apply** to persist them, or **Reset** to discard imported-but-not-applied changes. Import/export uses local files only; there is no network or telemetry.
 
 ### Rule Testing Sandbox
 
@@ -169,11 +185,12 @@ Output: `build/distributions/error-sound-<version>.zip`
 
 1. The plugin registers process output listeners (`ExecutionListener`, console filters) and terminal command listeners.
 2. As a process runs or a terminal command executes, its output is scanned in real time for known error patterns.
-3. On process termination (or console line match, or terminal command completion), the detection path creates an internal explanation object, builds a stable deduplication key, and calls **`AlertDispatcher.tryAlert`**.
-4. `AlertDispatcher` checks snooze, **`AlertMonitoring`** (is this error category enabled?), and **`AlertEventGate`** (is this a duplicate within the cooldown window?).
-5. If all gates pass, `AlertHistoryService` records an in-memory history entry, then `ErrorSoundPlayer` plays the configured sound asynchronously.
-6. By default, if the clip is shorter than the alert duration, it loops/restarts until time expires. If **Use actual sound file duration (play once)** is enabled, the selected clip starts once and the configured alert duration is ignored for file-based playback.
-7. Fallback chain: custom file → built-in WAV → generated 880 Hz tone → system beep.
+3. Suppression rules run first for the supported source/target context. A matching enabled suppression rule stops the alert before dispatch.
+4. On process termination (or console line match, or terminal command completion), the accepted detection path creates an internal explanation object, builds a stable deduplication key, and calls **`AlertDispatcher.tryAlert`**.
+5. `AlertDispatcher` checks snooze, **`AlertMonitoring`** (is this error category enabled?), and **`AlertEventGate`** (is this a duplicate within the cooldown window?).
+6. If all gates pass, `AlertHistoryService` records an in-memory history entry, then `ErrorSoundPlayer` plays the configured sound asynchronously.
+7. By default, if the clip is shorter than the alert duration, it loops/restarts until time expires. If **Use actual sound file duration (play once)** is enabled, the selected clip starts once and the configured alert duration is ignored for file-based playback.
+8. Fallback chain: custom file → built-in WAV → generated 880 Hz tone → system beep.
 
 Rule match explanations power the Alert History cause/context details. Current visual notifications are not yet explanation-rich.
 
@@ -208,6 +225,7 @@ src/main/kotlin/com/drostwades/errorsound/
 ├── RulePresetBundle.kt               # Built-in rule preset data model
 ├── RulePresetService.kt              # Bundled rule preset definitions and append planner
 ├── RuleTestService.kt                # Settings-side rule sandbox evaluator
+├── SuppressionRuleEngine.kt          # Compiled suppression regex rule matching
 └── SnoozeState.kt                    # Transient mute state
 
 src/main/resources/

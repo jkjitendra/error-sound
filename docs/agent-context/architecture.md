@@ -6,33 +6,36 @@
 - **Class:** `AlertOnErrorExecutionListener`
 - **Trigger:** `processStarted()` registers a `ProcessListener` on the `ProcessHandler`
 - **Flow:**
-  1. `onTextAvailable()` — two separate explanation-capable accumulators: `customDetectedMatch` and `builtInDetectedResult`
+  1. `onTextAvailable()` — LINE_TEXT suppression rules run first; a match logs `Cause.SUPPRESSION_RULE` and skips classification for that chunk
+  2. If not suppressed, two separate explanation-capable accumulators run: `customDetectedMatch` and `builtInDetectedResult`
      - If a custom LINE_TEXT rule matches the chunk → update `customDetectedMatch`; skip built-in for that chunk
      - Otherwise → run `ErrorClassifier.detectWithExplanation()` and update `builtInDetectedResult`
-  2. `processTerminated()` — priority order (highest wins):
+  3. `processTerminated()` — FULL_OUTPUT and EXIT_CODE_AND_TEXT suppression rules run before final classification; a match returns before dispatch
+  4. If not suppressed, priority order (highest wins):
      1. Custom FULL_OUTPUT rule on full buffer
      2. Custom EXIT_CODE_AND_TEXT rule on full buffer + exit code
      3. `customDetectedMatch` (any custom LINE_TEXT chunk match)
      4. `builtInDetectedResult` (highest-priority built-in chunk match)
      5. `ErrorClassifier.detectWithExplanation(fullBuffer, exitCode)`
-  3. Creates `AlertMatchExplanation` near final classification:
+  5. Creates `AlertMatchExplanation` near final classification:
      - custom regex → `Cause.CUSTOM_REGEX_RULE`
      - built-in classifier → `Cause.BUILT_IN_CLASSIFIER`
      - no match + exit code 0 → converts to `SUCCESS` with `Cause.SUCCESS_FALLBACK`
      - duration threshold suppression → logged with `Cause.DURATION_THRESHOLD_SUPPRESSED`
-  4. → `AlertDispatcher.tryAlert(key, settings, kind, explanation = explanation)`
+  6. → `AlertDispatcher.tryAlert(key, settings, kind, explanation = explanation)`
 
 ### 2. ConsoleFilterProvider Path
 - **Class:** `ErrorConsoleFilterProvider` → `ErrorDetectionFilter`
 - **Trigger:** IntelliJ calls `applyFilter()` for every line printed to any `ConsoleView`
 - **Flow:**
-  1. Custom LINE_TEXT rules checked first (`engine.explainLineText(line)`)
-  2. If no custom match, line matched against built-in Regex patterns (Exception, Error, FATAL, BUILD FAILED, etc.)
-  3. On match → `ErrorClassifier.detectWithExplanation(line, 1)` to classify (only if custom rule did not match)
-  4. Creates `AlertMatchExplanation` for custom regex or built-in classifier cause
-  5. → `AlertDispatcher.tryAlert("console:{projectHash}:{kind}", settings, kind, explanation = explanation)`
-  6. Returns `null` (no text modification — sound side-effect only)
-  - FULL_OUTPUT and EXIT_CODE_AND_TEXT rules are **skipped** in this path
+  1. LINE_TEXT suppression rules checked first; a match logs `Cause.SUPPRESSION_RULE` and returns before alert dispatch
+  2. Custom LINE_TEXT rules checked (`engine.explainLineText(line)`)
+  3. If no custom match, line matched against built-in Regex patterns (Exception, Error, FATAL, BUILD FAILED, etc.)
+  4. On match → `ErrorClassifier.detectWithExplanation(line, 1)` to classify (only if custom rule did not match)
+  5. Creates `AlertMatchExplanation` for custom regex or built-in classifier cause
+  6. → `AlertDispatcher.tryAlert("console:{projectHash}:{kind}", settings, kind, explanation = explanation)`
+  7. Returns `null` (no text modification — sound side-effect only)
+  - FULL_OUTPUT and EXIT_CODE_AND_TEXT suppression/custom rules are **skipped** in this path
 
 ### 3. Terminal Reflection Path
 - **Class:** `AlertOnTerminalCommandListener` (implements `ProjectActivity`)
@@ -40,30 +43,36 @@
 - **Flow:**
   1. Builds a JDK `Proxy` implementing `ShellCommandListener` and/or `TerminalCommandExecutionListener`
   2. Attaches to both Block/Classic and Reworked terminal engines via reflection
-  3. Proxy handles `commandFinished`-like callbacks → `extractCommandAndExitCode()` → three-tier classification:
+  3. Proxy handles `commandFinished`-like callbacks → `extractCommandAndExitCode()`
+  4. EXIT_CODE_AND_TEXT suppression rules run first against command + exit code; a match logs `Cause.SUPPRESSION_RULE` and returns before alert dispatch
+  5. If not suppressed, three-tier classification:
      - **Tier 1:** custom EXIT_CODE_AND_TEXT rules (`engine.explainExitCodeAndText()`) — if matched, dispatch immediately with no sound override and `Cause.CUSTOM_REGEX_RULE`
      - **Tier 2:** `ErrorClassifier.classifyTerminal(command, exitCode, exitCodeRules)` → `TerminalClassifyResult(kind, soundOverride, suppressed, exitCodeRule?)`
        - if `suppressed == true` → log `Cause.TERMINAL_EXIT_CODE_SUPPRESSED` and return
        - if `kind == NONE` → return
        - dispatch with `soundOverride` and `Cause.TERMINAL_EXIT_CODE_RULE` (null if the matching rule has no per-code sound set)
      - **Tier 3:** built-in fallback — `classifyTerminal()` internally calls `detectTerminal()` when no exit-code rule matches (GENERIC for non-zero exit, NONE for zero), dispatched with `Cause.BUILT_IN_CLASSIFIER`
-  4. LINE_TEXT and FULL_OUTPUT rules are **skipped** in this path
-  5. → `AlertDispatcher.tryAlert("terminal:{projectHash}:{command}:{exitCode}:{kind}", settings, kind, project, soundOverride?, explanation)`
+  6. LINE_TEXT and FULL_OUTPUT suppression/custom rules are **skipped** in this path
+  7. → `AlertDispatcher.tryAlert("terminal:{projectHash}:{command}:{exitCode}:{kind}", settings, kind, project, soundOverride?, explanation)`
 
 ## Routing Flow
 
 ```
 Detection Source
   ├── AlertOnErrorExecutionListener
-  │     ├── onTextAvailable: CustomRuleEngine.explainLineText() → ErrorClassifier.detectWithExplanation()
-  │     └── processTerminated: explainFullOutput() / explainExitCodeAndText() → ErrorClassifier.detectWithExplanation()
+  │     ├── onTextAvailable: SuppressionRuleEngine.explainLineText() → CustomRuleEngine.explainLineText() → ErrorClassifier.detectWithExplanation()
+  │     └── processTerminated: suppression FULL_OUTPUT / EXIT_CODE_AND_TEXT → custom FULL_OUTPUT / EXIT_CODE_AND_TEXT → ErrorClassifier.detectWithExplanation()
   ├── ErrorConsoleFilterProvider
-  │     └── applyFilter: CustomRuleEngine.explainLineText() → built-in errorPattern → ErrorClassifier.detectWithExplanation()
+  │     └── applyFilter: SuppressionRuleEngine.explainLineText() → CustomRuleEngine.explainLineText() → built-in errorPattern → ErrorClassifier.detectWithExplanation()
   └── AlertOnTerminalCommandListener
         └── handleCommandFinished:
-              1. CustomRuleEngine.explainExitCodeAndText() [Phase 5 — highest priority]
-              2. ErrorClassifier.classifyTerminal()        [Phase 6 — exit-code rules + suppression]
-              3. ErrorClassifier.detectTerminal()          [built-in fallback inside classifyTerminal]
+              1. SuppressionRuleEngine.explainExitCodeAndText() [Phase 6 roadmap — highest priority]
+              2. CustomRuleEngine.explainExitCodeAndText()      [custom classification]
+              3. ErrorClassifier.classifyTerminal()             [exit-code rules + suppression]
+              4. ErrorClassifier.detectTerminal()               [built-in fallback inside classifyTerminal]
+         │
+         ▼
+   Suppression match? log and return before AlertDispatcher
          │
          ▼
    AlertMatchExplanation created near classification time
@@ -109,12 +118,14 @@ Phase 2 adds internal/runtime-facing explanation plumbing. It is not a playback 
 | `BUILT_IN_CLASSIFIER` | Built-in classifier fallback in Run/Debug, Console, or Terminal |
 | `TERMINAL_EXIT_CODE_RULE` | Terminal exit-code rule that maps to an alert |
 | `TERMINAL_EXIT_CODE_SUPPRESSED` | Terminal exit-code rule with `suppress=true` |
+| `SUPPRESSION_RULE` | Ignore / Suppression Rule matched before dispatch |
 | `SUCCESS_FALLBACK` | Run/Debug `NONE` + exit code `0` converted to SUCCESS |
 | `NO_MATCH` | Classification completed without an alert |
 | `DURATION_THRESHOLD_SUPPRESSED` | Run/Debug alert suppressed by minimum duration threshold |
 
 **Policy:**
 - Explanation is produced at classification time, before dispatch.
+- Suppression-rule explanations are debug-only in this phase because matching suppression rules return before `AlertDispatcher`.
 - `AlertDispatcher` accepts the explanation and logs gate decisions, but gate order is unchanged: Snooze → AlertMonitoring → AlertEventGate → ErrorSoundPlayer → optional notification.
 - `ErrorSoundPlayer` does not receive or inspect explanations.
 - Explanation objects feed Alert History and remain groundwork for future notification UI.
@@ -157,6 +168,23 @@ SnoozeState accepted
 - Context may include project/config/command, exit code, rule id/pattern, and sound override status.
 - The panel includes a Clear History action and refreshes from the message bus.
 - Suppressed attempts such as snoozed, disabled, or deduplicated alerts are not recorded in this release.
+- Suppression-rule matches are also not recorded because they return before `AlertDispatcher` and before `AlertHistoryService.record(...)`.
+
+## Ignore / Suppression Rule Flow
+
+Suppression rules are local regex rules stored in `AlertSettings.State.suppressionRules` and compiled by `SuppressionRuleEngine`. They run before custom regex classification, built-in classification dispatch, sound playback, visual notifications, and Alert History recording.
+
+**Target semantics — where each target is evaluated:**
+
+| Target | Run/Debug chunks | Run/Debug final | Console filter | Terminal |
+|---|---|---|---|---|
+| LINE_TEXT | ✓ | ✗ | ✓ | ✗ |
+| FULL_OUTPUT | ✗ | ✓ | ✗ | ✗ |
+| EXIT_CODE_AND_TEXT | ✗ | ✓ | ✗ | ✓ |
+
+Unsupported targets are skipped, not reinterpreted. A matching enabled suppression rule returns before `AlertDispatcher.tryAlert()`, so it produces no sound, no visual notification, and no Alert History entry.
+
+**Priority:** suppression wins over both custom regex classification and built-in classification.
 
 ## soundOverride Policy
 
@@ -273,4 +301,4 @@ Unsupported targets are deterministically skipped — not reinterpreted.
 4. Built-in chunk accumulation (`builtInDetectedResult`, highest-priority kind seen in chunks)
 5. Built-in `ErrorClassifier.detectWithExplanation()` on full buffer
 
-*Last updated from code scan: 2026-05-01*
+*Last updated from code scan: 2026-05-11*
