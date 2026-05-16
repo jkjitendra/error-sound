@@ -17,6 +17,7 @@ IntelliJ Platform plugin that plays an audio alert when a Run/Debug process, con
 7. Resolves per-project `enabled` override via `ResolvedSettingsResolver` (Phase 7) before dispatching.
 8. Provides bundled local Rule Presets that append Custom Regex Rules and conservative Terminal Exit-Code Rules in the settings UI.
 9. Provides local Ignore / Suppression Rules that silence known noisy false positives before alert dispatch.
+10. Adds actionable visual notification controls for opening settings, opening Error Monitor, muting, disabling the current kind, and viewing capped alert details.
 
 ## Minimum Build Baseline
 
@@ -29,7 +30,7 @@ IntelliJ Platform plugin that plays an audio alert when a Run/Debug process, con
 | Target platform | IC 2024.3 |
 | `sinceBuild` | 243 |
 | `untilBuild` | unset (open-ended) |
-| **Plugin version** | **1.1.15** |
+| **Plugin version** | **1.1.16** |
 
 ## Completed Phases
 
@@ -48,6 +49,7 @@ IntelliJ Platform plugin that plays an audio alert when a Run/Debug process, con
 - Phase 5 Roadmap — Preset Bundles
 - PR #32 Integration — Play Once Sound Duration
 - Phase 6 Roadmap — Ignore / Suppression Rules
+- Phase 7 Roadmap — Actionable Notification Actions v1
 
 ## Safe Editing Rules
 
@@ -93,4 +95,4 @@ IntelliJ Platform plugin that plays an audio alert when a Run/Debug process, con
 7. See `docs/agent-context/maintenance-rules.md` for the full update matrix.
 
 ---
-*Last updated from code scan: 2026-05-11*
+*Last updated from code scan: 2026-05-16*

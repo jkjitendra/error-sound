@@ -4,6 +4,50 @@ Engineering-significant changes to the codebase. Not a full changelog — focuse
 
 ---
 
+## 1.1.16 — Actionable Notification Actions v1 (Phase 7)
+
+### Scope
+Phase 7 improves visual alert notifications with lightweight actions. Notifications still appear only after the existing dispatcher gates accept an alert, and suppressed alerts still do not show notifications.
+
+### `AlertDispatcher` — notification actions
+- Preserves existing **Open Settings** and **Mute 1 hr** actions
+- Adds **Open Error Monitor** to focus the Error Monitor tool window for the notification project
+- Adds **Disable this kind** / **Disable success alerts** using `AlertMonitoring.setKindEnabled(settings, kind, false)`
+- Adds **Show alert details** when `AlertMatchExplanation` is available
+
+### Alert details dialog
+- Shows capped, lightweight fields only:
+  - source
+  - kind
+  - cause
+  - exit code when present
+  - command/config when present
+  - rule id/pattern when present
+  - match target when present
+  - sound override when present
+  - short summary
+- Does not expose full console output
+- Does not persist extra detail data beyond existing Alert History behavior
+
+### Marketplace metadata
+- Plugin version is `1.1.16`
+- Marketplace change notes and feature description include Actionable Notification Actions as a shipped feature
+
+### Safety Boundaries
+- Dispatcher gate order unchanged
+- Sound playback unchanged
+- Alert History behavior unchanged
+- Suppression behavior unchanged
+- Terminal reflection logic unchanged
+- No telemetry
+- No network calls
+- No file writes
+
+### Known limitation
+- **Disable this kind** updates the underlying monitoring setting immediately; if the Error Monitor tool window is already open, it may need refresh/reopen to visually reflect the changed checkbox state.
+
+---
+
 ## 1.1.15 — Ignore / Suppression Rules (Phase 6)
 
 ### Scope
@@ -230,7 +274,7 @@ Phase 3 adds a user-facing **Alert History** section to the Error Monitor. It re
 ## 1.1.10 — Rule Match Explanation (Phase 2 Roadmap)
 
 ### Scope
-Phase 2 adds internal/runtime-facing explanation plumbing so the plugin can record why an alert classification was produced. It now feeds Alert History and remains groundwork for future notification UI; current visual notifications are not yet explanation-rich.
+Phase 2 added internal/runtime-facing explanation plumbing so the plugin can record why an alert classification was produced. It now feeds Alert History and, as of 1.1.16, the Show alert details notification action.
 
 ### New File: `AlertMatchExplanation.kt`
 - Immutable explanation model with source, cause, final kind, optional custom-rule metadata, exit code, context, sound override, and suppression flag
@@ -657,4 +701,4 @@ projectOverride == false →  effective enabled = false (regardless of global)
 - Improved terminal compatibility with 2025.x reworked terminal engine
 
 ---
-*Last updated from code scan: 2026-05-11*
+*Last updated from code scan: 2026-05-16*

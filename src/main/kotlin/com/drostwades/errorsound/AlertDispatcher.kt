@@ -6,6 +6,8 @@ import com.intellij.notification.NotificationType
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.options.ShowSettingsUtil
 import com.intellij.openapi.project.Project
+import com.intellij.openapi.ui.Messages
+import com.intellij.openapi.wm.ToolWindowManager
 
 /**
  * Single choke-point between the three detection paths and the audio player.
@@ -57,13 +59,18 @@ object AlertDispatcher {
         AlertHistoryService.getInstance().record(project, kind, soundOverride, explanation)
         ErrorSoundPlayer.play(settings, kind, soundOverride)
         if (settings.showVisualNotification && project != null) {
-            showNotification(settings, kind, project)
+            showNotification(settings, kind, project, explanation)
         }
     }
 
     // ── Notification ──────────────────────────────────────────────────────────
 
-    private fun showNotification(settings: AlertSettings.State, kind: ErrorKind, project: Project) {
+    private fun showNotification(
+        settings: AlertSettings.State,
+        kind: ErrorKind,
+        project: Project,
+        explanation: AlertMatchExplanation?,
+    ) {
         val isSuccess = kind == ErrorKind.SUCCESS
         if (isSuccess && !settings.visualNotificationOnSuccess) return
         if (!isSuccess && !settings.visualNotificationOnError) return
@@ -82,11 +89,36 @@ object AlertDispatcher {
                 .showSettingsDialog(project, ErrorSoundConfigurable::class.java)
         })
 
+        notification.addAction(NotificationAction.createSimple("Open Error Monitor") {
+            ToolWindowManager.getInstance(project)
+                .getToolWindow("Error Monitor")
+                ?.activate(null, true, true)
+            notification.expire()
+        })
+
         // Action: mute 1 hour (integrates with Phase 3 SnoozeState)
         notification.addAction(NotificationAction.createSimple("Mute 1 hr") {
             SnoozeState.snooze(60)
             notification.expire()
         })
+
+        if (kind != ErrorKind.NONE) {
+            val disableLabel = if (kind == ErrorKind.SUCCESS) "Disable success alerts" else "Disable this kind"
+            notification.addAction(NotificationAction.createSimple(disableLabel) {
+                AlertMonitoring.setKindEnabled(AlertSettings.getInstance().state, kind, false)
+                notification.expire()
+            })
+        }
+
+        if (explanation != null) {
+            notification.addAction(NotificationAction.createSimple("Show alert details") {
+                Messages.showInfoMessage(
+                    project,
+                    formatAlertDetails(kind, explanation),
+                    "Error Sound Alert Details",
+                )
+            })
+        }
 
         notification.notify(project)
     }
@@ -101,4 +133,53 @@ object AlertDispatcher {
         ErrorKind.SUCCESS       -> "Process Completed" to "Run/debug process finished successfully."
         ErrorKind.NONE          -> "Alert" to ""
     }
+
+    private fun formatAlertDetails(kind: ErrorKind, explanation: AlertMatchExplanation): String {
+        val lines = mutableListOf(
+            "Source: ${explanation.source.label()}",
+            "Kind: $kind",
+            "Cause: ${explanation.cause.label()}",
+        )
+
+        explanation.exitCode?.let { lines += "Exit code: $it" }
+        explanation.commandOrConfig?.takeIf { it.isNotBlank() }?.let {
+            lines += "Command/config: ${it.take(MAX_DETAIL_VALUE_LENGTH)}"
+        }
+        explanation.ruleId?.takeIf { it.isNotBlank() }?.let {
+            lines += "Rule id: ${it.take(MAX_DETAIL_VALUE_LENGTH)}"
+        }
+        explanation.rulePattern?.takeIf { it.isNotBlank() }?.let {
+            lines += "Rule pattern: ${it.take(MAX_DETAIL_VALUE_LENGTH)}"
+        }
+        explanation.matchTarget?.let {
+            lines += "Match target: $it"
+        }
+        explanation.soundOverride?.takeIf { it.isNotBlank() }?.let {
+            lines += "Sound override: ${it.take(MAX_DETAIL_VALUE_LENGTH)}"
+        }
+        if (explanation.suppressed) {
+            lines += "Suppressed: true"
+        }
+        lines += "Summary: ${explanation.summary().take(MAX_DETAIL_VALUE_LENGTH)}"
+        return lines.joinToString("\n")
+    }
+
+    private fun AlertMatchExplanation.Source.label(): String = when (this) {
+        AlertMatchExplanation.Source.RUN_DEBUG -> "Run/Debug"
+        AlertMatchExplanation.Source.CONSOLE -> "Console"
+        AlertMatchExplanation.Source.TERMINAL -> "Terminal"
+    }
+
+    private fun AlertMatchExplanation.Cause.label(): String = when (this) {
+        AlertMatchExplanation.Cause.CUSTOM_REGEX_RULE -> "Custom regex rule"
+        AlertMatchExplanation.Cause.BUILT_IN_CLASSIFIER -> "Built-in classifier"
+        AlertMatchExplanation.Cause.TERMINAL_EXIT_CODE_RULE -> "Terminal exit-code rule"
+        AlertMatchExplanation.Cause.TERMINAL_EXIT_CODE_SUPPRESSED -> "Terminal exit-code suppressed"
+        AlertMatchExplanation.Cause.SUPPRESSION_RULE -> "Suppression rule"
+        AlertMatchExplanation.Cause.SUCCESS_FALLBACK -> "Success fallback"
+        AlertMatchExplanation.Cause.NO_MATCH -> "No match"
+        AlertMatchExplanation.Cause.DURATION_THRESHOLD_SUPPRESSED -> "Duration threshold suppressed"
+    }
+
+    private const val MAX_DETAIL_VALUE_LENGTH = 300
 }

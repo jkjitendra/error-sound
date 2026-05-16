@@ -116,6 +116,19 @@ Behavior:
 
 The 1.1.14 implementation ports the feature idea from external PR #32 into the current architecture without merging the PR branch directly. The seven proposed new sounds from that PR were not shipped in 1.1.14 because audio files and licensing were not confirmed.
 
+## Actionable Notification Actions
+
+Phase 7 adds no new persisted settings for notification actions. It reuses existing state:
+- `showVisualNotification`
+- `visualNotificationOnError`
+- `visualNotificationOnSuccess`
+- per-kind monitoring flags such as `monitorCompilation`
+- `monitorSuccess`
+
+The **Disable this kind** / **Disable success alerts** notification action mutates the existing monitoring flag for the alert kind immediately via `AlertMonitoring.setKindEnabled(...)`. No separate notification-action preference, alert-detail storage, file output, network behavior, or telemetry state is added.
+
+Alert detail dialogs are generated from the in-memory `AlertMatchExplanation` passed to `AlertDispatcher`. Detail fields are capped and may include source, kind, cause, exit code, command/config, rule id/pattern, match target, sound override, and short summary. Full console output is not shown. Existing Alert History behavior is unchanged.
+
 ## Rule Import / Export JSON
 
 Rules-only local JSON import/export is handled by `RuleImportExportBundle` and `RuleImportExportService`. Schema version 2 covers exactly:
@@ -138,7 +151,7 @@ It does **not** cover:
 {
   "schemaVersion": 2,
   "exportedAt": "2026-05-02T00:00:00Z",
-  "pluginVersion": "1.1.15",
+  "pluginVersion": "1.1.16",
   "customRules": [
     {
       "id": "8e2d8f2f-4d8b-46cc-8f22-82a904f1d6aa",
@@ -228,4 +241,4 @@ Preset behavior:
 - Presets are bundled locally; no network, telemetry, remote preset downloads, script execution, or file writes are involved
 
 ---
-*Last updated from code scan: 2026-05-11*
+*Last updated from code scan: 2026-05-16*

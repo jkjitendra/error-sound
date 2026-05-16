@@ -7,7 +7,7 @@ plugins {
 }
 
 group = "com.drostwades"
-version = "1.1.15"
+version = "1.1.16"
 
 repositories {
     mavenCentral()
@@ -52,6 +52,7 @@ intellijPlatform {
               <li><b>Rule Testing Sandbox:</b> paste sample output and see which custom rule or built-in classifier would match before applying rule changes</li>
               <li><b>Rule Presets:</b> add bundled custom regex and terminal exit-code rule bundles for common stacks without changing sound, volume, success, project, history, snooze, or full profile settings</li>
               <li><b>Suppression Rules:</b> silence known noisy false positives with local regex rules before alerts are dispatched</li>
+              <li><b>Actionable notifications:</b> open the Error Monitor, disable the current alert kind, or view alert details from visual alerts</li>
               <li><b>Exit-code rules for terminal commands:</b> map specific exit codes to error kinds, optional per-code sound overrides, or suppress alerts entirely (e.g. silence Ctrl+C / exit&nbsp;130)</li>
               <li>Per-kind sounds, or one global sound for all alerts</li>
               <li><b>Success sounds:</b> optional alert on successful process completion (off by default)</li>
@@ -71,6 +72,13 @@ intellijPlatform {
         """.trimIndent()
 
         changeNotes = """
+            <b>1.1.16</b>
+            <ul>
+              <li>Visual alert notifications now include an <b>Open Error Monitor</b> action</li>
+              <li>Added notification actions to disable the current alert kind and keep the existing <b>Open Settings</b> and <b>Mute 1 hr</b> actions</li>
+              <li>Added <b>Show alert details</b> when runtime explanation data is available, including source, kind, cause, exit code, rule details, context, and sound override status without persisting extra data</li>
+              <li>Notification actions preserve the existing dispatcher gate order, sound playback behavior, and Alert History behavior</li>
+            </ul>
             <b>1.1.15</b>
             <ul>
               <li>New <b>Suppression Rules</b> section in Settings &rarr; Tools &rarr; Error Sound Alert for silencing known noisy false positives</li>
