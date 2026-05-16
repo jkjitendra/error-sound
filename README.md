@@ -29,7 +29,7 @@
 | Rule import/export | Export and import custom regex rules, suppression rules, and terminal exit-code rules as local JSON |
 | Rule presets | Add bundled custom regex and terminal exit-code rule bundles for common stacks |
 | Success sounds | Optional alert when a Run/Debug process completes successfully |
-| Visual notifications | Optional balloon notifications alongside sound alerts, configurable for errors and successes |
+| Visual notifications | Optional balloon notifications with actions for settings, Error Monitor, mute, kind disabling, and alert details |
 | Snooze / mute | Temporarily silence alerts for 15 minutes or 1 hour from the Error Monitor panel |
 | Project enabled override | Override the master monitoring enabled state per project from the Error Monitor panel |
 | 7 built-in sounds | Boom, Faaa, Huh, Punch, Yeah Boy, Yooo, Dog Laughing |
@@ -97,7 +97,7 @@ The Alert History section shows recent accepted alerts in newest-first order. It
 | Alert duration | 1 – 10 seconds; used by default to loop/restart short clips until time expires |
 | Use actual sound file duration (play once) | Disabled by default. When enabled, the selected file-based sound starts once, ignores the configured alert duration, and disables the duration slider/value label |
 | Minimum process duration | Suppress Run/Debug alerts for short-lived processes |
-| Visual notifications | Show optional balloon notifications for errors and/or successes |
+| Visual notifications | Show optional balloon notifications for errors and/or successes, with actionable controls |
 | Custom regex rules | Add user-defined regex rules with LINE_TEXT, FULL_OUTPUT, or EXIT_CODE_AND_TEXT targets |
 | Suppression rules | Add regex rules that silence matching Run/Debug, Console, or Terminal contexts before alerts are dispatched |
 | Rule Testing Sandbox | Choose Source, Match Target, optional Exit Code, paste sample output, and click **Test Rules** |
@@ -106,6 +106,21 @@ The Alert History section shows recent accepted alerts in newest-first order. It
 | Rule presets | Choose a bundled preset and click **Add Preset Rules** to append rules to the current tables |
 
 The **Use actual sound file duration (play once)** checkbox is useful when a bundled or custom clip already has the exact length you want. The checkbox follows normal settings behavior: it is not persisted until **Apply** is clicked, and **Reset** discards unapplied checkbox changes. Preview follows the same mode where practical: play once when enabled, configured-duration looping when disabled.
+
+### Visual Notifications
+
+When visual notifications are enabled, accepted alerts show a balloon after the same dispatcher gates as sound playback. Suppressed alerts do not show notifications.
+
+Available actions:
+- **Open Settings**
+- **Open Error Monitor**
+- **Mute 1 hr**
+- **Disable this kind** / **Disable success alerts**
+- **Show alert details** when explanation data exists
+
+Alert details are shown in a lightweight dialog with capped fields: source, kind, cause, exit code, command/config, rule id/pattern, match target, sound override, and a short summary when available. The dialog does not show full console output, persist extra details, write files, use network access, or send telemetry.
+
+The **Disable this kind** action updates the underlying monitoring flag immediately. If the Error Monitor tool window is already open, it may need refresh/reopen to visually reflect the changed checkbox state.
 
 ### Suppression Rules
 
@@ -192,7 +207,7 @@ Output: `build/distributions/error-sound-<version>.zip`
 7. By default, if the clip is shorter than the alert duration, it loops/restarts until time expires. If **Use actual sound file duration (play once)** is enabled, the selected clip starts once and the configured alert duration is ignored for file-based playback.
 8. Fallback chain: custom file → built-in WAV → generated 880 Hz tone → system beep.
 
-Rule match explanations power the Alert History cause/context details. Current visual notifications are not yet explanation-rich.
+Rule match explanations power Alert History cause/context details and the optional Show alert details notification action.
 
 ---
 
