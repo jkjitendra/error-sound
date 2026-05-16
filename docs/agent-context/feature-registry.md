@@ -158,13 +158,31 @@ Temporarily silences all alerts before monitoring, deduplication, or playback ga
 | Version introduced | 1.1.4 |
 | Relevant classes/files | `AlertDispatcher.kt`, `AlertSettings.kt`, `ErrorSoundConfigurable.kt`, `plugin.xml` |
 
-Shows optional IDE balloon notifications alongside sound alerts. Notifications can be enabled separately for error and success alerts. They are emitted after the same dispatch gates as audio, so normal snooze, monitoring, and deduplication behavior still applies.
+Shows optional IDE balloon notifications alongside sound alerts. Notifications can be enabled separately for error and success alerts. They are emitted after the same dispatch gates as audio, so normal snooze, monitoring, deduplication, history, and suppression behavior still applies.
 
 **How to enable/use:** Enable visual notifications in Settings / Preferences -> Tools -> Error Sound Alert.
 
 **Example usage:** Turn on error notifications to see a balloon with the classified kind when a process fails.
 
-**Notes/limitations:** Notifications are off by default. Current actions are limited to opening settings and muting for 1 hour.
+**Notes/limitations:** Notifications are off by default. Suppressed alerts do not show notifications.
+
+---
+
+## Actionable Notification Actions
+
+| Field | Value |
+|---|---|
+| Status | Available |
+| Version introduced | 1.1.16 |
+| Relevant classes/files | `AlertDispatcher.kt`, `AlertMatchExplanation.kt`, `AlertMonitoring.kt`, `ErrorSoundToolWindowFactory.kt`, `SnoozeState.kt` |
+
+Adds useful actions to visual alert notifications after an alert has already passed the existing dispatcher gates. Available actions are Open Settings, Open Error Monitor, Mute 1 hr, Disable this kind / Disable success alerts, and Show alert details when explanation data exists. The feature helps users inspect and control alerts without changing detection, playback, history recording, or suppression behavior.
+
+**How to enable/use:** Enable visual notifications in Settings / Preferences -> Tools -> Error Sound Alert. Trigger an alert, then use the actions shown on the notification balloon.
+
+**Example usage:** A custom regex rule triggers a COMPILATION alert. Click **Show alert details** to see source, kind, cause, exit code if present, command/config if present, rule id/pattern, match target, sound override if present, and a short summary.
+
+**Notes/limitations:** Alert details are capped and do not show full console output. No extra alert-detail persistence, telemetry, network calls, file writes, terminal reflection changes, sound playback changes, or Alert History behavior changes are introduced. **Disable this kind** updates the underlying monitoring setting immediately; if the Error Monitor tool window is already open, it may need refresh/reopen to visually reflect the changed checkbox state.
 
 ---
 
@@ -365,4 +383,4 @@ Prevents rapid duplicate alerts when multiple detection paths or repeated output
 **Notes/limitations:** Cooldown values are fixed in code and not currently configurable.
 
 ---
-*Last updated from code scan: 2026-05-11*
+*Last updated from code scan: 2026-05-16*
