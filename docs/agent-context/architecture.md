@@ -98,11 +98,14 @@ Detection Source
                └── if soundOverride != null → play that built-in ID directly (playBuiltInById)
                └── else → normal sound resolution (global/per-kind/custom-file)
                └── last-resort debounce (250ms)
+         │
+         ▼
+   Optional visual notification with post-gate actions
 ```
 
 ## Rule Match Explanation Flow
 
-Phase 2 adds internal/runtime-facing explanation plumbing. It is not a playback feature and current visual notifications are not yet explanation-rich.
+Phase 2 adds internal/runtime-facing explanation plumbing. It is not a playback feature; visual notifications can use it for capped alert details after dispatcher gates accept an alert.
 
 **Model:**
 - `AlertMatchExplanation` — immutable explanation object containing source, cause, final kind, optional rule metadata, exit code, context, sound override, and suppression flag
@@ -126,9 +129,9 @@ Phase 2 adds internal/runtime-facing explanation plumbing. It is not a playback 
 **Policy:**
 - Explanation is produced at classification time, before dispatch.
 - Suppression-rule explanations are debug-only in this phase because matching suppression rules return before `AlertDispatcher`.
-- `AlertDispatcher` accepts the explanation and logs gate decisions, but gate order is unchanged: Snooze → AlertMonitoring → AlertEventGate → ErrorSoundPlayer → optional notification.
+- `AlertDispatcher` accepts the explanation and logs gate decisions, but gate order is unchanged: Snooze → AlertMonitoring → AlertEventGate → AlertHistoryService → ErrorSoundPlayer → optional notification.
 - `ErrorSoundPlayer` does not receive or inspect explanations.
-- Explanation objects feed Alert History and remain groundwork for future notification UI.
+- Explanation objects feed Alert History and the optional Show alert details notification action.
 
 ## Alert History Flow
 
@@ -140,7 +143,7 @@ SnoozeState accepted
   → AlertEventGate accepted
   → AlertHistoryService.record(...)
   → ErrorSoundPlayer.play(...)
-  → optional visual notification
+  → optional visual notification actions
 ```
 
 **Service behavior:**
@@ -169,6 +172,21 @@ SnoozeState accepted
 - The panel includes a Clear History action and refreshes from the message bus.
 - Suppressed attempts such as snoozed, disabled, or deduplicated alerts are not recorded in this release.
 - Suppression-rule matches are also not recorded because they return before `AlertDispatcher` and before `AlertHistoryService.record(...)`.
+
+## Actionable Notification Flow
+
+Visual notifications are emitted only after the same dispatcher gates as playback and Alert History recording. The notification action layer is post-gate and does not change detection, suppression, monitoring, deduplication, history recording, or sound playback behavior.
+
+Available actions:
+- **Open Settings** opens the Error Sound Alert settings page.
+- **Open Error Monitor** opens/focuses the Error Monitor tool window for the notification project.
+- **Mute 1 hr** activates `SnoozeState.snooze(60)`.
+- **Disable this kind** / **Disable success alerts** updates the existing monitoring flag via `AlertMonitoring.setKindEnabled(settings, kind, false)`.
+- **Show alert details** appears when `AlertMatchExplanation` is available and shows a lightweight dialog.
+
+Show alert details includes capped fields only: source, kind, cause, exit code, command/config, rule id/pattern, match target, sound override, and short summary. It does not show full console output, persist extra detail state, write files, use network calls, or send telemetry.
+
+Limitation: disabling a kind mutates the underlying monitoring setting immediately, but an already-open Error Monitor tool window may need refresh/reopen to visually reflect the changed checkbox state.
 
 ## Ignore / Suppression Rule Flow
 
@@ -301,4 +319,4 @@ Unsupported targets are deterministically skipped — not reinterpreted.
 4. Built-in chunk accumulation (`builtInDetectedResult`, highest-priority kind seen in chunks)
 5. Built-in `ErrorClassifier.detectWithExplanation()` on full buffer
 
-*Last updated from code scan: 2026-05-11*
+*Last updated from code scan: 2026-05-16*
