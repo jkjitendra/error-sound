@@ -254,13 +254,16 @@ Class-by-class reference for the `com.drostwades.errorsound` package.
 | Method | Signature | Description |
 |---|---|---|
 | `tryAlert` | `(key: String, settings: State, kind: ErrorKind, project: Project? = null, soundOverride: String? = null, explanation: AlertMatchExplanation? = null)` | Routes through all gates; optionally logs explanation and shows balloon notification |
-| `showNotification` | `(settings: State, kind: ErrorKind, project: Project)` | Shows BALLOON notification with kind title + "Open Settings" / "Mute 1 hr" actions |
+| `showNotification` | `(settings: State, kind: ErrorKind, project: Project, explanation?)` | Shows BALLOON notification with action buttons after dispatcher gates accept an alert |
+| `formatAlertDetails` | `(kind, explanation)` | Formats capped alert detail fields for the Show alert details dialog |
 
 - **Inputs:** deduplication key, current settings state, detected error kind, optional project
 - **Outputs:** none (fire-and-forget side effect)
-- **Side effects:** records accepted alert history; may trigger audio playback; may show balloon notification
-- **Explanation policy:** `explanation` is for runtime diagnostics, Alert History context, and future UI. It does not alter gate order, playback selection, or notification content.
+- **Side effects:** records accepted alert history; may trigger audio playback; may show balloon notification with actions
+- **Explanation policy:** `explanation` is for runtime diagnostics, Alert History context, and capped notification details. It does not alter gate order or playback selection.
 - **History policy:** records only after snooze, monitoring, and deduplication gates accept the alert. Suppressed attempts are not recorded in Phase 3.
+- **Notification actions:** Open Settings, Open Error Monitor, Mute 1 hr, Disable this kind / Disable success alerts, and Show alert details when explanation data exists.
+- **Alert details:** source, kind, cause, exit code, command/config, rule id/pattern, match target, sound override, and summary are capped to short strings; full console output is not shown or persisted.
 - **Risk:** LOW-MEDIUM — thin routing layer, but every detection path depends on it
 
 ---
@@ -658,4 +661,4 @@ Class-by-class reference for the `com.drostwades.errorsound` package.
 **Risk:** LOW — additive, no external dependencies.
 
 ---
-*Last updated from code scan: 2026-05-11*
+*Last updated from code scan: 2026-05-16*
