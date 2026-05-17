@@ -28,6 +28,7 @@
 | Terminal exit-code rules | Map terminal exit codes to error kinds, optional built-in sound overrides, or suppression |
 | Rule import/export | Export and import custom regex rules, suppression rules, and terminal exit-code rules as local JSON |
 | Rule presets | Add bundled custom regex and terminal exit-code rule bundles for common stacks |
+| Diagnostics / Self-Test | Inspect applied status and run safe sound/notification checks from Settings |
 | Success sounds | Optional alert when a Run/Debug process completes successfully |
 | Visual notifications | Optional balloon notifications with actions for settings, Error Monitor, mute, kind disabling, and alert details |
 | Snooze / mute | Temporarily silence alerts for 15 minutes or 1 hour from the Error Monitor panel |
@@ -104,8 +105,24 @@ The Alert History section shows recent accepted alerts in newest-first order. It
 | Exit-code rules | Map terminal exit codes to kinds, sound overrides, or suppression |
 | Rule import/export | **Export Rules…** / **Import Rules…** for custom regex, suppression, and terminal exit-code rules only |
 | Rule presets | Choose a bundled preset and click **Add Preset Rules** to append rules to the current tables |
+| Diagnostics / Self-Test | Review applied settings/status and test error sound, success sound, or visual notification behavior |
 
 The **Use actual sound file duration (play once)** checkbox is useful when a bundled or custom clip already has the exact length you want. The checkbox follows normal settings behavior: it is not persisted until **Apply** is clicked, and **Reset** discards unapplied checkbox changes. Preview follows the same mode where practical: play once when enabled, configured-duration looping when disabled.
+
+### Diagnostics / Self-Test
+
+Use **Diagnostics / Self-Test** in **Settings / Preferences → Tools → Error Sound Alert** to verify the plugin locally without causing a real build or test failure. Diagnostics are settings-only and are not shown in the Error Monitor tool window.
+
+The summary reads existing applied state and status, including monitoring, snooze, visual notification settings, sound source/selected sound, global volume, alert duration, play-once mode, custom regex rule count, suppression rule count, terminal exit-code rule count, Alert History count, rule preset availability, rule import/export schema support, and terminal integration status.
+
+Available self-tests:
+- **Test error sound**
+- **Test success sound**
+- **Test visual notification**
+
+Sound self-tests use the existing preview playback path and respect **Use actual sound file duration (play once)** where applicable. **Test visual notification** sends a real IntelliJ Platform balloon notification through the existing **Error Sound Alert** notification group, uses an active project fallback when Settings has no direct project context, and does not show a modal OK dialog on the normal success path. Notification placement is controlled by the IntelliJ Platform.
+
+Diagnostics and self-tests do not mutate settings, write Alert History entries, write files, create persistent diagnostic logs, use network access, send telemetry, or touch terminal reflection logic.
 
 ### Visual Notifications
 
@@ -229,6 +246,7 @@ src/main/kotlin/com/drostwades/errorsound/
 ├── ErrorConsoleFilterProvider.kt     # Log analyzer for error spotting
 ├── ErrorKind.kt                      # Error enum + classifier
 ├── ErrorSoundConfigurable.kt         # Main settings UI panel
+├── ErrorSoundDiagnosticsService.kt   # Settings-side diagnostics snapshot and self-test helpers
 ├── ErrorSoundPlayer.kt               # Audio playback engine
 ├── ErrorSoundToolWindowFactory.kt    # Error Monitor sidebar panel
 ├── ProjectAlertSettings.kt           # Project-level enabled override state
