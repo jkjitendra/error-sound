@@ -246,6 +246,28 @@ Class-by-class reference for the `com.drostwades.errorsound` package.
 
 ---
 
+## ErrorSoundDiagnosticsService
+
+**File:** `ErrorSoundDiagnosticsService.kt`
+**Purpose:** Settings-side diagnostics and self-test helper for Phase 8. Builds a local applied-status snapshot and exposes safe self-test actions without entering runtime detection or dispatch.
+
+| Method / Type | Description |
+|---|---|
+| `Snapshot(rows, notes)` | Immutable diagnostics summary data rendered by settings UI |
+| `SelfTestResult(success, message)` | User-facing status for sound/notification self-test actions |
+| `buildSnapshot()` | Reads applied `AlertSettings`, `SnoozeState`, `AlertHistoryService`, rule counts, preset availability, import/export schema support, and terminal integration status |
+| `testErrorSound()` | Plays a GENERIC error sound through the preview path using current applied settings |
+| `testSuccessSound()` | Plays a SUCCESS sound through the preview path when enabled by current applied settings |
+| `showTestNotification(project?)` | Sends a real IntelliJ Platform balloon notification using `NotificationGroupManager`, group id `Error Sound Alert`, and `NotificationType.INFORMATION` |
+
+**Notification policy:** resolves an explicit project if supplied, otherwise uses the first non-disposed open project, otherwise notifies with `null`; delivery is scheduled on the EDT. The normal success path returns inline status and does not show a modal OK dialog. Warning dialogs are left to the UI for failure paths such as a missing notification group.
+
+**Safety:** Does not call `AlertDispatcher`, record Alert History, mutate settings, write files, create persistent diagnostic logs, use network/telemetry, or touch terminal reflection logic.
+
+- **Risk:** LOW — local settings-side helper; no runtime alert behavior changes
+
+---
+
 ## AlertDispatcher
 
 **File:** `AlertDispatcher.kt`  
@@ -563,6 +585,15 @@ Class-by-class reference for the `com.drostwades.errorsound` package.
 - Preview calls pass the checkbox state through to `ErrorSoundPlayer`
 - Checkbox changes follow normal settings semantics: they are not persisted until Apply; Reset discards unapplied changes
 
+**Diagnostics / Self-Test section (Phase 8 roadmap addition):**
+- Adds a Settings-only **Diagnostics / Self-Test** section under **Settings / Preferences → Tools → Error Sound Alert**
+- Renders local applied-status rows from `ErrorSoundDiagnosticsService.buildSnapshot()`
+- Provides safe self-test actions: **Test error sound**, **Test success sound**, and **Test visual notification**
+- Sound tests use preview playback and respect Play Once Sound Duration where applicable
+- Visual notification test uses `NotificationGroupManager`, existing group id `Error Sound Alert`, `NotificationType.INFORMATION`, active project fallback, and EDT delivery
+- Normal visual notification success updates inline status only; no modal OK dialog is shown
+- Diagnostics are not part of the Error Monitor tool window and do not mutate settings or Alert History
+
 **Suppression Rules section (Phase 6 roadmap addition):**
 - Adds Suppression Rules table near rule controls
 - Columns: Enabled, Pattern, Match Target, Description
@@ -637,6 +668,7 @@ Class-by-class reference for the `com.drostwades.errorsound` package.
 - Alert History table: Time, Source, Kind, Cause, Context
 - Clear history action
 - "Open sound settings" button → opens `ErrorSoundConfigurable`
+- No Diagnostics / Self-Test controls; diagnostics are Settings-only
 
 **Behavior:**
 - Project Profile checkboxes mutate `ProjectAlertSettings.state` directly
