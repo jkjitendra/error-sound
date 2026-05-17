@@ -18,6 +18,7 @@ IntelliJ Platform plugin that plays an audio alert when a Run/Debug process, con
 8. Provides bundled local Rule Presets that append Custom Regex Rules and conservative Terminal Exit-Code Rules in the settings UI.
 9. Provides local Ignore / Suppression Rules that silence known noisy false positives before alert dispatch.
 10. Adds actionable visual notification controls for opening settings, opening Error Monitor, muting, disabling the current kind, and viewing capped alert details.
+11. Provides a Settings-only Diagnostics / Self-Test section for local applied-status checks, sound self-tests, and a real IDE balloon notification test.
 
 ## Minimum Build Baseline
 
@@ -30,7 +31,7 @@ IntelliJ Platform plugin that plays an audio alert when a Run/Debug process, con
 | Target platform | IC 2024.3 |
 | `sinceBuild` | 243 |
 | `untilBuild` | unset (open-ended) |
-| **Plugin version** | **1.1.16** |
+| **Plugin version** | **1.1.17** |
 
 ## Completed Phases
 
@@ -50,6 +51,7 @@ IntelliJ Platform plugin that plays an audio alert when a Run/Debug process, con
 - PR #32 Integration — Play Once Sound Duration
 - Phase 6 Roadmap — Ignore / Suppression Rules
 - Phase 7 Roadmap — Actionable Notification Actions v1
+- Phase 8 Roadmap — Diagnostics / Self-Test
 
 ## Safe Editing Rules
 
