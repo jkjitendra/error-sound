@@ -186,6 +186,24 @@ Adds useful actions to visual alert notifications after an alert has already pas
 
 ---
 
+## Diagnostics / Self-Test
+
+| Field | Value |
+|---|---|
+| Status | Available |
+| Version introduced | 1.1.17 |
+| Relevant classes/files | `ErrorSoundDiagnosticsService.kt`, `ErrorSoundConfigurable.kt`, `ErrorSoundPlayer.kt`, `plugin.xml` |
+
+Adds a Settings-only diagnostics surface for local verification. It shows applied monitoring, snooze, notification, sound, play-once, rule count, Alert History, rule preset, import/export schema, and terminal integration status. It also provides safe self-tests for GENERIC error sound, SUCCESS sound, and a real IntelliJ Platform visual notification.
+
+**How to enable/use:** Open Settings / Preferences -> Tools -> Error Sound Alert -> Diagnostics / Self-Test. Click Refresh Diagnostics, Test error sound, Test success sound, or Test visual notification.
+
+**Example usage:** After installing the plugin, open Diagnostics / Self-Test and click **Test visual notification** to confirm the IDE shows a balloon from the existing **Error Sound Alert** notification group without needing to trigger a real build failure.
+
+**Notes/limitations:** Diagnostics / Self-Test is not part of the Error Monitor tool window. Sound self-tests use preview playback and respect Play Once Sound Duration where applicable. The visual notification test uses `NotificationGroupManager`, `NotificationType.INFORMATION`, active project fallback, and EDT delivery; notification placement is controlled by the IntelliJ Platform. Self-tests do not call `AlertDispatcher`, mutate settings, write Alert History entries, write files, create persistent diagnostic logs, use network calls, send telemetry, or change terminal reflection logic.
+
+---
+
 ## Custom Regex Rules
 
 | Field | Value |
