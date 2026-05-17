@@ -187,6 +187,18 @@ class ErrorSoundConfigurable : Configurable {
     private val exportRulesButton = JButton("Export Rules…")
     private val importRulesButton = JButton("Import Rules…")
 
+    private val diagnosticsSummaryArea = JTextArea(11, 60).apply {
+        isEditable = false
+        lineWrap = true
+        wrapStyleWord = true
+        text = "Click Refresh Diagnostics to inspect current applied settings."
+    }
+    private val refreshDiagnosticsButton = JButton("Refresh Diagnostics")
+    private val testErrorSoundButton = JButton("Test error sound")
+    private val testSuccessSoundButton = JButton("Test success sound")
+    private val testNotificationButton = JButton("Test visual notification")
+    private val diagnosticsStatusLabel = JBLabel(" ")
+
     override fun getDisplayName(): String = "Error Sound Alert"
 
     override fun createComponent(): JComponent {
@@ -406,6 +418,8 @@ class ErrorSoundConfigurable : Configurable {
                 false
             )
             .addSeparator(8)
+            .addComponent(createDiagnosticsPanel(), 1)
+            .addSeparator(8)
             .addComponent(createRulePresetPanel(), 1)
             .addSeparator(8)
             .addComponent(createRuleImportExportPanel(), 1)
@@ -533,6 +547,7 @@ class ErrorSoundConfigurable : Configurable {
         customRuleTableModel.setRules(settings.state.customRules)
         suppressionRuleTableModel.setRules(settings.state.suppressionRules)
         exitCodeRuleTableModel.setRules(settings.state.exitCodeRules)
+        refreshDiagnosticsSummary()
     }
 
     override fun reset() {
@@ -617,6 +632,7 @@ class ErrorSoundConfigurable : Configurable {
             customRuleTableModel.setRules(state.customRules)
             suppressionRuleTableModel.setRules(state.suppressionRules)
             exitCodeRuleTableModel.setRules(state.exitCodeRules)
+            refreshDiagnosticsSummary()
         } finally {
             suppressPreview = false
         }
@@ -689,6 +705,87 @@ class ErrorSoundConfigurable : Configurable {
         return JPanel(FlowLayout(FlowLayout.LEFT, 8, 0)).apply {
             add(visualNotificationOnErrorCheck)
             add(visualNotificationOnSuccessCheck)
+        }
+    }
+
+    // ── Diagnostics / Self-Test ──────────────────────────────────────────────
+
+    private fun createDiagnosticsPanel(): JPanel {
+        refreshDiagnosticsButton.addActionListener { refreshDiagnosticsSummary() }
+        testErrorSoundButton.addActionListener {
+            showDiagnosticsResult(ErrorSoundDiagnosticsService.testErrorSound())
+        }
+        testSuccessSoundButton.addActionListener {
+            showDiagnosticsResult(ErrorSoundDiagnosticsService.testSuccessSound())
+        }
+        testNotificationButton.addActionListener {
+            showNotificationDiagnosticsResult(ErrorSoundDiagnosticsService.showTestNotification())
+        }
+
+        val actions = JPanel(FlowLayout(FlowLayout.LEFT, 8, 0)).apply {
+            add(refreshDiagnosticsButton)
+            add(testErrorSoundButton)
+            add(testSuccessSoundButton)
+            add(testNotificationButton)
+        }
+
+        val scroll = JBScrollPane(diagnosticsSummaryArea).apply {
+            preferredSize = java.awt.Dimension(0, 190)
+        }
+
+        val help = JBLabel(
+            """
+            <html>
+              Diagnostics use current applied settings. Self-tests do not mutate settings, add rules,
+              write files, use the network, or create Alert History entries.
+            </html>
+            """.trimIndent()
+        ).apply {
+            foreground = JBColor.GRAY
+            border = BorderFactory.createEmptyBorder(4, 0, 0, 0)
+        }
+        diagnosticsStatusLabel.foreground = JBColor.GRAY
+
+        return JPanel(BorderLayout(0, 4)).apply {
+            add(JBLabel("Diagnostics / Self-Test"), BorderLayout.NORTH)
+            add(scroll, BorderLayout.CENTER)
+            add(JPanel(BorderLayout(0, 2)).apply {
+                add(actions, BorderLayout.NORTH)
+                add(diagnosticsStatusLabel, BorderLayout.CENTER)
+                add(help, BorderLayout.SOUTH)
+            }, BorderLayout.SOUTH)
+        }
+    }
+
+    private fun refreshDiagnosticsSummary() {
+        val snapshot = ErrorSoundDiagnosticsService.buildSnapshot()
+        val lines = mutableListOf<String>()
+        snapshot.rows.forEach { (label, value) ->
+            lines += "$label: $value"
+        }
+        if (snapshot.notes.isNotEmpty()) {
+            lines += ""
+            lines += "Notes:"
+            snapshot.notes.forEach { note -> lines += "- $note" }
+        }
+        diagnosticsSummaryArea.text = lines.joinToString("\n")
+        diagnosticsSummaryArea.caretPosition = 0
+    }
+
+    private fun showDiagnosticsResult(result: ErrorSoundDiagnosticsService.SelfTestResult) {
+        val parent = panel ?: return
+        if (result.success) {
+            Messages.showInfoMessage(parent, result.message, "Diagnostics / Self-Test")
+        } else {
+            Messages.showWarningDialog(parent, result.message, "Diagnostics / Self-Test")
+        }
+    }
+
+    private fun showNotificationDiagnosticsResult(result: ErrorSoundDiagnosticsService.SelfTestResult) {
+        diagnosticsStatusLabel.text = result.message
+        if (!result.success) {
+            val parent = panel ?: return
+            Messages.showWarningDialog(parent, result.message, "Diagnostics / Self-Test")
         }
     }
 

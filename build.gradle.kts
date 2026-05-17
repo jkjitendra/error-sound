@@ -7,7 +7,7 @@ plugins {
 }
 
 group = "com.drostwades"
-version = "1.1.16"
+version = "1.1.17"
 
 repositories {
     mavenCentral()
@@ -53,6 +53,7 @@ intellijPlatform {
               <li><b>Rule Presets:</b> add bundled custom regex and terminal exit-code rule bundles for common stacks without changing sound, volume, success, project, history, snooze, or full profile settings</li>
               <li><b>Suppression Rules:</b> silence known noisy false positives with local regex rules before alerts are dispatched</li>
               <li><b>Actionable notifications:</b> open the Error Monitor, disable the current alert kind, or view alert details from visual alerts</li>
+              <li><b>Diagnostics / Self-Test:</b> inspect applied settings and run safe sound and notification checks from the settings page</li>
               <li><b>Exit-code rules for terminal commands:</b> map specific exit codes to error kinds, optional per-code sound overrides, or suppress alerts entirely (e.g. silence Ctrl+C / exit&nbsp;130)</li>
               <li>Per-kind sounds, or one global sound for all alerts</li>
               <li><b>Success sounds:</b> optional alert on successful process completion (off by default)</li>
@@ -72,6 +73,13 @@ intellijPlatform {
         """.trimIndent()
 
         changeNotes = """
+            <b>1.1.17</b>
+            <ul>
+              <li>New <b>Diagnostics / Self-Test</b> section in Settings &rarr; Tools &rarr; Error Sound Alert</li>
+              <li>Shows a local summary of applied monitoring, snooze, notification, sound, rule, history, preset, import/export, and terminal-integration status</li>
+              <li>Adds safe self-test actions for GENERIC error sound, SUCCESS sound, and a diagnostic visual notification without mutating settings or writing Alert History entries</li>
+              <li>Diagnostics are local only: no telemetry, network calls, file writes, persistent diagnostic logs, or terminal reflection changes</li>
+            </ul>
             <b>1.1.16</b>
             <ul>
               <li>Visual alert notifications now include an <b>Open Error Monitor</b> action</li>

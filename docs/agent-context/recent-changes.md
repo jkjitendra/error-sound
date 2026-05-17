@@ -4,6 +4,47 @@ Engineering-significant changes to the codebase. Not a full changelog — focuse
 
 ---
 
+## 1.1.17 — Diagnostics / Self-Test (Phase 8)
+
+### Scope
+Phase 8 adds a shipped user-facing **Diagnostics / Self-Test** section only in Settings / Preferences -> Tools -> Error Sound Alert. Diagnostics are not shown in the Error Monitor tool window.
+
+### New File: `ErrorSoundDiagnosticsService.kt`
+- Builds a local applied-status snapshot for monitoring, snooze, visual notifications, sound configuration, rule counts, Alert History count, rule preset availability, import/export schema support, and terminal integration status
+- Provides safe self-test helpers for GENERIC error sound, SUCCESS sound, and diagnostic visual notification
+- Sound self-tests use preview playback and respect Play Once Sound Duration where applicable
+
+### `ErrorSoundConfigurable` — Diagnostics UI
+- Adds a Settings-only **Diagnostics / Self-Test** section
+- Provides **Refresh Diagnostics**, **Test error sound**, **Test success sound**, and **Test visual notification** actions
+- Shows normal visual notification success as inline status, not a modal OK dialog
+- Shows warning/error dialogs only for failure paths such as an unavailable notification group
+
+### Diagnostic visual notification
+- Sends a real IntelliJ Platform balloon notification
+- Uses `NotificationGroupManager`
+- Uses existing notification group id `Error Sound Alert`
+- Uses `NotificationType.INFORMATION`
+- Resolves an active project fallback because Settings has no direct project context
+- Delivers notification on the EDT
+
+### Marketplace metadata
+- Plugin version is `1.1.17`
+- Marketplace change notes and feature description include Diagnostics / Self-Test as a shipped feature
+
+### Safety Boundaries
+- No `AlertDispatcher` call
+- No Alert History entries from self-tests
+- No settings mutation
+- No file writes
+- No persistent diagnostic logs
+- No telemetry
+- No network calls
+- No terminal reflection logic changes
+- No direct imports from `org.jetbrains.plugins.terminal`
+
+---
+
 ## 1.1.16 — Actionable Notification Actions v1 (Phase 7)
 
 ### Scope

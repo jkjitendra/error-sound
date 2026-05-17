@@ -129,6 +129,37 @@ The **Disable this kind** / **Disable success alerts** notification action mutat
 
 Alert detail dialogs are generated from the in-memory `AlertMatchExplanation` passed to `AlertDispatcher`. Detail fields are capped and may include source, kind, cause, exit code, command/config, rule id/pattern, match target, sound override, and short summary. Full console output is not shown. Existing Alert History behavior is unchanged.
 
+## Diagnostics / Self-Test
+
+Phase 8 diagnostics add no new persisted settings. Diagnostics read existing applied settings and runtime status from services such as `AlertSettings`, `SnoozeState`, `AlertHistoryService`, and bundled rule helpers.
+
+Diagnostics / Self-Test is available only in Settings / Preferences -> Tools -> Error Sound Alert. It is not part of the Error Monitor tool window.
+
+The diagnostics summary may show:
+- monitoring enabled/disabled
+- snooze active/inactive
+- notification settings
+- sound source and selected sound
+- global volume
+- alert duration
+- `useActualSoundDuration` / play-once state
+- custom regex rule count
+- suppression rule count
+- terminal exit-code rule count
+- Alert History count
+- rule preset availability
+- rule import/export schema support
+- terminal integration status
+
+Self-test actions:
+- **Test error sound** uses preview playback for a GENERIC error sound
+- **Test success sound** uses preview playback for the SUCCESS sound when enabled
+- **Test visual notification** sends a real IntelliJ Platform balloon notification through the existing `Error Sound Alert` notification group
+
+Test visual notification uses `NotificationGroupManager`, `NotificationType.INFORMATION`, active project fallback, and EDT delivery. The normal success path does not show a modal OK dialog; failure paths may show a warning/error dialog.
+
+Diagnostics and self-tests do not mutate settings, write Alert History entries, write files, create persistent diagnostic logs, call `AlertDispatcher`, use network/telemetry, or change terminal reflection behavior. Sound self-tests respect Play Once Sound Duration where applicable.
+
 ## Rule Import / Export JSON
 
 Rules-only local JSON import/export is handled by `RuleImportExportBundle` and `RuleImportExportService`. Schema version 2 covers exactly:
@@ -151,7 +182,7 @@ It does **not** cover:
 {
   "schemaVersion": 2,
   "exportedAt": "2026-05-02T00:00:00Z",
-  "pluginVersion": "1.1.16",
+  "pluginVersion": "1.1.17",
   "customRules": [
     {
       "id": "8e2d8f2f-4d8b-46cc-8f22-82a904f1d6aa",

@@ -188,6 +188,44 @@ Show alert details includes capped fields only: source, kind, cause, exit code, 
 
 Limitation: disabling a kind mutates the underlying monitoring setting immediately, but an already-open Error Monitor tool window may need refresh/reopen to visually reflect the changed checkbox state.
 
+## Diagnostics / Self-Test Flow
+
+Diagnostics / Self-Test is a Settings-only local verification surface under **Settings / Preferences → Tools → Error Sound Alert**. It is not shown in the Error Monitor tool window.
+
+The diagnostics summary reads applied state and status only:
+- monitoring enabled/disabled
+- snooze active/inactive
+- visual notification settings
+- sound source, selected sound, global volume, alert duration, and play-once mode
+- custom regex, suppression, and terminal exit-code rule counts
+- Alert History count
+- rule preset availability
+- rule import/export schema support
+- terminal integration status
+
+Self-test actions are separate from real alert dispatch:
+- **Test error sound** and **Test success sound** use the preview playback path and respect Play Once Sound Duration where applicable.
+- **Test visual notification** sends a real IntelliJ Platform balloon notification through `NotificationGroupManager`, notification group id `Error Sound Alert`, `NotificationType.INFORMATION`, active project fallback, and EDT delivery.
+- The normal visual-notification success path updates inline settings status and does not show a modal OK dialog.
+
+Diagnostics do not enter the detection → dispatch → history flow:
+
+```
+Settings Diagnostics / Self-Test
+  ├── ErrorSoundDiagnosticsService.buildSnapshot()
+  │     └── reads applied settings/status only
+  ├── testErrorSound() / testSuccessSound()
+  │     └── ErrorSoundPlayer preview path only
+  └── showTestNotification()
+        └── NotificationGroupManager -> "Error Sound Alert" balloon
+
+No AlertDispatcher.tryAlert()
+No AlertHistoryService.record(...)
+No settings mutation
+```
+
+There are no telemetry calls, network calls, file writes, persistent diagnostic logs, terminal reflection changes, or Alert History entries from self-tests. Notification placement is controlled by the IntelliJ Platform notification system.
+
 ## Ignore / Suppression Rule Flow
 
 Suppression rules are local regex rules stored in `AlertSettings.State.suppressionRules` and compiled by `SuppressionRuleEngine`. They run before custom regex classification, built-in classification dispatch, sound playback, visual notifications, and Alert History recording.
@@ -262,6 +300,7 @@ Error Monitor (Tool Window, right sidebar)
         └── Alert History section:
               read-only accepted-alert table + clear history action
         └── links to: ErrorSoundConfigurable via "Open sound settings" button
+        └── does not contain Diagnostics / Self-Test controls
 ```
 
 ## Resource Usage / Audio Playback

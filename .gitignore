@@ -27,3 +27,5 @@ out/
 # Environment / secrets
 .env
 local.properties
+
+codebundle-output.md
