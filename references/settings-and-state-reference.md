@@ -160,6 +160,55 @@ Test visual notification uses `NotificationGroupManager`, `NotificationType.INFO
 
 Diagnostics and self-tests do not mutate settings, write Alert History entries, write files, create persistent diagnostic logs, call `AlertDispatcher`, use network/telemetry, or change terminal reflection behavior. Sound self-tests respect Play Once Sound Duration where applicable.
 
+## Project Profile State: `ProjectAlertSettings.State`
+
+**Persistence:** `@State(name = "ErrorSoundProjectAlertSettings", storages = [Storage(StoragePathMacros.WORKSPACE_FILE)])`
+**Service level:** `@Service(Service.Level.PROJECT)` — workspace-scoped project state
+
+Phase 9 project profiles are opt-in overrides layered over global `AlertSettings.State`. When `useProfileOverrides` is `false`, the project inherits global settings. When it is `true`, only selected override groups replace global values; unselected groups continue inheriting global settings.
+
+### Project Profile Fields
+
+| Group | Enable Field | Value Fields |
+|---|---|---|
+| Profile master | `useProfileOverrides` | Enables/disables all project profile overrides |
+| Master monitoring | `useOverride` | `enabledOverride` |
+| Monitoring kinds | `useMonitoringOverrides` | `monitorConfigurationOverride`, `monitorCompilationOverride`, `monitorTestFailureOverride`, `monitorNetworkOverride`, `monitorExceptionOverride`, `monitorGenericOverride`, `monitorSuccessOverride` |
+| Built-in sound behavior | `useSoundOverrides` | `useGlobalBuiltInSoundOverride`, `builtInSoundIdOverride`, per-kind sound enabled/id overrides, `successSoundEnabledOverride`, `successSoundIdOverride` |
+| Volume | `useVolumeOverrides` | `volumePercentOverride`, nullable per-kind volume percent overrides |
+| Duration / play once | `useDurationOverrides` | `alertDurationSecondsOverride`, `useActualSoundDurationOverride` |
+| Visual notifications | `useVisualNotificationOverrides` | `showVisualNotificationOverride`, `visualNotificationOnErrorOverride`, `visualNotificationOnSuccessOverride` |
+| Minimum process duration | `useMinProcessDurationOverride` | `minProcessDurationSecondsOverride` |
+
+### Project Profile Resolution
+
+`ResolvedSettingsResolver.resolve()` starts with a copy of global `AlertSettings.State`, applies only selected project override groups, and returns an effective copy. It does not mutate global settings or project workspace state.
+
+Supported Phase 9 overrides:
+- master enabled
+- per-kind monitoring toggles
+- built-in/global sound behavior
+- per-kind sound enabled/id
+- success sound enabled/id
+- global volume
+- per-kind volume overrides
+- alert duration
+- `useActualSoundDuration` / play once
+- visual notification settings
+- minimum process duration threshold
+
+Project profile state does **not** include custom regex rules, suppression rules, terminal exit-code rules, rule presets, rule import/export data, Alert History, terminal integration state, repo-shared profile files, merge-policy UI, or per-run-configuration overrides.
+
+### Backward Compatibility
+
+Legacy workspace files with only `useOverride` / `enabledOverride` still load. Normalization treats an existing enabled-only override as an active project profile master override so old per-project monitoring behavior is preserved.
+
+### Project Profile Actions
+
+- **Copy current global settings** seeds the project profile from current global settings and enables supported override groups.
+- **Reset project overrides** clears project profile state back to inheritance defaults.
+- Diagnostics can show active project profile override categories when an active project is available.
+
 ## Rule Import / Export JSON
 
 Rules-only local JSON import/export is handled by `RuleImportExportBundle` and `RuleImportExportService`. Schema version 2 covers exactly:
@@ -171,7 +220,7 @@ It does **not** cover:
 - global sound settings
 - per-kind volume
 - success settings
-- project overrides
+- project profiles / project overrides
 - alert history
 - snooze state
 - full plugin settings bundles
@@ -182,7 +231,7 @@ It does **not** cover:
 {
   "schemaVersion": 2,
   "exportedAt": "2026-05-02T00:00:00Z",
-  "pluginVersion": "1.1.17",
+  "pluginVersion": "1.1.18",
   "customRules": [
     {
       "id": "8e2d8f2f-4d8b-46cc-8f22-82a904f1d6aa",
@@ -268,8 +317,8 @@ Preset behavior:
 - Duplicate custom rule IDs are skipped
 - Existing terminal exit codes are skipped
 - Existing user-created rules are preserved and preset rules are appended after them
-- Presets do not modify sound settings, volume settings, success settings, project overrides, alert history, snooze state, or full profiles/settings bundles
+- Presets do not modify sound settings, volume settings, success settings, project profiles/overrides, alert history, snooze state, or full profiles/settings bundles
 - Presets are bundled locally; no network, telemetry, remote preset downloads, script execution, or file writes are involved
 
 ---
-*Last updated from code scan: 2026-05-16*
+*Last updated from code scan: 2026-05-17*
