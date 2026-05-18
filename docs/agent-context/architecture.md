@@ -22,7 +22,8 @@
      - built-in classifier → `Cause.BUILT_IN_CLASSIFIER`
      - no match + exit code 0 → converts to `SUCCESS` with `Cause.SUCCESS_FALLBACK`
      - duration threshold suppression → logged with `Cause.DURATION_THRESHOLD_SUPPRESSED`
-  6. → `AlertDispatcher.tryAlert(key, settings, kind, explanation = explanation)`
+  6. Resolve effective settings through `ResolvedSettingsResolver.getInstance(project).resolve()`
+  7. → `AlertDispatcher.tryAlert(key, resolvedSettings, kind, explanation = explanation)`
 
 ### 2. ConsoleFilterProvider Path
 - **Class:** `ErrorConsoleFilterProvider` → `ErrorDetectionFilter`
@@ -33,8 +34,9 @@
   3. If no custom match, line matched against built-in Regex patterns (Exception, Error, FATAL, BUILD FAILED, etc.)
   4. On match → `ErrorClassifier.detectWithExplanation(line, 1)` to classify (only if custom rule did not match)
   5. Creates `AlertMatchExplanation` for custom regex or built-in classifier cause
-  6. → `AlertDispatcher.tryAlert("console:{projectHash}:{kind}", settings, kind, explanation = explanation)`
-  7. Returns `null` (no text modification — sound side-effect only)
+  6. Resolve effective settings through `ResolvedSettingsResolver.getInstance(project).resolve()`
+  7. → `AlertDispatcher.tryAlert("console:{projectHash}:{kind}", resolvedSettings, kind, explanation = explanation)`
+  8. Returns `null` (no text modification — sound side-effect only)
   - FULL_OUTPUT and EXIT_CODE_AND_TEXT suppression/custom rules are **skipped** in this path
 
 ### 3. Terminal Reflection Path
@@ -53,7 +55,8 @@
        - dispatch with `soundOverride` and `Cause.TERMINAL_EXIT_CODE_RULE` (null if the matching rule has no per-code sound set)
      - **Tier 3:** built-in fallback — `classifyTerminal()` internally calls `detectTerminal()` when no exit-code rule matches (GENERIC for non-zero exit, NONE for zero), dispatched with `Cause.BUILT_IN_CLASSIFIER`
   6. LINE_TEXT and FULL_OUTPUT suppression/custom rules are **skipped** in this path
-  7. → `AlertDispatcher.tryAlert("terminal:{projectHash}:{command}:{exitCode}:{kind}", settings, kind, project, soundOverride?, explanation)`
+  7. Resolve effective settings through `ResolvedSettingsResolver.getInstance(project).resolve()`
+  8. → `AlertDispatcher.tryAlert("terminal:{projectHash}:{command}:{exitCode}:{kind}", resolvedSettings, kind, project, soundOverride?, explanation)`
 
 ## Routing Flow
 
@@ -72,13 +75,18 @@ Detection Source
               4. ErrorClassifier.detectTerminal()               [built-in fallback inside classifyTerminal]
          │
          ▼
+   ResolvedSettingsResolver.resolve()
+         └── global settings + selected workspace-scoped project profile overrides
+         └── rules remain global/application-level
+         │
+         ▼
    Suppression match? log and return before AlertDispatcher
          │
          ▼
    AlertMatchExplanation created near classification time
          │
          ▼
-   AlertDispatcher.tryAlert(key, settings, kind, project?, soundOverride?, explanation?)
+   AlertDispatcher.tryAlert(key, resolvedSettings, kind, project?, soundOverride?, explanation?)
          │
          ├── SnoozeState.isSnoozed()
          │     └── short-circuits all gates (transient, no settings needed)
@@ -263,18 +271,18 @@ This policy is consistent, predictable, and avoids "phantom" sounds surprising u
 
 - `AlertSettings` — `@Service(APP)`, persisted to `errorSoundAlert.xml`
 - `ProjectAlertSettings` — `@Service(PROJECT)`, persisted to workspace storage (`WORKSPACE_FILE`)
-- `ResolvedSettingsResolver` — `@Service(PROJECT)`, merges project over global; `resolve()` returns effective `AlertSettings.State`
+- `ResolvedSettingsResolver` — `@Service(PROJECT)`, layers selected project profile overrides over global; `resolve()` returns an effective `AlertSettings.State` copy
 - `ErrorSoundConfigurable` — Settings UI panel under **Tools → Error Sound Alert** (global settings only)
 - `ErrorSoundToolWindowFactory` — **Error Monitor** sidebar panel (right anchor, secondary)
-  - Project Profile section: mutates `ProjectAlertSettings.state` directly
+  - Project Profile section: mutates `ProjectAlertSettings.state` directly through `ProjectProfilePanel`
   - Global enable checkbox: mutates `AlertSettings.state.enabled` directly
   - All other settings panel changes use `apply()` / `reset()` pattern with `loadState()`
 
-### Phase 7 merge rule
+### Phase 9 resolution rule
 ```
-ProjectAlertSettings.effectiveEnabledOverride() == null  →  use AlertSettings.state.enabled
-ProjectAlertSettings.effectiveEnabledOverride() == true  →  enabled = true  (regardless of global)
-ProjectAlertSettings.effectiveEnabledOverride() == false →  enabled = false (regardless of global)
+ProjectAlertSettings.state.useProfileOverrides == false  →  inherit global settings
+ProjectAlertSettings.state.useProfileOverrides == true   →  apply only selected override groups
+Unselected override groups                              →  continue inheriting global settings
 ```
 
 The resolver is called at the point of dispatch, not classification:
@@ -282,6 +290,10 @@ The resolver is called at the point of dispatch, not classification:
 ResolvedSettingsResolver.getInstance(project).resolve()  →  AlertSettings.State
   └─ AlertDispatcher.tryAlert(key, resolvedState, kind, project, soundOverride?)
 ```
+
+`resolve()` always returns a copy and does not mutate global settings or project workspace state. Phase 9-supported project override groups are master enabled, per-kind monitoring, built-in/global and per-kind sound behavior, success sound, global/per-kind volume, alert duration/play-once, visual notifications, and minimum process duration. Custom regex rules, suppression rules, terminal exit-code rules, rule presets, rule import/export, Alert History, and terminal integration remain global/application-level in this phase.
+
+Old workspace files with only `useOverride` / `enabledOverride` continue loading: normalization treats an existing enabled-only override as an active profile master override.
 
 ## UI Relationships
 
@@ -293,10 +305,14 @@ Settings → Tools → Error Sound Alert
 
 Error Monitor (Tool Window, right sidebar)
   └── ErrorSoundToolWindowFactory → ErrorSoundToolWindowPanel
-        └── Project Profile section (Phase 7):
-              uses ProjectAlertSettings.state (per-project enabled override)
+        └── Collapsible Project Profile section:
+              uses ProjectProfilePanel + ProjectAlertSettings.state
         └── Global Monitoring section:
-              manages: global enable/disable, per-kind monitor toggles, presets
+              manages: global enable/disable
+        └── Collapsible Error Types section:
+              manages: per-kind error toggles, Select all / Clear all, presets
+        └── Collapsible Success section:
+              manages: success monitoring
         └── Alert History section:
               read-only accepted-alert table + clear history action
         └── links to: ErrorSoundConfigurable via "Open sound settings" button
@@ -358,4 +374,4 @@ Unsupported targets are deterministically skipped — not reinterpreted.
 4. Built-in chunk accumulation (`builtInDetectedResult`, highest-priority kind seen in chunks)
 5. Built-in `ErrorClassifier.detectWithExplanation()` on full buffer
 
-*Last updated from code scan: 2026-05-16*
+*Last updated from code scan: 2026-05-17*

@@ -7,7 +7,7 @@ plugins {
 }
 
 group = "com.drostwades"
-version = "1.1.17"
+version = "1.1.18"
 
 repositories {
     mavenCentral()
@@ -54,6 +54,7 @@ intellijPlatform {
               <li><b>Suppression Rules:</b> silence known noisy false positives with local regex rules before alerts are dispatched</li>
               <li><b>Actionable notifications:</b> open the Error Monitor, disable the current alert kind, or view alert details from visual alerts</li>
               <li><b>Diagnostics / Self-Test:</b> inspect applied settings and run safe sound and notification checks from the settings page</li>
+              <li><b>Full per-project profiles:</b> override monitoring, sound, volume, duration, notification, and threshold behavior per workspace without changing global settings</li>
               <li><b>Exit-code rules for terminal commands:</b> map specific exit codes to error kinds, optional per-code sound overrides, or suppress alerts entirely (e.g. silence Ctrl+C / exit&nbsp;130)</li>
               <li>Per-kind sounds, or one global sound for all alerts</li>
               <li><b>Success sounds:</b> optional alert on successful process completion (off by default)</li>
@@ -65,7 +66,6 @@ intellijPlatform {
               <li>Instant preview from the settings panel</li>
               <li><b>Error Monitor</b> sidebar panel: enable/disable monitoring, filter by error type, and apply presets without leaving your editor</li>
               <li><b>Alert History:</b> view recent accepted alerts in the Error Monitor with source, kind, cause, and context details</li>
-              <li><b>Project-level profiles:</b> override the master monitoring enabled state per project from the Error Monitor sidebar; all other settings remain global</li>
               <li><b>Per-kind volume:</b> set an independent volume level for each error/success kind; falls back to the global volume when no override is set</li>
             </ul>
             <h3>Supported IDEs</h3>
@@ -73,6 +73,13 @@ intellijPlatform {
         """.trimIndent()
 
         changeNotes = """
+            <b>1.1.18</b>
+            <ul>
+              <li>Expanded project profiles from the master monitoring toggle to opt-in per-project overrides for monitoring kinds, built-in sound behavior, volume, duration/play-once, visual notifications, and minimum process duration</li>
+              <li>Added project profile controls in the Error Monitor with copy-from-global and reset actions</li>
+              <li>Project profile resolution now layers selected workspace-scoped overrides onto global settings without mutating global settings</li>
+              <li>Rule import/export remains rules-only; custom regex, suppression, exit-code rules, presets, Alert History, and terminal reflection behavior are unchanged</li>
+            </ul>
             <b>1.1.17</b>
             <ul>
               <li>New <b>Diagnostics / Self-Test</b> section in Settings &rarr; Tools &rarr; Error Sound Alert</li>

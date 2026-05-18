@@ -14,7 +14,7 @@ IntelliJ Platform plugin that plays an audio alert when a Run/Debug process, con
 4. Checks user suppression rules before dispatch, then routes accepted errors through `AlertDispatcher → SnoozeState → AlertMonitoring → AlertEventGate → AlertHistoryService → ErrorSoundPlayer`.
 5. Plays a WAV sound (built-in or custom) with configurable volume, configured duration looping, or the optional actual sound file duration play-once mode.
 6. Records accepted alerts in an in-memory Error Monitor history after snooze, monitoring, and deduplication gates accept the event.
-7. Resolves per-project `enabled` override via `ResolvedSettingsResolver` (Phase 7) before dispatching.
+7. Resolves opt-in workspace-scoped per-project profile overrides via `ResolvedSettingsResolver` before dispatching.
 8. Provides bundled local Rule Presets that append Custom Regex Rules and conservative Terminal Exit-Code Rules in the settings UI.
 9. Provides local Ignore / Suppression Rules that silence known noisy false positives before alert dispatch.
 10. Adds actionable visual notification controls for opening settings, opening Error Monitor, muting, disabling the current kind, and viewing capped alert details.
@@ -31,7 +31,7 @@ IntelliJ Platform plugin that plays an audio alert when a Run/Debug process, con
 | Target platform | IC 2024.3 |
 | `sinceBuild` | 243 |
 | `untilBuild` | unset (open-ended) |
-| **Plugin version** | **1.1.17** |
+| **Plugin version** | **1.1.18** |
 
 ## Completed Phases
 
@@ -41,7 +41,7 @@ IntelliJ Platform plugin that plays an audio alert when a Run/Debug process, con
 - Phase 4 — Visual Alert Companion
 - Phase 5 — Custom Regex Rules
 - Phase 6 — Exit-Code-Specific Terminal Sounds
-- Phase 7 — Project-Level Profiles (per-project `enabled` override only)
+- Phase 7 — Project-Level Profiles (initial per-project `enabled` override)
 - Phase 8 — Per-Kind Volume
 - Phase 1 Roadmap — Rule Testing Sandbox
 - Phase 2 Roadmap — Rule Match Explanation (internal runtime plumbing)
@@ -52,6 +52,7 @@ IntelliJ Platform plugin that plays an audio alert when a Run/Debug process, con
 - Phase 6 Roadmap — Ignore / Suppression Rules
 - Phase 7 Roadmap — Actionable Notification Actions v1
 - Phase 8 Roadmap — Diagnostics / Self-Test
+- Phase 9 Roadmap — Full Per-Project Profiles
 
 ## Safe Editing Rules
 
@@ -74,7 +75,7 @@ IntelliJ Platform plugin that plays an audio alert when a Run/Debug process, con
 | `build.gradle.kts` | **MEDIUM** — Platform plugin config, sinceBuild/untilBuild, signing, verification. |
 | `ErrorSoundPlayer.kt` | **LOW-MEDIUM** — Audio thread management. Clip leaks if not closed properly. |
 | `ProjectAlertSettings.kt` | **LOW** — Workspace-scoped persistent state; changing storage path would lose saved overrides. |
-| `ResolvedSettingsResolver.kt` | **LOW** — Merge logic is trivial, but all detection paths depend on it for the `enabled` gate. |
+| `ResolvedSettingsResolver.kt` | **LOW-MEDIUM** — Layers project profile overrides over global state for all detection paths without mutating stored settings. |
 
 ## Required Verification Commands
 
@@ -97,4 +98,4 @@ IntelliJ Platform plugin that plays an audio alert when a Run/Debug process, con
 7. See `docs/agent-context/maintenance-rules.md` for the full update matrix.
 
 ---
-*Last updated from code scan: 2026-05-16*
+*Last updated from code scan: 2026-05-17*

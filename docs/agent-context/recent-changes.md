@@ -4,6 +4,49 @@ Engineering-significant changes to the codebase. Not a full changelog — focuse
 
 ---
 
+## 1.1.18 — Full Per-Project Profiles (Phase 9)
+
+### Scope
+Phase 9 expands the earlier enabled-only project override into opt-in workspace-scoped **Full Per-Project Profiles**. Projects inherit global settings when profile overrides are disabled; when enabled, only selected override groups replace global values and unresolved fields continue inheriting globals.
+
+### `ProjectAlertSettings` — expanded workspace state
+- Preserves legacy `useOverride` / `enabledOverride` fields and migrates old enabled-only workspace overrides into the new profile master behavior
+- Adds override groups for master enabled, monitoring kinds, built-in/global and per-kind sound behavior, success sound, global/per-kind volume, alert duration/play-once, visual notifications, and minimum process duration
+- Stores project profile state in workspace storage (`WORKSPACE_FILE`), not shared repo files
+- Adds helpers to copy current global settings, reset overrides, and report active override category labels for diagnostics
+
+### `ResolvedSettingsResolver` — layered effective settings
+- Starts from global `AlertSettings.State`
+- Applies only selected project override groups
+- Returns an effective settings copy without mutating global settings or project workspace state
+- Leaves rules, presets, import/export schema, Alert History, and terminal integration global/application-level
+
+### `ProjectProfilePanel` / `ErrorSoundToolWindowFactory` — compact project UI
+- Adds a dedicated project profile panel inside Error Monitor
+- Provides **Use project profile overrides**, **Copy current global settings**, and **Reset project overrides**
+- Uses collapsible top-level Error Monitor sections for **Project Profile**, **Error Types**, and **Success** to keep the right-side tool window compact
+- Keeps Global Monitoring, Snooze, Alert History, and Open sound settings visible
+- Keeps Select all / Clear all and presets inside the Error Types section
+
+### Diagnostics
+- Diagnostics snapshot now reports active project profile override categories when an active project is available
+
+### Marketplace metadata
+- Plugin version is `1.1.18`
+- Marketplace change notes and feature description include Full Per-Project Profiles as a shipped feature
+
+### Safety Boundaries
+- No per-project custom regex rules
+- No per-project suppression rules
+- No per-project exit-code rules
+- No per-project rule presets or rule import/export
+- No per-project Alert History
+- No repo-shared profile file or merge-policy UI
+- No per-run-configuration overrides
+- No AlertDispatcher, Alert History, rule import/export schema, terminal reflection, network, or telemetry behavior changes
+
+---
+
 ## 1.1.17 — Diagnostics / Self-Test (Phase 8)
 
 ### Scope
@@ -369,7 +412,7 @@ Phase 0 performed cleanup and baseline stabilization only. No runtime source, Gr
 
 ### Documentation updates
 - Aligned plugin version references with `build.gradle.kts` version `1.1.8`
-- Updated project overview limitations to reflect the current project-level `enabled` override
+- Updated project overview limitations to reflect the then-current project-level `enabled` override
 - Refreshed README feature coverage for currently shipped features through 1.1.8
 - Added `docs/agent-context/feature-registry.md` as the available-feature inventory
 
@@ -742,4 +785,4 @@ projectOverride == false →  effective enabled = false (regardless of global)
 - Improved terminal compatibility with 2025.x reworked terminal engine
 
 ---
-*Last updated from code scan: 2026-05-16*
+*Last updated from code scan: 2026-05-17*

@@ -27,6 +27,7 @@ import javax.swing.JButton
 import javax.swing.JComponent
 import javax.swing.JPanel
 import javax.swing.ScrollPaneConstants
+import javax.swing.SwingConstants
 import javax.swing.JTable
 import javax.swing.table.AbstractTableModel
 import java.time.Instant
@@ -67,24 +68,7 @@ private class ErrorSoundToolWindowPanel(
         font = JBFont.small()
     }
 
-    // ── Project Profile controls (Phase 7) ────────────────────────────────────
-    /**
-     * When checked, the project-level override for `enabled` is active.
-     * When unchecked, this project inherits the global `enabled` value.
-     */
-    private val useProjectOverrideCheckBox = JBCheckBox(
-        "Use project override for monitoring enabled",
-        projectSettings.state.useOverride
-    )
-
-    /**
-     * Controls `enabled` for this project when [useProjectOverrideCheckBox] is checked.
-     * Disabled (greyed out) when the override is not active.
-     */
-    private val projectEnabledCheckBox = JBCheckBox(
-        "Enable monitoring for this project",
-        projectSettings.state.enabledOverride
-    )
+    private val projectProfilePanel = ProjectProfilePanel(project) { refreshUiState() }
 
     // ── Global monitoring controls ─────────────────────────────────────────────
 
@@ -244,10 +228,7 @@ private class ErrorSoundToolWindowPanel(
         column.add(compact(buildHeader()))
         column.add(Box.createVerticalStrut(8))
 
-        // Phase 7 — Project Profile section
-        column.add(compact(TitledSeparator("Project Profile")))
-        column.add(Box.createVerticalStrut(6))
-        column.add(compact(buildProjectProfileSection()))
+        column.add(expandable(collapsibleBlock("Project Profile", false, buildProjectProfileSection())))
         column.add(Box.createVerticalStrut(10))
 
         column.add(compact(TitledSeparator("Global Monitoring")))
@@ -255,26 +236,9 @@ private class ErrorSoundToolWindowPanel(
         column.add(compact(enabledCheckBox))
         column.add(Box.createVerticalStrut(10))
 
-        column.add(compact(TitledSeparator("Error Types")))
-        column.add(Box.createVerticalStrut(6))
-
-        typeRows.forEachIndexed { index, row ->
-            column.add(compact(createTypeRow(row)))
-            if (index != typeRows.lastIndex) {
-                column.add(Box.createVerticalStrut(4))
-            }
-        }
-
+        column.add(expandable(collapsibleBlock("Error Types", false, buildErrorTypesSection())))
         column.add(Box.createVerticalStrut(8))
-        column.add(compact(TitledSeparator("Success")))
-        column.add(Box.createVerticalStrut(6))
-        column.add(compact(createTypeRow(successRow)))
-
-        column.add(Box.createVerticalStrut(8))
-        column.add(compact(buildQuickActions()))
-
-        column.add(Box.createVerticalStrut(6))
-        column.add(compact(buildPresets()))
+        column.add(expandable(collapsibleBlock("Success", false, createTypeRow(successRow))))
 
         column.add(Box.createVerticalStrut(10))
         column.add(compact(TitledSeparator("Snooze")))
@@ -323,35 +287,26 @@ private class ErrorSoundToolWindowPanel(
         return panel
     }
 
-    /**
-     * Builds the "Project Profile" UI section (Phase 7).
-     *
-     * Contains two checkboxes stacked vertically:
-     * 1. [useProjectOverrideCheckBox] — activates a per-project override
-     * 2. [projectEnabledCheckBox] — the override value (enabled only when override is active)
-     */
     private fun buildProjectProfileSection(): JComponent {
+        return projectProfilePanel
+    }
+
+    private fun buildErrorTypesSection(): JComponent {
         val wrapper = JPanel()
         wrapper.layout = BoxLayout(wrapper, BoxLayout.Y_AXIS)
         wrapper.isOpaque = false
 
-        val hint = JBLabel("Override the global \"Enable monitoring\" for this project only.").apply {
-            foreground = UIUtil.getContextHelpForeground()
-            font = JBFont.small()
-            border = JBUI.Borders.emptyLeft(0)
-            alignmentX = Component.LEFT_ALIGNMENT
+        typeRows.forEachIndexed { index, row ->
+            wrapper.add(compact(createTypeRow(row)))
+            if (index != typeRows.lastIndex) {
+                wrapper.add(Box.createVerticalStrut(4))
+            }
         }
 
-        useProjectOverrideCheckBox.alignmentX = Component.LEFT_ALIGNMENT
-        projectEnabledCheckBox.alignmentX = Component.LEFT_ALIGNMENT
-        projectEnabledCheckBox.border = JBUI.Borders.emptyLeft(22)
-
-        wrapper.add(left(hint))
-        wrapper.add(Box.createVerticalStrut(4))
-        wrapper.add(useProjectOverrideCheckBox)
-        wrapper.add(Box.createVerticalStrut(2))
-        wrapper.add(projectEnabledCheckBox)
-
+        wrapper.add(Box.createVerticalStrut(8))
+        wrapper.add(compact(buildQuickActions()))
+        wrapper.add(Box.createVerticalStrut(6))
+        wrapper.add(compact(buildPresets()))
         return wrapper
     }
 
@@ -476,19 +431,6 @@ private class ErrorSoundToolWindowPanel(
     }
 
     private fun bindEvents() {
-        // ── Project Profile checkboxes (Phase 7) ──────────────────────────────
-        useProjectOverrideCheckBox.addActionListener {
-            val ps = projectSettings.state
-            ps.useOverride = useProjectOverrideCheckBox.isSelected
-            refreshUiState()
-        }
-
-        projectEnabledCheckBox.addActionListener {
-            val ps = projectSettings.state
-            ps.enabledOverride = projectEnabledCheckBox.isSelected
-            refreshUiState()
-        }
-
         // ── Global monitoring checkbox ─────────────────────────────────────────
         enabledCheckBox.addActionListener {
             settings.enabled = enabledCheckBox.isSelected
@@ -555,28 +497,38 @@ private class ErrorSoundToolWindowPanel(
     }
 
     private fun refreshUiState() {
-        // Phase 7: use the effective (resolved) settings so per-project enabled override is reflected.
-        val ps = projectSettings.state
-        val resolvedEnabled = ResolvedSettingsResolver.getInstance(project).resolve().enabled
+        // Use the effective settings so project profile overrides are reflected.
+        val resolvedState = ResolvedSettingsResolver.getInstance(project).resolve()
+        val resolvedEnabled = resolvedState.enabled
+        projectProfilePanel.refreshFromState()
 
-        // Sync project profile checkboxes from stored state
-        useProjectOverrideCheckBox.isSelected = ps.useOverride
-        projectEnabledCheckBox.isSelected = ps.enabledOverride
-        projectEnabledCheckBox.isEnabled = ps.useOverride  // greyed out when no override active
-
-        // Global enabled checkbox reflects global state regardless of project override
+        // Global controls reflect global state regardless of project profile overrides.
         enabledCheckBox.isSelected = settings.enabled
+        configurationCheckBox.isSelected = settings.monitorConfiguration
+        compilationCheckBox.isSelected = settings.monitorCompilation
+        testFailureCheckBox.isSelected = settings.monitorTestFailure
+        networkCheckBox.isSelected = settings.monitorNetwork
+        exceptionCheckBox.isSelected = settings.monitorException
+        genericCheckBox.isSelected = settings.monitorGeneric
+        successCheckBox.isSelected = settings.monitorSuccess
 
         val monitoringEnabled = resolvedEnabled
-        val enabledCount = typeRows.count { it.checkBox.isSelected }
-        val successEnabled = successRow.checkBox.isSelected
+        val enabledCount = listOf(
+            resolvedState.monitorConfiguration,
+            resolvedState.monitorCompilation,
+            resolvedState.monitorTestFailure,
+            resolvedState.monitorNetwork,
+            resolvedState.monitorException,
+            resolvedState.monitorGeneric,
+        ).count { it }
+        val successEnabled = resolvedState.monitorSuccess
 
         val isSnoozed = SnoozeState.isSnoozed()
 
         // Build status text — show whether the effective state is inherited or overridden
         val sourceNote = when {
             isSnoozed -> null
-            ps.useOverride -> "(project override)"
+            projectSettings.activeOverrideLabels().isNotEmpty() -> "(project profile)"
             else -> "(global)"
         }
         statusLabel.text = when {
@@ -624,9 +576,65 @@ private class ErrorSoundToolWindowPanel(
         return component
     }
 
+    private fun <T : JComponent> expandable(component: T): T {
+        component.alignmentX = Component.LEFT_ALIGNMENT
+        component.maximumSize = Dimension(Int.MAX_VALUE, Int.MAX_VALUE)
+        return component
+    }
+
     private fun <T : JComponent> left(component: T): T {
         component.alignmentX = Component.LEFT_ALIGNMENT
         return component
+    }
+
+    private fun collapsibleBlock(
+        title: String,
+        expandedByDefault: Boolean,
+        content: JComponent,
+    ): JComponent {
+        return CollapsibleBlock(title, content, expandedByDefault).panel
+    }
+
+    private inner class CollapsibleBlock(
+        private val title: String,
+        private val content: JComponent,
+        expandedByDefault: Boolean,
+    ) {
+        private var expanded = expandedByDefault
+        private val header = JButton().apply {
+            horizontalAlignment = SwingConstants.LEFT
+            isContentAreaFilled = false
+            isBorderPainted = false
+            isFocusPainted = false
+            border = JBUI.Borders.empty(2, 0)
+            font = JBFont.small().deriveFont(Font.BOLD)
+            addActionListener { toggle() }
+        }
+
+        val panel: JPanel = JPanel().apply {
+            layout = BoxLayout(this, BoxLayout.Y_AXIS)
+            isOpaque = false
+            add(left(expandable(header)))
+            add(left(expandable(content)))
+        }
+
+        init {
+            update()
+        }
+
+        private fun toggle() {
+            expanded = !expanded
+            update()
+            this@ErrorSoundToolWindowPanel.revalidate()
+            this@ErrorSoundToolWindowPanel.repaint()
+            panel.revalidate()
+            panel.repaint()
+        }
+
+        private fun update() {
+            header.text = if (expanded) "[v] $title" else "[>] $title"
+            content.isVisible = expanded
+        }
     }
 
     private data class KindRow(

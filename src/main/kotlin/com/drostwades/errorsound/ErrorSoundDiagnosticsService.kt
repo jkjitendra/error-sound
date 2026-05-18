@@ -24,6 +24,15 @@ object ErrorSoundDiagnosticsService {
 
     fun buildSnapshot(): Snapshot {
         val state = AlertSettings.getInstance().state
+        val activeProject = resolveNotificationProject(null)
+        val projectProfileStatus = activeProject?.let { project ->
+            val labels = ProjectAlertSettings.getInstance(project).activeOverrideLabels()
+            if (labels.isEmpty()) {
+                "Inactive for active project: ${project.name}"
+            } else {
+                "Active for active project: ${project.name} (${labels.joinToString(", ")})"
+            }
+        } ?: "No active project context found"
         val customPath = state.customSoundPath.trim()
         val customFileStatus = when {
             customPath.isBlank() -> "Blank"
@@ -34,7 +43,7 @@ object ErrorSoundDiagnosticsService {
         return Snapshot(
             rows = listOf(
                 "Global monitoring" to enabledLabel(state.enabled),
-                "Project monitoring" to "Project-specific effective state is unavailable in Settings",
+                "Project profile overrides" to projectProfileStatus,
                 "Snooze" to (SnoozeState.statusLabel() ?: "Inactive"),
                 "Visual notifications" to enabledLabel(state.showVisualNotification),
                 "Notify on errors" to enabledLabel(state.visualNotificationOnError),

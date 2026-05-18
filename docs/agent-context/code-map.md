@@ -138,7 +138,7 @@ Class-by-class reference for the `com.drostwades.errorsound` package.
 - `SuppressionRule(id, enabled, pattern, matchTarget, description)`
 - `ExitCodeRule(exitCode, enabled, kind, soundId?, suppress)`
 
-**Scope boundary:** This bundle intentionally excludes full plugin settings, global sound settings, per-kind volume, success settings, project overrides, alert history, and snooze state.
+**Scope boundary:** This bundle intentionally excludes full plugin settings, global sound settings, per-kind volume, success settings, project profiles/overrides, alert history, and snooze state.
 
 - **Risk:** LOW — serialization data model only
 
@@ -255,7 +255,7 @@ Class-by-class reference for the `com.drostwades.errorsound` package.
 |---|---|
 | `Snapshot(rows, notes)` | Immutable diagnostics summary data rendered by settings UI |
 | `SelfTestResult(success, message)` | User-facing status for sound/notification self-test actions |
-| `buildSnapshot()` | Reads applied `AlertSettings`, `SnoozeState`, `AlertHistoryService`, rule counts, preset availability, import/export schema support, and terminal integration status |
+| `buildSnapshot()` | Reads applied `AlertSettings`, `SnoozeState`, `AlertHistoryService`, rule counts, preset availability, import/export schema support, terminal integration status, and active project profile override categories when an active project is available |
 | `testErrorSound()` | Plays a GENERIC error sound through the preview path using current applied settings |
 | `testSuccessSound()` | Plays a SUCCESS sound through the preview path when enabled by current applied settings |
 | `showTestNotification(project?)` | Sends a real IntelliJ Platform balloon notification using `NotificationGroupManager`, group id `Error Sound Alert`, and `NotificationType.INFORMATION` |
@@ -372,7 +372,7 @@ Class-by-class reference for the `com.drostwades.errorsound` package.
 - Dedup key: `"exec:{handlerIdentityHash}:{errorKind}"`
 - Routes through `AlertDispatcher.tryAlert()` only when no suppression rule matched
 
-- Phase 7: `processTerminated()` resolves effective settings via `ResolvedSettingsResolver.getInstance(env.project).resolve()` — project-level `enabled` override is honoured at dispatch time
+- Phase 9: `processTerminated()` resolves effective settings via `ResolvedSettingsResolver.getInstance(env.project).resolve()` — selected project profile overrides are layered over global settings at dispatch time
 - **Risk:** LOW — straightforward listener pattern
 
 ---
@@ -389,7 +389,7 @@ Class-by-class reference for the `com.drostwades.errorsound` package.
 | `attachBlockTerminal` | private | Block/Classic terminal: `TerminalToolWindowManager` → widgets → session |
 | `attachReworkedTerminal` | private | Reworked terminal: `TerminalToolWindowTabsManager` → tabs → view → shell integration |
 | `buildListenerProxy` | private | Creates JDK `Proxy` implementing 1–2 listener interfaces |
-| `handleCommandFinished` | private | Precedence: (1) suppression EXIT_CODE_AND_TEXT regex returns before dispatch, (2) custom EXIT_CODE_AND_TEXT regex, (3) exit code rules via `classifyTerminal()` with suppression check, (4) built-in fallback. Phase 7: uses `ResolvedSettingsResolver` for the settings state passed to `AlertDispatcher` |
+| `handleCommandFinished` | private | Precedence: (1) suppression EXIT_CODE_AND_TEXT regex returns before dispatch, (2) custom EXIT_CODE_AND_TEXT regex, (3) exit code rules via `classifyTerminal()` with suppression check, (4) built-in fallback. Uses `ResolvedSettingsResolver` for the effective settings state passed to `AlertDispatcher` |
 | `extractCommandAndExitCode` | private | Reflection-based extraction from event objects |
 | `getShellIntegration` | private | 4-strategy fallback to get shell integration from a view |
 
@@ -442,41 +442,72 @@ Class-by-class reference for the `com.drostwades.errorsound` package.
 ## ProjectAlertSettings
 
 **File:** `ProjectAlertSettings.kt`  
-**Purpose:** Project-scoped settings service (Phase 7 — Project-Level Profiles). Persisted to workspace storage (`WORKSPACE_FILE`) so overrides are per-workspace, not shared across clones.
+**Purpose:** Project-scoped settings service for Full Per-Project Profiles. Persisted to workspace storage (`WORKSPACE_FILE`) so overrides are per-workspace, not shared across clones.
 
 **Level:** `@Service(Service.Level.PROJECT)`
 
 **State fields:**
-- `useOverride: Boolean = false` — whether the project-level enabled override is active
-- `enabledOverride: Boolean = true` — the override value (relevant only when `useOverride == true`)
+- `useProfileOverrides: Boolean = false` — master opt-in switch; when false all project override fields are ignored and global settings are inherited
+- `useOverride`, `enabledOverride` — master monitoring enabled override; legacy enabled-only state is preserved and migrated by normalization
+- `useMonitoringOverrides` plus monitor-kind override booleans — CONFIGURATION, COMPILATION, TEST_FAILURE, NETWORK, EXCEPTION, GENERIC, SUCCESS
+- `useSoundOverrides` plus built-in/global sound mode, global built-in sound id, per-kind sound enabled/id, and success sound enabled/id
+- `useVolumeOverrides` plus global volume and nullable per-kind volume overrides
+- `useDurationOverrides` plus `alertDurationSecondsOverride` and `useActualSoundDurationOverride`
+- `useVisualNotificationOverrides` plus visual notification master/error/success flags
+- `useMinProcessDurationOverride` plus `minProcessDurationSecondsOverride`
 
 **Methods:**
-- `effectiveEnabledOverride(): Boolean?` — returns `null` (inherit global) or the override value
+- `effectiveEnabledOverride(): Boolean?` — returns `null` (inherit global) or the enabled override value
+- `copyGlobalSettings(global)` — seeds the project profile from current global settings and enables all supported override groups
+- `resetOverrides()` — clears the project profile back to inheritance defaults
+- `activeOverrideLabels()` — returns active override category labels for diagnostics
 - `getInstance(project): ProjectAlertSettings` — companion helper
 
-**Phase 7 scope:** Only the `enabled` flag can be overridden per project. All other settings (sounds, per-kind flags, custom rules, exit-code rules) are NOT stored here.
+**Phase 9 scope boundary:** Rules, presets, rule import/export schema, Alert History, terminal integration, and custom file path remain global/application-level.
 
-- **Risk:** LOW — simple persistent state component, workspace-scoped
+- **Risk:** LOW-MEDIUM — workspace-scoped persistent state; storage path and migration behavior must stay stable
 
 ---
 
 ## ResolvedSettingsResolver
 
 **File:** `ResolvedSettingsResolver.kt`  
-**Purpose:** Project service (Phase 7) that merges project-level overrides on top of global application settings and returns the effective `AlertSettings.State` for the current project.
+**Purpose:** Project service that layers selected project profile overrides on top of global application settings and returns the effective `AlertSettings.State` for the current project.
 
 **Level:** `@Service(Service.Level.PROJECT)`
 
 | Method | Description |
 |---|---|
-| `resolve()` | Returns a copy of global `AlertSettings.State` with `enabled` replaced by the project override if active; returns the global state object directly when no override is set |
+| `resolve()` | Returns an `AlertSettings.State` copy. If project profile overrides are disabled, the copy mirrors global settings. If enabled, only selected override groups replace global values |
 | `getInstance(project)` | Companion helper |
 
-**Phase 7 merge rule:** Only `enabled` may differ per project. Everything else comes unchanged from `AlertSettings.getInstance().state`.
+**Resolution policy:** Does not mutate global `AlertSettings.State` or project `ProjectAlertSettings.State`. Unselected override groups inherit global values. Supported Phase 9 groups are master enabled, per-kind monitoring, built-in/global and per-kind sound behavior, success sound, global/per-kind volume, alert duration/play-once, visual notifications, and minimum process duration.
+
+**Global-only in Phase 9:** `customRules`, `suppressionRules`, `exitCodeRules`, rule presets, rule import/export, Alert History, terminal reflection behavior, and custom sound file path.
 
 **Usage pattern:** All three detection paths call `ResolvedSettingsResolver.getInstance(project).resolve()` instead of `AlertSettings.getInstance().state` when passing settings to `AlertDispatcher.tryAlert()`.
 
-- **Risk:** LOW — thin delegating wrapper; only modifies one field
+- **Risk:** LOW-MEDIUM — central settings resolver used by all detection paths
+
+---
+
+## ProjectProfilePanel
+
+**File:** `ProjectProfilePanel.kt`
+**Purpose:** Error Monitor UI panel for workspace-scoped project profile overrides.
+
+**Controls:**
+- Top-level `Use project profile overrides`, `Copy current global settings`, and `Reset project overrides`
+- Collapsible override groups for master monitoring, monitoring kinds, built-in sound behavior, volume, duration / play once, visual notifications, and minimum process duration
+- Advanced groups stay grouped under Project Profile so the narrow Error Monitor tool window remains readable
+
+**Behavior:**
+- Mutates `ProjectAlertSettings.state` for the current project only
+- Copy action seeds project profile values from current global `AlertSettings.State`
+- Reset action clears project overrides and returns the project to global inheritance
+- Collapsing sections does not change active overrides or lose values
+
+- **Risk:** LOW — project UI only; persistence remains in `ProjectAlertSettings`
 
 ---
 
@@ -515,7 +546,7 @@ Class-by-class reference for the `com.drostwades.errorsound` package.
 
 **Dedup key format:** `"console:{project.locationHash}:{errorKind}"`
 
-- Phase 7: `AlertDispatcher.tryAlert()` call uses `ResolvedSettingsResolver.getInstance(project).resolve()` for the settings state — project-level `enabled` override is honoured
+- Phase 9: `AlertDispatcher.tryAlert()` call uses `ResolvedSettingsResolver.getInstance(project).resolve()` for the settings state — selected project profile overrides are honoured
 - **Side effects:** Calls `AlertDispatcher.tryAlert()` only when not suppressed — returns `null` filter result (no text modification)
 - **Risk:** LOW-MEDIUM — false positives possible for benign lines containing "error"; hot path — `hasLineTextRules` guard keeps overhead minimal when no custom rules exist
 
@@ -660,22 +691,21 @@ Class-by-class reference for the `com.drostwades.errorsound` package.
 **Purpose:** Error Monitor sidebar panel. Provides quick toggles for error monitoring categories and a read-only Alert History view.
 
 **Features:**
-- **Project Profile section (Phase 7):** "Use project override for monitoring enabled" + "Enable monitoring for this project" checkboxes
+- Collapsible **Project Profile** section containing `ProjectProfilePanel` for full per-project profile overrides
 - Master enable/disable checkbox (global)
-- Per-kind checkboxes with descriptions
-- Quick actions: Select All, Clear All
-- Presets: All, Build Only, Runtime Only
+- Collapsible **Error Types** section with per-kind checkboxes, descriptions, Select All / Clear All, and presets
+- Collapsible **Success** section for success monitoring
 - Alert History table: Time, Source, Kind, Cause, Context
 - Clear history action
 - "Open sound settings" button → opens `ErrorSoundConfigurable`
 - No Diagnostics / Self-Test controls; diagnostics are Settings-only
 
 **Behavior:**
-- Project Profile checkboxes mutate `ProjectAlertSettings.state` directly
+- Project Profile controls mutate `ProjectAlertSettings.state` directly
 - Global enable checkbox mutates `AlertSettings.state.enabled`
-- `refreshUiState()` uses `ResolvedSettingsResolver.resolve().enabled` as the effective enabled value for greying out per-kind checkboxes and building the status label
-- Status label shows `(global)` or `(project override)` to clarify which setting is in effect
-- When project override is unchecked, `projectEnabledCheckBox` is disabled (greyed out)
+- `refreshUiState()` uses `ResolvedSettingsResolver.resolve()` as the effective settings state for display and enablement
+- Status label shows active enabled-count context and whether project profile overrides are active
+- Project Profile, Error Types, and Success collapse by default to keep the right-side tool window compact; Global Monitoring, Snooze, Alert History, and Open sound settings remain visible
 - Alert History subscribes to `AlertHistoryService.TOPIC`, renders newest-first snapshots, and refreshes on the EDT
 - Context may include project/config/command, exit code, matched rule id/pattern, and sound override status
 
@@ -693,4 +723,4 @@ Class-by-class reference for the `com.drostwades.errorsound` package.
 **Risk:** LOW — additive, no external dependencies.
 
 ---
-*Last updated from code scan: 2026-05-16*
+*Last updated from code scan: 2026-05-17*
