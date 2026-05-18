@@ -68,13 +68,13 @@ Monitors built-in terminal command completion and alerts when a command exits wi
 | Version introduced | 1.0.4 |
 | Relevant classes/files | `ErrorSoundToolWindowFactory.kt`, `AlertMonitoring.kt`, `SnoozeState.kt`, `plugin.xml` |
 
-Adds an Error Monitor sidebar for quick operational control. Users can toggle global monitoring, enable or disable individual error kinds, apply presets, and open the full settings page. The panel also exposes project enabled override and snooze controls.
+Adds an Error Monitor sidebar for quick operational control. Users can toggle global monitoring, enable or disable individual error kinds, apply presets, manage opt-in project profile overrides, use snooze controls, and open the full settings page. The Project Profile, Error Types, and Success sections are collapsible to keep the right-side tool window compact.
 
 **How to enable/use:** Open View -> Tool Windows -> Error Monitor.
 
 **Example usage:** Choose the Build Only preset to monitor CONFIGURATION, COMPILATION, and TEST_FAILURE while suppressing runtime categories.
 
-**Notes/limitations:** Most controls mutate global application settings directly. Project profile controls currently affect only the master enabled flag.
+**Notes/limitations:** Most monitoring controls mutate global application settings directly. Project profile controls mutate workspace-scoped project state and only selected override groups affect the resolved settings for that project.
 
 ---
 
@@ -284,7 +284,7 @@ Maps specific terminal exit codes to an error kind, an optional built-in sound o
 | Version introduced | 1.1.12 |
 | Relevant classes/files | `RuleImportExportBundle.kt`, `RuleImportExportResult.kt`, `RuleImportExportService.kt`, `ErrorSoundConfigurable.kt` |
 
-Lets users export and import rule presets as local JSON. The schema version 2 bundle covers Custom Regex Rules, Suppression Rules, and Terminal Exit-Code Rules, preserving ordering and ids when present. Schema version 1 files remain import-compatible for older exports without suppression rules. It is not a full settings export and deliberately excludes global sound settings, per-kind volume, success settings, project overrides, alert history, snooze state, and any runtime data.
+Lets users export and import rule presets as local JSON. The schema version 2 bundle covers Custom Regex Rules, Suppression Rules, and Terminal Exit-Code Rules, preserving ordering and ids when present. Schema version 1 files remain import-compatible for older exports without suppression rules. It is not a full settings export and deliberately excludes global sound settings, per-kind volume, success settings, project profiles/overrides, alert history, snooze state, and any runtime data.
 
 **How to enable/use:** Open Settings / Preferences -> Tools -> Error Sound Alert and use **Export Rules…** or **Import Rules…** near the rule sections.
 
@@ -308,25 +308,25 @@ Lets users add bundled rule sets for common stacks without replacing existing ru
 
 **Example usage:** Choose Docker / Kubernetes and click **Add Preset Rules** to append rules for `Error response from daemon`, `ImagePullBackOff`, `CrashLoopBackOff`, `OOMKilled`, and common terminal exit codes not already present.
 
-**Notes/limitations:** Preset additions are not persisted until Apply; Reset discards unapplied additions. Duplicate preset custom rule ids and existing terminal exit codes are skipped, while user-created rules are preserved. Presets do not modify sound settings, volume settings, success settings, project overrides, alert history, snooze state, or full profiles/settings bundles. Presets are bundled locally: no network, telemetry, remote preset downloads, or script execution.
+**Notes/limitations:** Preset additions are not persisted until Apply; Reset discards unapplied additions. Duplicate preset custom rule ids and existing terminal exit codes are skipped, while user-created rules are preserved. Presets do not modify sound settings, volume settings, success settings, project profiles/overrides, alert history, snooze state, or full profiles/settings bundles. Presets are bundled locally: no network, telemetry, remote preset downloads, or script execution.
 
 ---
 
-## Project-Level Enabled Override
+## Full Per-Project Profiles
 
 | Field | Value |
 |---|---|
 | Status | Available |
-| Version introduced | 1.1.7 |
-| Relevant classes/files | `ProjectAlertSettings.kt`, `ResolvedSettingsResolver.kt`, `ErrorSoundToolWindowFactory.kt`, `plugin.xml` |
+| Version introduced | 1.1.18 expanded full-profile behavior; enabled-only override introduced in 1.1.7 |
+| Relevant classes/files | `ProjectAlertSettings.kt`, `ProjectProfilePanel.kt`, `ResolvedSettingsResolver.kt`, `ErrorSoundToolWindowFactory.kt`, `ErrorSoundDiagnosticsService.kt`, `plugin.xml` |
 
-Allows one project to override the global master monitoring enabled state. The resolver applies the project override at dispatch time for Run/Debug, console, and terminal paths. This lets one workspace stay muted or active without changing the global setting for every IDE project.
+Allows one project workspace to opt into selected profile overrides while preserving global defaults for everything else. Supported override groups include master enabled, per-kind monitoring, built-in/global and per-kind sound behavior, success sound, global/per-kind volume, alert duration, play-once mode, visual notifications, and minimum process duration. `ResolvedSettingsResolver` applies selected overrides at dispatch time and returns an effective settings copy without mutating global or project state.
 
-**How to enable/use:** Open Error Monitor, enable "Use project override for monitoring enabled", then choose the project enabled state.
+**How to enable/use:** Open View -> Tool Windows -> Error Monitor, expand **Project Profile**, enable **Use project profile overrides**, then enable the specific override groups to replace global values for that project. Use **Copy current global settings** to seed the profile or **Reset project overrides** to return the project to inheritance.
 
-**Example usage:** Keep monitoring globally enabled, but disable alerts for a noisy scratch project.
+**Example usage:** Keep monitoring globally enabled, but open a noisy scratch project, enable project profile overrides, disable GENERIC monitoring, lower volume, and turn off visual notifications only for that workspace.
 
-**Notes/limitations:** Only the master `enabled` flag is project-scoped. Sounds, custom rules, exit-code rules, per-kind toggles, and volumes remain global.
+**Notes/limitations:** Project profile storage is workspace-scoped via `WORKSPACE_FILE`; it is not a repo-shared profile file. Older enabled-only workspace overrides are preserved and migrated into the new master profile behavior. Custom regex rules, suppression rules, terminal exit-code rules, rule presets, rule import/export, Alert History, and terminal integration remain global/application-level in Phase 9.
 
 ---
 
@@ -401,4 +401,4 @@ Prevents rapid duplicate alerts when multiple detection paths or repeated output
 **Notes/limitations:** Cooldown values are fixed in code and not currently configurable.
 
 ---
-*Last updated from code scan: 2026-05-16*
+*Last updated from code scan: 2026-05-17*
