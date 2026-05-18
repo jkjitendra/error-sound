@@ -19,7 +19,7 @@
 | Feature | Details |
 |---|---|
 | Smart error detection | Classifies errors as Configuration, Compilation, Test Failure, Network, Exception, or Generic |
-| Error Monitor panel | Handy sidebar tool window to quickly toggle active error categories with presets |
+| Error Monitor panel | Handy sidebar tool window to quickly toggle active error categories with presets and collapsible sections |
 | Alert History | Read-only Error Monitor table showing recent accepted alerts with source, kind, cause, and context |
 | Terminal support | Monitors both Run/Debug processes and built-in Terminal commands |
 | Custom regex rules | Define LINE_TEXT, FULL_OUTPUT, and EXIT_CODE_AND_TEXT patterns that run before built-in classification |
@@ -32,7 +32,7 @@
 | Success sounds | Optional alert when a Run/Debug process completes successfully |
 | Visual notifications | Optional balloon notifications with actions for settings, Error Monitor, mute, kind disabling, and alert details |
 | Snooze / mute | Temporarily silence alerts for 15 minutes or 1 hour from the Error Monitor panel |
-| Project enabled override | Override the master monitoring enabled state per project from the Error Monitor panel |
+| Full per-project profiles | Opt-in workspace-scoped project overrides for monitoring, sounds, volume, duration, notifications, and process-duration threshold |
 | 7 built-in sounds | Boom, Faaa, Huh, Punch, Yeah Boy, Yooo, Dog Laughing |
 | Custom audio support | Point to any local WAV / AIFF / AU file |
 | Per-kind sounds | Assign a different sound to each error category |
@@ -77,12 +77,22 @@ Open **Settings / Preferences → Tools → Error Sound Alert** to configure aud
 
 ### Error Monitor Tool Window
 
-A handy sidebar panel (View → Tool Windows → Error Monitor) to quickly turn on or off monitoring for specific error types without opening settings. It also includes snooze controls, the per-project enabled override, and an Alert History table. Supports one-click presets:
+A handy sidebar panel (View → Tool Windows → Error Monitor) to quickly turn on or off monitoring for specific error types without opening settings. It also includes snooze controls, full per-project profile overrides, and an Alert History table. The Project Profile, Error Types, and Success sections are collapsible so the right-side tool window stays compact. Supports one-click presets:
 - **All**: Enable all error types
 - **Build Only**: Focus on Configuration, Compilation, and Test Failures
 - **Runtime Only**: Focus on Network, Exception, and Generic errors
 
 The Alert History section shows recent accepted alerts in newest-first order. It is read-only, clearable, in-memory only, and bounded to the latest 100 entries. Rows show **Time**, **Source**, **Kind**, **Cause**, and **Context**; context may include project/config/command, exit code, matched rule id/pattern, or sound override status.
+
+### Full Per-Project Profiles
+
+Use **Error Monitor → Project Profile** to enable opt-in project profile overrides for the current workspace. When **Use project profile overrides** is unchecked, the project inherits global settings. When it is checked, only the selected override groups replace global values; any unselected fields continue inheriting global settings.
+
+Supported project override groups include master monitoring, per-kind monitoring toggles, built-in/global sound behavior, per-kind and success sound selections, global and per-kind volume, alert duration, **Use actual sound file duration (play once)**, visual notification settings, and the minimum process duration threshold. Project profiles are stored in JetBrains workspace state and are not exported by rule import/export.
+
+Use **Copy current global settings** to seed a project profile from the current global configuration, or **Reset project overrides** to return the project to global inheritance. The initial enabled-only project override from earlier versions is preserved and migrated into the new master profile behavior.
+
+Phase 9 keeps rules and operational history global: custom regex rules, suppression rules, terminal exit-code rules, rule presets, rule import/export, Alert History, and terminal integration are not project-scoped.
 
 ### Audio Settings
 
@@ -162,7 +172,7 @@ Use **Rule Presets** in **Settings / Preferences → Tools → Error Sound Alert
 - Docker / Kubernetes
 - Frontend test runners (Jest / Vitest / Cypress / Playwright)
 
-Presets append only Custom Regex Rules and conservative Terminal Exit-Code Rules. They do **not** modify sound settings, volume settings, success settings, project overrides, alert history, snooze state, or full profiles/settings bundles.
+Presets append only Custom Regex Rules and conservative Terminal Exit-Code Rules. They do **not** modify sound settings, volume settings, success settings, project profiles/overrides, alert history, snooze state, or full profiles/settings bundles.
 
 Choose a preset, review its description, then click **Add Preset Rules**. The confirmation summary shows how many custom regex and exit-code rules will be added and which duplicates will be skipped. Duplicate custom rule IDs are skipped, existing terminal exit codes are skipped, and user-created rules are preserved. Preset additions are written only to the current settings table models; click **Apply** to persist them, or **Reset** to discard unapplied preset additions. Presets are bundled locally: no network, telemetry, remote preset downloads, or script execution.
 
@@ -173,7 +183,7 @@ Use **Export Rules…** and **Import Rules…** in **Settings / Preferences → 
 - Suppression Rules
 - Terminal Exit-Code Rules
 
-It does **not** include global sound settings, per-kind volume, success settings, project overrides, alert history, snooze state, or a full plugin settings export.
+It does **not** include global sound settings, per-kind volume, success settings, project profiles/overrides, alert history, snooze state, or a full plugin settings export.
 
 Export uses the current rule tables exactly as shown, including unsaved edits. Import validates the JSON, shows a confirmation summary, and replaces only the rule tables. Exports use schema version 2 with `customRules`, `suppressionRules`, and `exitCodeRules`; schema version 1 files remain import-compatible. Imported changes follow the normal settings workflow: click **Apply** to persist them, or **Reset** to discard imported-but-not-applied changes. Import/export uses local files only; there is no network or telemetry.
 
@@ -217,12 +227,13 @@ Output: `build/distributions/error-sound-<version>.zip`
 
 1. The plugin registers process output listeners (`ExecutionListener`, console filters) and terminal command listeners.
 2. As a process runs or a terminal command executes, its output is scanned in real time for known error patterns.
-3. Suppression rules run first for the supported source/target context. A matching enabled suppression rule stops the alert before dispatch.
-4. On process termination (or console line match, or terminal command completion), the accepted detection path creates an internal explanation object, builds a stable deduplication key, and calls **`AlertDispatcher.tryAlert`**.
-5. `AlertDispatcher` checks snooze, **`AlertMonitoring`** (is this error category enabled?), and **`AlertEventGate`** (is this a duplicate within the cooldown window?).
-6. If all gates pass, `AlertHistoryService` records an in-memory history entry, then `ErrorSoundPlayer` plays the configured sound asynchronously.
-7. By default, if the clip is shorter than the alert duration, it loops/restarts until time expires. If **Use actual sound file duration (play once)** is enabled, the selected clip starts once and the configured alert duration is ignored for file-based playback.
-8. Fallback chain: custom file → built-in WAV → generated 880 Hz tone → system beep.
+3. The project-aware resolver layers any selected workspace-scoped project profile overrides over global settings without mutating global or project state.
+4. Suppression rules run first for the supported source/target context. A matching enabled suppression rule stops the alert before dispatch.
+5. On process termination (or console line match, or terminal command completion), the accepted detection path creates an internal explanation object, builds a stable deduplication key, and calls **`AlertDispatcher.tryAlert`**.
+6. `AlertDispatcher` checks snooze, **`AlertMonitoring`** (is this error category enabled?), and **`AlertEventGate`** (is this a duplicate within the cooldown window?).
+7. If all gates pass, `AlertHistoryService` records an in-memory history entry, then `ErrorSoundPlayer` plays the configured sound asynchronously.
+8. By default, if the clip is shorter than the alert duration, it loops/restarts until time expires. If **Use actual sound file duration (play once)** is enabled, the selected clip starts once and the configured alert duration is ignored for file-based playback.
+9. Fallback chain: custom file → built-in WAV → generated 880 Hz tone → system beep.
 
 Rule match explanations power Alert History cause/context details and the optional Show alert details notification action.
 
@@ -249,7 +260,8 @@ src/main/kotlin/com/drostwades/errorsound/
 ├── ErrorSoundDiagnosticsService.kt   # Settings-side diagnostics snapshot and self-test helpers
 ├── ErrorSoundPlayer.kt               # Audio playback engine
 ├── ErrorSoundToolWindowFactory.kt    # Error Monitor sidebar panel
-├── ProjectAlertSettings.kt           # Project-level enabled override state
+├── ProjectAlertSettings.kt           # Workspace-scoped per-project profile override state
+├── ProjectProfilePanel.kt            # Error Monitor project profile controls
 ├── ResolvedSettingsResolver.kt       # Effective global/project settings resolver
 ├── RuleImportExportBundle.kt         # Rules-only JSON export DTO
 ├── RuleImportExportResult.kt         # Rule import validation result
