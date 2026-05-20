@@ -14,11 +14,12 @@ IntelliJ Platform plugin that plays an audio alert when a Run/Debug process, con
 4. Checks user suppression rules before dispatch, then routes accepted errors through `AlertDispatcher → SnoozeState → AlertMonitoring → AlertEventGate → AlertHistoryService → ErrorSoundPlayer`.
 5. Plays a WAV sound (built-in or custom) with configurable volume, configured duration looping, or the optional actual sound file duration play-once mode.
 6. Records accepted alerts in an in-memory Error Monitor history after snooze, monitoring, and deduplication gates accept the event.
-7. Resolves opt-in workspace-scoped per-project profile overrides via `ResolvedSettingsResolver` before dispatching.
+7. Resolves effective settings via `ResolvedSettingsResolver`: global application settings → optional repo-shared `.error-sound-alert.json` profile → workspace project profile overrides.
 8. Provides bundled local Rule Presets that append Custom Regex Rules and conservative Terminal Exit-Code Rules in the settings UI.
 9. Provides local Ignore / Suppression Rules that silence known noisy false positives before alert dispatch.
 10. Adds actionable visual notification controls for opening settings, opening Error Monitor, muting, disabling the current kind, and viewing capped alert details.
 11. Provides a Settings-only Diagnostics / Self-Test section for local applied-status checks, sound self-tests, and a real IDE balloon notification test.
+12. Supports an optional team-shared repo profile file at `project.basePath/.error-sound-alert.json` for safe shared profile defaults.
 
 ## Minimum Build Baseline
 
@@ -31,7 +32,7 @@ IntelliJ Platform plugin that plays an audio alert when a Run/Debug process, con
 | Target platform | IC 2024.3 |
 | `sinceBuild` | 243 |
 | `untilBuild` | unset (open-ended) |
-| **Plugin version** | **1.1.18** |
+| **Plugin version** | **1.1.19** |
 
 ## Completed Phases
 
@@ -53,6 +54,7 @@ IntelliJ Platform plugin that plays an audio alert when a Run/Debug process, con
 - Phase 7 Roadmap — Actionable Notification Actions v1
 - Phase 8 Roadmap — Diagnostics / Self-Test
 - Phase 9 Roadmap — Full Per-Project Profiles
+- Phase 10 Roadmap — Team-Shared Repo Profile File
 
 ## Safe Editing Rules
 
@@ -75,7 +77,8 @@ IntelliJ Platform plugin that plays an audio alert when a Run/Debug process, con
 | `build.gradle.kts` | **MEDIUM** — Platform plugin config, sinceBuild/untilBuild, signing, verification. |
 | `ErrorSoundPlayer.kt` | **LOW-MEDIUM** — Audio thread management. Clip leaks if not closed properly. |
 | `ProjectAlertSettings.kt` | **LOW** — Workspace-scoped persistent state; changing storage path would lose saved overrides. |
-| `ResolvedSettingsResolver.kt` | **LOW-MEDIUM** — Layers project profile overrides over global state for all detection paths without mutating stored settings. |
+| `ResolvedSettingsResolver.kt` | **LOW-MEDIUM** — Layers global, repo profile, and workspace profile state for all detection paths without mutating stored settings. |
+| `RepoProfileService.kt` | **LOW-MEDIUM** — Reads untrusted local repo JSON; must stay local-only, read-only, and fail safe. |
 
 ## Required Verification Commands
 
@@ -98,4 +101,4 @@ IntelliJ Platform plugin that plays an audio alert when a Run/Debug process, con
 7. See `docs/agent-context/maintenance-rules.md` for the full update matrix.
 
 ---
-*Last updated from code scan: 2026-05-17*
+*Last updated from code scan: 2026-05-18*
