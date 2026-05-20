@@ -2,6 +2,7 @@ package com.drostwades.errorsound
 
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.ComboBox
+import com.intellij.openapi.ui.Messages
 import com.intellij.ui.components.JBCheckBox
 import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.JBSlider
@@ -31,6 +32,9 @@ class ProjectProfilePanel(
     private val useProfileOverridesCheckBox = JBCheckBox("Use project profile overrides")
     private val copyGlobalButton = JButton("Copy current global settings")
     private val resetButton = JButton("Reset project overrides")
+    private val repoProfileStatusLabel = JBLabel()
+    private val reloadRepoProfileButton = JButton("Reload repo profile")
+    private val openRepoProfileButton = JButton("Open repo profile file")
 
     private val useEnabledOverrideCheckBox = JBCheckBox("Override master monitoring enabled")
     private val enabledOverrideCheckBox = JBCheckBox("Enable monitoring for this project")
@@ -104,6 +108,7 @@ class ProjectProfilePanel(
         isOpaque = false
         add(buildContent())
         bindEvents()
+        RepoProfileService.getInstance(project).reload()
         refreshFromState()
     }
 
@@ -111,6 +116,10 @@ class ProjectProfilePanel(
         updating = true
         try {
             val state = projectSettings.state
+            val repoProfile = RepoProfileService.getInstance(project).load()
+            repoProfileStatusLabel.text = repoProfileStatusText(repoProfile)
+            openRepoProfileButton.isEnabled = repoProfile.isFilePresent
+
             useProfileOverridesCheckBox.isSelected = state.useProfileOverrides
 
             useEnabledOverrideCheckBox.isSelected = state.useOverride
@@ -163,8 +172,17 @@ class ProjectProfilePanel(
         wrapper.layout = BoxLayout(wrapper, BoxLayout.Y_AXIS)
         wrapper.isOpaque = false
 
-        wrapper.add(left(hint("Unchecked means this project inherits global settings. Overrides are stored in workspace state.")))
+        wrapper.add(left(hint("Unchecked means this project inherits the repo profile when present, otherwise global settings.")))
         wrapper.add(Box.createVerticalStrut(4))
+        wrapper.add(left(hint("Workspace overrides win over the repo profile; unchecked fields inherit repo values when present, otherwise global.")))
+        wrapper.add(Box.createVerticalStrut(4))
+        wrapper.add(left(repoProfileStatusLabel.apply {
+            foreground = UIUtil.getContextHelpForeground()
+            font = JBFont.small()
+        }))
+        wrapper.add(Box.createVerticalStrut(4))
+        wrapper.add(left(compactRow(reloadRepoProfileButton, openRepoProfileButton)))
+        wrapper.add(Box.createVerticalStrut(6))
         wrapper.add(left(useProfileOverridesCheckBox))
         wrapper.add(Box.createVerticalStrut(4))
         wrapper.add(left(compactRow(copyGlobalButton, resetButton)))
@@ -236,6 +254,20 @@ class ProjectProfilePanel(
             projectSettings.resetOverrides()
             refreshFromState()
             onChange()
+        }
+        reloadRepoProfileButton.addActionListener {
+            RepoProfileService.getInstance(project).reload()
+            refreshFromState()
+            onChange()
+        }
+        openRepoProfileButton.addActionListener {
+            if (!RepoProfileService.getInstance(project).openProfileFile()) {
+                Messages.showWarningDialog(
+                    project,
+                    "The repo profile file could not be opened.",
+                    "Error Sound Alert",
+                )
+            }
         }
 
         useEnabledOverrideCheckBox.addActionListener { mutate { it.useOverride = useEnabledOverrideCheckBox.isSelected } }
@@ -353,6 +385,23 @@ class ProjectProfilePanel(
 
         setEnabledRecursive(useMinDurationOverrideCheckBox, profile)
         minDurationSpinner.isEnabled = profile && useMinDurationOverrideCheckBox.isSelected
+    }
+
+    private fun repoProfileStatusText(result: RepoProfileLoadResult): String {
+        val warningSuffix = if (result.warnings.isEmpty()) "" else ", ${result.warnings.size} warning(s)"
+        return when (result.status) {
+            RepoProfileLoadResult.Status.NO_PROJECT_BASE_PATH -> "Repo profile: project root unavailable."
+            RepoProfileLoadResult.Status.ABSENT -> "Repo profile: not found (${RepoProfileService.FILE_NAME})."
+            RepoProfileLoadResult.Status.LOADED -> {
+                val name = result.profile?.profileName?.takeIf { it.isNotBlank() } ?: "unnamed profile"
+                "Repo profile: $name (schema v${result.profile?.schemaVersion ?: "?"}$warningSuffix)."
+            }
+            RepoProfileLoadResult.Status.DISABLED -> {
+                val name = result.profile?.profileName?.takeIf { it.isNotBlank() } ?: "unnamed profile"
+                "Repo profile: $name is disabled$warningSuffix."
+            }
+            RepoProfileLoadResult.Status.INVALID -> "Repo profile: invalid$warningSuffix."
+        }
     }
 
     private fun clearOverrideFlags(state: ProjectAlertSettings.State) {
