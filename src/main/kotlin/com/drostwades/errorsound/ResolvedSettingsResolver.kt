@@ -5,14 +5,7 @@ import com.intellij.openapi.project.Project
 
 /**
  * Project service that resolves the *effective* [AlertSettings.State] for a given project
- * by merging project-level overrides on top of application-level settings.
- *
- * ## Effective `enabled` resolution
- * ```
- * ProjectAlertSettings.effectiveEnabledOverride() == null  →  use AlertSettings.state.enabled
- * ProjectAlertSettings.effectiveEnabledOverride() == true  →  enabled = true  (regardless of global)
- * ProjectAlertSettings.effectiveEnabledOverride() == false →  enabled = false (regardless of global)
- * ```
+ * by layering repo-shared and project-level overrides on top of application-level settings.
  *
  * Callers should obtain the resolved state via [resolve] instead of reading
  * `AlertSettings.getInstance().state` directly.
@@ -26,17 +19,22 @@ class ResolvedSettingsResolver(private val project: Project) {
      * The returned state is **always a copy** — mutating it has no side effects on stored settings,
      * regardless of whether a project override is active.
      *
-     * Project profile settings are opt-in by category. Rule collections and custom file
-     * path stay global in Phase 9.
+     * Repo profile and project profile settings are opt-in by field/category. Rule collections
+     * and custom file path stay global in Phase 10.
      */
     fun resolve(): AlertSettings.State {
         val global = AlertSettings.getInstance().state
-        val projectState = ProjectAlertSettings.getInstance(project).state
-        if (!projectState.useProfileOverrides) {
-            return global.copy()
+        var resolved = global.copy()
+
+        val repoResult = RepoProfileService.getInstance(project).load()
+        if (repoResult.isApplied) {
+            repoResult.profile?.let { resolved = it.applyTo(resolved) }
         }
 
-        var resolved = global.copy()
+        val projectState = ProjectAlertSettings.getInstance(project).state
+        if (!projectState.useProfileOverrides) {
+            return resolved
+        }
 
         if (projectState.useOverride) {
             resolved = resolved.copy(enabled = projectState.enabledOverride)
