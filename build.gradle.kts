@@ -7,7 +7,7 @@ plugins {
 }
 
 group = "com.drostwades"
-version = "1.1.18"
+version = "1.1.19"
 
 repositories {
     mavenCentral()
@@ -55,6 +55,7 @@ intellijPlatform {
               <li><b>Actionable notifications:</b> open the Error Monitor, disable the current alert kind, or view alert details from visual alerts</li>
               <li><b>Diagnostics / Self-Test:</b> inspect applied settings and run safe sound and notification checks from the settings page</li>
               <li><b>Full per-project profiles:</b> override monitoring, sound, volume, duration, notification, and threshold behavior per workspace without changing global settings</li>
+              <li><b>Team-shared repo profiles:</b> load safe profile defaults from <code>.error-sound-alert.json</code> in the project root before workspace overrides are applied</li>
               <li><b>Exit-code rules for terminal commands:</b> map specific exit codes to error kinds, optional per-code sound overrides, or suppress alerts entirely (e.g. silence Ctrl+C / exit&nbsp;130)</li>
               <li>Per-kind sounds, or one global sound for all alerts</li>
               <li><b>Success sounds:</b> optional alert on successful process completion (off by default)</li>
@@ -73,6 +74,13 @@ intellijPlatform {
         """.trimIndent()
 
         changeNotes = """
+            <b>1.1.19</b>
+            <ul>
+              <li>Added support for an optional team-shared <code>.error-sound-alert.json</code> profile file in the project root</li>
+              <li>Effective settings now resolve as global settings, then repo-shared profile defaults, then workspace project profile overrides</li>
+              <li>Repo profiles can override safe profile defaults such as monitoring, built-in sound behavior, volume, duration/play-once, visual notifications, and minimum process duration</li>
+              <li>Rules, rule import/export, Alert History, terminal reflection, custom audio file paths, network behavior, and telemetry remain unchanged</li>
+            </ul>
             <b>1.1.18</b>
             <ul>
               <li>Expanded project profiles from the master monitoring toggle to opt-in per-project overrides for monitoring kinds, built-in sound behavior, volume, duration/play-once, visual notifications, and minimum process duration</li>
