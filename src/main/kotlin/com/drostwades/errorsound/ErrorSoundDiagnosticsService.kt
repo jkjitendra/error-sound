@@ -25,6 +25,9 @@ object ErrorSoundDiagnosticsService {
     fun buildSnapshot(): Snapshot {
         val state = AlertSettings.getInstance().state
         val activeProject = resolveNotificationProject(null)
+        val repoProfileStatus = activeProject?.let { project ->
+            RepoProfileService.getInstance(project).reload()
+        }
         val projectProfileStatus = activeProject?.let { project ->
             val labels = ProjectAlertSettings.getInstance(project).activeOverrideLabels()
             if (labels.isEmpty()) {
@@ -44,6 +47,11 @@ object ErrorSoundDiagnosticsService {
             rows = listOf(
                 "Global monitoring" to enabledLabel(state.enabled),
                 "Project profile overrides" to projectProfileStatus,
+                "Repo-shared profile" to repoProfileStatusLabel(repoProfileStatus),
+                "Repo profile schema" to (repoProfileStatus?.profile?.schemaVersion?.toString() ?: "n/a"),
+                "Repo profile name" to (repoProfileStatus?.profile?.profileName?.takeIf { it.isNotBlank() } ?: "n/a"),
+                "Repo profile warnings" to (repoProfileStatus?.warnings?.size?.toString() ?: "n/a"),
+                "Effective precedence" to "Global -> repo profile -> workspace project profile",
                 "Snooze" to (SnoozeState.statusLabel() ?: "Inactive"),
                 "Visual notifications" to enabledLabel(state.showVisualNotification),
                 "Notify on errors" to enabledLabel(state.visualNotificationOnError),
@@ -118,6 +126,17 @@ object ErrorSoundDiagnosticsService {
             return project
         }
         return ProjectManager.getInstance().openProjects.firstOrNull { !it.isDisposed }
+    }
+
+    private fun repoProfileStatusLabel(result: RepoProfileLoadResult?): String {
+        if (result == null) return "No active project context found"
+        return when (result.status) {
+            RepoProfileLoadResult.Status.NO_PROJECT_BASE_PATH -> "Project root unavailable"
+            RepoProfileLoadResult.Status.ABSENT -> "Absent"
+            RepoProfileLoadResult.Status.LOADED -> "Present and enabled"
+            RepoProfileLoadResult.Status.DISABLED -> "Present but disabled"
+            RepoProfileLoadResult.Status.INVALID -> "Present but invalid"
+        }
     }
 
     private fun testSound(kind: ErrorKind, label: String): SelfTestResult {

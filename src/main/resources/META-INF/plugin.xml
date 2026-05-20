@@ -28,6 +28,8 @@
                 instance="com.drostwades.errorsound.ErrorSoundConfigurable"/>
         <consoleFilterProvider
                 implementation="com.drostwades.errorsound.ErrorConsoleFilterProvider"/>
+        <projectService
+                serviceImplementation="com.drostwades.errorsound.RepoProfileService"/>
 
         <notificationGroup id="Error Sound Alert"
                            displayType="BALLOON"
