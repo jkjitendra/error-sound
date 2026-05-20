@@ -33,6 +33,7 @@
 | Visual notifications | Optional balloon notifications with actions for settings, Error Monitor, mute, kind disabling, and alert details |
 | Snooze / mute | Temporarily silence alerts for 15 minutes or 1 hour from the Error Monitor panel |
 | Full per-project profiles | Opt-in workspace-scoped project overrides for monitoring, sounds, volume, duration, notifications, and process-duration threshold |
+| Team-shared repo profiles | Commit `.error-sound-alert.json` at the project root to share safe profile defaults across a team |
 | 7 built-in sounds | Boom, Faaa, Huh, Punch, Yeah Boy, Yooo, Dog Laughing |
 | Custom audio support | Point to any local WAV / AIFF / AU file |
 | Per-kind sounds | Assign a different sound to each error category |
@@ -86,13 +87,71 @@ The Alert History section shows recent accepted alerts in newest-first order. It
 
 ### Full Per-Project Profiles
 
-Use **Error Monitor → Project Profile** to enable opt-in project profile overrides for the current workspace. When **Use project profile overrides** is unchecked, the project inherits global settings. When it is checked, only the selected override groups replace global values; any unselected fields continue inheriting global settings.
+Use **Error Monitor → Project Profile** to enable opt-in project profile overrides for the current workspace. When **Use project profile overrides** is unchecked, the project inherits the repo profile if present, otherwise global settings. When it is checked, only the selected override groups replace lower-priority values; any unselected fields continue inheriting repo/global settings.
 
 Supported project override groups include master monitoring, per-kind monitoring toggles, built-in/global sound behavior, per-kind and success sound selections, global and per-kind volume, alert duration, **Use actual sound file duration (play once)**, visual notification settings, and the minimum process duration threshold. Project profiles are stored in JetBrains workspace state and are not exported by rule import/export.
 
 Use **Copy current global settings** to seed a project profile from the current global configuration, or **Reset project overrides** to return the project to global inheritance. The initial enabled-only project override from earlier versions is preserved and migrated into the new master profile behavior.
 
-Phase 9 keeps rules and operational history global: custom regex rules, suppression rules, terminal exit-code rules, rule presets, rule import/export, Alert History, and terminal integration are not project-scoped.
+Project profile controls also show repo profile status, a **Reload repo profile** action, and an **Open repo profile file** action when `.error-sound-alert.json` exists. Workspace project profile overrides always win over repo profile values.
+
+Phase 10 keeps rules and operational history global: custom regex rules, suppression rules, terminal exit-code rules, rule presets, rule import/export, Alert History, and terminal integration are not project-scoped.
+
+### Team-Shared Repo Profile File
+
+Teams can commit a read-only repo profile file at:
+
+```text
+<project-root>/.error-sound-alert.json
+```
+
+The plugin only looks at `project.basePath`; it does not scan parent directories and does not create or write this file. Effective settings resolve in fixed order:
+
+```text
+Global application settings → repo-shared profile → workspace project profile overrides
+```
+
+Example schema version 1 file:
+
+```json
+{
+  "schemaVersion": 1,
+  "profileName": "Team defaults",
+  "enabled": true,
+  "overrides": {
+    "monitoring": {
+      "enabled": true,
+      "configuration": true,
+      "compilation": true,
+      "testFailure": true,
+      "generic": false
+    },
+    "sound": {
+      "useGlobalBuiltInSound": true,
+      "globalBuiltInSoundId": "boom"
+    },
+    "volume": {
+      "globalVolumePercent": 80
+    },
+    "duration": {
+      "alertDurationSeconds": 3,
+      "useActualSoundDuration": false
+    },
+    "visualNotifications": {
+      "showVisualNotification": true,
+      "onError": true,
+      "onSuccess": false
+    },
+    "minimumProcessDuration": {
+      "seconds": 0
+    }
+  }
+}
+```
+
+Missing fields mean “no repo override” for that field. Unknown fields and invalid values are ignored with warnings shown in Error Monitor/Diagnostics. Missing file, invalid JSON, or invalid schema falls back safely to global settings plus workspace project overrides.
+
+Repo profiles cover safe defaults only: monitoring, built-in sound behavior, volume, duration/play-once, visual notifications, and minimum process duration. They do not include custom regex rules, suppression rules, terminal exit-code rules, rule presets, rule import/export, Alert History, custom audio file paths, network behavior, telemetry, or terminal reflection changes.
 
 ### Audio Settings
 
@@ -123,7 +182,7 @@ The **Use actual sound file duration (play once)** checkbox is useful when a bun
 
 Use **Diagnostics / Self-Test** in **Settings / Preferences → Tools → Error Sound Alert** to verify the plugin locally without causing a real build or test failure. Diagnostics are settings-only and are not shown in the Error Monitor tool window.
 
-The summary reads existing applied state and status, including monitoring, snooze, visual notification settings, sound source/selected sound, global volume, alert duration, play-once mode, custom regex rule count, suppression rule count, terminal exit-code rule count, Alert History count, rule preset availability, rule import/export schema support, and terminal integration status.
+The summary reads existing applied state and status, including monitoring, repo profile status/schema/name/warning count/precedence, snooze, visual notification settings, sound source/selected sound, global volume, alert duration, play-once mode, custom regex rule count, suppression rule count, terminal exit-code rule count, Alert History count, rule preset availability, rule import/export schema support, and terminal integration status.
 
 Available self-tests:
 - **Test error sound**
@@ -227,7 +286,7 @@ Output: `build/distributions/error-sound-<version>.zip`
 
 1. The plugin registers process output listeners (`ExecutionListener`, console filters) and terminal command listeners.
 2. As a process runs or a terminal command executes, its output is scanned in real time for known error patterns.
-3. The project-aware resolver layers any selected workspace-scoped project profile overrides over global settings without mutating global or project state.
+3. The project-aware resolver layers global settings, the optional repo-shared profile, and selected workspace project profile overrides without mutating global, repo, or project state.
 4. Suppression rules run first for the supported source/target context. A matching enabled suppression rule stops the alert before dispatch.
 5. On process termination (or console line match, or terminal command completion), the accepted detection path creates an internal explanation object, builds a stable deduplication key, and calls **`AlertDispatcher.tryAlert`**.
 6. `AlertDispatcher` checks snooze, **`AlertMonitoring`** (is this error category enabled?), and **`AlertEventGate`** (is this a duplicate within the cooldown window?).
@@ -262,6 +321,9 @@ src/main/kotlin/com/drostwades/errorsound/
 ├── ErrorSoundToolWindowFactory.kt    # Error Monitor sidebar panel
 ├── ProjectAlertSettings.kt           # Workspace-scoped per-project profile override state
 ├── ProjectProfilePanel.kt            # Error Monitor project profile controls
+├── RepoProfileLoadResult.kt          # Repo profile load status and warnings
+├── RepoProfileService.kt             # Project-root .error-sound-alert.json loader
+├── RepoProfileState.kt               # Repo profile schema and application model
 ├── ResolvedSettingsResolver.kt       # Effective global/project settings resolver
 ├── RuleImportExportBundle.kt         # Rules-only JSON export DTO
 ├── RuleImportExportResult.kt         # Rule import validation result
