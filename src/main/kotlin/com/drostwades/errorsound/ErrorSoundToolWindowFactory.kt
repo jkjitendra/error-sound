@@ -207,6 +207,7 @@ private class ErrorSoundToolWindowPanel(
         } else {
             snoozeRefreshTimer.stop()
         }
+        RepoProfileService.getInstance(project).reload()
         refreshUiState()
         refreshHistoryTable()
     }
@@ -499,6 +500,7 @@ private class ErrorSoundToolWindowPanel(
     private fun refreshUiState() {
         // Use the effective settings so project profile overrides are reflected.
         val resolvedState = ResolvedSettingsResolver.getInstance(project).resolve()
+        val repoProfile = RepoProfileService.getInstance(project).load()
         val resolvedEnabled = resolvedState.enabled
         projectProfilePanel.refreshFromState()
 
@@ -528,7 +530,9 @@ private class ErrorSoundToolWindowPanel(
         // Build status text — show whether the effective state is inherited or overridden
         val sourceNote = when {
             isSnoozed -> null
+            projectSettings.activeOverrideLabels().isNotEmpty() && repoProfile.isApplied -> "(project profile over repo)"
             projectSettings.activeOverrideLabels().isNotEmpty() -> "(project profile)"
+            repoProfile.isApplied -> "(repo profile)"
             else -> "(global)"
         }
         statusLabel.text = when {
