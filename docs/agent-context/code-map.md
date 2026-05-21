@@ -255,7 +255,7 @@ Class-by-class reference for the `com.drostwades.errorsound` package.
 |---|---|
 | `Snapshot(rows, notes)` | Immutable diagnostics summary data rendered by settings UI |
 | `SelfTestResult(success, message)` | User-facing status for sound/notification self-test actions |
-| `buildSnapshot()` | Reads applied `AlertSettings`, `SnoozeState`, `AlertHistoryService`, rule counts, preset availability, import/export schema support, terminal integration status, and active project profile override categories when an active project is available |
+| `buildSnapshot()` | Reads applied `AlertSettings`, `SnoozeState`, `AlertHistoryService`, rule counts, preset availability, import/export schema support, terminal integration status, repo profile status/schema/name/warnings/precedence, and active project profile override categories when an active project is available |
 | `testErrorSound()` | Plays a GENERIC error sound through the preview path using current applied settings |
 | `testSuccessSound()` | Plays a SUCCESS sound through the preview path when enabled by current applied settings |
 | `showTestNotification(project?)` | Sends a real IntelliJ Platform balloon notification using `NotificationGroupManager`, group id `Error Sound Alert`, and `NotificationType.INFORMATION` |
@@ -463,27 +463,94 @@ Class-by-class reference for the `com.drostwades.errorsound` package.
 - `activeOverrideLabels()` — returns active override category labels for diagnostics
 - `getInstance(project): ProjectAlertSettings` — companion helper
 
-**Phase 9 scope boundary:** Rules, presets, rule import/export schema, Alert History, terminal integration, and custom file path remain global/application-level.
+**Scope boundary:** Rules, presets, rule import/export schema, Alert History, terminal integration, and custom file path remain global/application-level. Repo profile data is separate and read from `.error-sound-alert.json`.
 
 - **Risk:** LOW-MEDIUM — workspace-scoped persistent state; storage path and migration behavior must stay stable
+
+---
+
+## RepoProfileLoadResult
+
+**File:** `RepoProfileLoadResult.kt`
+**Purpose:** Immutable status object returned by `RepoProfileService` after attempting to load `.error-sound-alert.json`.
+
+**Fields:**
+- `status` — NO_PROJECT_BASE_PATH, ABSENT, LOADED, DISABLED, or INVALID
+- `path` — resolved project-root file path when available
+- `profile` — parsed `RepoProfileState` when valid
+- `warnings` — validation notes for unknown fields, invalid values, clamping, or read/parse failures
+
+**Derived properties:** `isFilePresent`, `isApplied`.
+
+- **Risk:** LOW — data model only
+
+---
+
+## RepoProfileState
+
+**File:** `RepoProfileState.kt`
+**Purpose:** Schema version 1 model for team-shared repo profile defaults.
+
+**Top-level fields:**
+- `schemaVersion` — must be `1`
+- `profileName` — optional display name
+- `enabled` — disables the repo profile layer when false
+- `overrides` — optional profile-default values
+
+**Supported override categories:** master enabled, monitoring kinds, built-in/global sound behavior, per-kind sound enabled/id, success sound enabled/id, global volume, per-kind volume overrides, alert duration, play-once mode, visual notifications, and minimum process duration.
+
+**Methods:**
+- `applyTo(base)` — returns a copied `AlertSettings.State` with repo profile fields layered over the base state
+
+**Scope boundary:** No custom regex rules, suppression rules, terminal exit-code rules, rule presets, rule import/export, Alert History, custom audio file paths, network state, telemetry, or terminal reflection settings.
+
+- **Risk:** LOW — pure model/application helper
+
+---
+
+## RepoProfileService
+
+**File:** `RepoProfileService.kt`
+**Purpose:** Project service that reads optional team-shared repo profile defaults from `project.basePath/.error-sound-alert.json`.
+
+**Level:** `@Service(Service.Level.PROJECT)` registered in `plugin.xml`.
+
+| Method | Description |
+|---|---|
+| `load(refresh = false)` | Lazily loads and caches the repo profile result for the project |
+| `reload()` | Forces a re-read from disk |
+| `openProfileFile()` | Opens the existing repo profile file in the editor when present |
+| `getInstance(project)` | Companion helper |
+
+**Validation / safety:**
+- Reads only `.error-sound-alert.json` directly under `project.basePath`
+- Does not scan parent directories, perform network calls, execute content, or write files
+- Requires top-level JSON object and `schemaVersion = 1`
+- Missing fields mean no repo override for that field
+- Unknown fields are ignored with warnings
+- Invalid sound ids and unsupported enum names are ignored with warnings
+- Numeric values are clamped to supported ranges where applicable
+- Invalid JSON, invalid schema, unreadable file, non-regular file, or oversized file returns INVALID and leaves runtime behavior on global + workspace overrides
+
+- **Risk:** LOW-MEDIUM — reads untrusted local JSON; must remain read-only and fail safe
 
 ---
 
 ## ResolvedSettingsResolver
 
 **File:** `ResolvedSettingsResolver.kt`  
-**Purpose:** Project service that layers selected project profile overrides on top of global application settings and returns the effective `AlertSettings.State` for the current project.
+**Purpose:** Project service that layers repo-shared and workspace project profile overrides on top of global application settings and returns the effective `AlertSettings.State` for the current project.
 
 **Level:** `@Service(Service.Level.PROJECT)`
 
 | Method | Description |
 |---|---|
-| `resolve()` | Returns an `AlertSettings.State` copy. If project profile overrides are disabled, the copy mirrors global settings. If enabled, only selected override groups replace global values |
+| `resolve()` | Returns an `AlertSettings.State` copy after applying global → repo profile → workspace project profile precedence |
 | `getInstance(project)` | Companion helper |
 
-**Resolution policy:** Does not mutate global `AlertSettings.State` or project `ProjectAlertSettings.State`. Unselected override groups inherit global values. Supported Phase 9 groups are master enabled, per-kind monitoring, built-in/global and per-kind sound behavior, success sound, global/per-kind volume, alert duration/play-once, visual notifications, and minimum process duration.
+**Resolution policy:** Does not mutate global `AlertSettings.State`, repo profile model, or project `ProjectAlertSettings.State`. Missing/invalid repo profile data is ignored safely. Workspace project profile overrides win over repo profile values.
 
-**Global-only in Phase 9:** `customRules`, `suppressionRules`, `exitCodeRules`, rule presets, rule import/export, Alert History, terminal reflection behavior, and custom sound file path.
+**Global/application-level in Phase 10:** `customRules`, `suppressionRules`, `exitCodeRules`, rule presets, rule import/export, Alert History, terminal reflection behavior, and custom sound file path.
 
 **Usage pattern:** All three detection paths call `ResolvedSettingsResolver.getInstance(project).resolve()` instead of `AlertSettings.getInstance().state` when passing settings to `AlertDispatcher.tryAlert()`.
 
@@ -497,11 +564,14 @@ Class-by-class reference for the `com.drostwades.errorsound` package.
 **Purpose:** Error Monitor UI panel for workspace-scoped project profile overrides.
 
 **Controls:**
+- Repo profile status label plus **Reload repo profile** and **Open repo profile file** actions
 - Top-level `Use project profile overrides`, `Copy current global settings`, and `Reset project overrides`
 - Collapsible override groups for master monitoring, monitoring kinds, built-in sound behavior, volume, duration / play once, visual notifications, and minimum process duration
 - Advanced groups stay grouped under Project Profile so the narrow Error Monitor tool window remains readable
 
 **Behavior:**
+- Clarifies inheritance order: unchecked workspace fields inherit repo values when present, otherwise global
+- Reload action refreshes the cached repo profile result; open-file action opens the existing `.error-sound-alert.json`
 - Mutates `ProjectAlertSettings.state` for the current project only
 - Copy action seeds project profile values from current global `AlertSettings.State`
 - Reset action clears project overrides and returns the project to global inheritance
@@ -691,7 +761,7 @@ Class-by-class reference for the `com.drostwades.errorsound` package.
 **Purpose:** Error Monitor sidebar panel. Provides quick toggles for error monitoring categories and a read-only Alert History view.
 
 **Features:**
-- Collapsible **Project Profile** section containing `ProjectProfilePanel` for full per-project profile overrides
+- Collapsible **Project Profile** section containing `ProjectProfilePanel` for repo profile status plus full per-project profile overrides
 - Master enable/disable checkbox (global)
 - Collapsible **Error Types** section with per-kind checkboxes, descriptions, Select All / Clear All, and presets
 - Collapsible **Success** section for success monitoring
@@ -701,10 +771,11 @@ Class-by-class reference for the `com.drostwades.errorsound` package.
 - No Diagnostics / Self-Test controls; diagnostics are Settings-only
 
 **Behavior:**
+- Project Profile shows repo profile status, warning count, reload, and open-file controls
 - Project Profile controls mutate `ProjectAlertSettings.state` directly
 - Global enable checkbox mutates `AlertSettings.state.enabled`
 - `refreshUiState()` uses `ResolvedSettingsResolver.resolve()` as the effective settings state for display and enablement
-- Status label shows active enabled-count context and whether project profile overrides are active
+- Status label shows active enabled-count context and whether repo/project profile overrides are active
 - Project Profile, Error Types, and Success collapse by default to keep the right-side tool window compact; Global Monitoring, Snooze, Alert History, and Open sound settings remain visible
 - Alert History subscribes to `AlertHistoryService.TOPIC`, renders newest-first snapshots, and refreshes on the EDT
 - Context may include project/config/command, exit code, matched rule id/pattern, and sound override status
@@ -723,4 +794,4 @@ Class-by-class reference for the `com.drostwades.errorsound` package.
 **Risk:** LOW — additive, no external dependencies.
 
 ---
-*Last updated from code scan: 2026-05-17*
+*Last updated from code scan: 2026-05-18*
