@@ -76,7 +76,7 @@ Detection Source
          │
          ▼
    ResolvedSettingsResolver.resolve()
-         └── global settings + selected workspace-scoped project profile overrides
+         └── global settings → repo-shared profile → selected workspace project profile overrides
          └── rules remain global/application-level
          │
          ▼
@@ -270,19 +270,21 @@ This policy is consistent, predictable, and avoids "phantom" sounds surprising u
 ## Settings / Configuration Flow
 
 - `AlertSettings` — `@Service(APP)`, persisted to `errorSoundAlert.xml`
+- `RepoProfileService` — `@Service(PROJECT)`, read-only local loader for `project.basePath/.error-sound-alert.json`
 - `ProjectAlertSettings` — `@Service(PROJECT)`, persisted to workspace storage (`WORKSPACE_FILE`)
-- `ResolvedSettingsResolver` — `@Service(PROJECT)`, layers selected project profile overrides over global; `resolve()` returns an effective `AlertSettings.State` copy
+- `ResolvedSettingsResolver` — `@Service(PROJECT)`, layers global → repo profile → workspace project profile; `resolve()` returns an effective `AlertSettings.State` copy
 - `ErrorSoundConfigurable` — Settings UI panel under **Tools → Error Sound Alert** (global settings only)
 - `ErrorSoundToolWindowFactory` — **Error Monitor** sidebar panel (right anchor, secondary)
   - Project Profile section: mutates `ProjectAlertSettings.state` directly through `ProjectProfilePanel`
   - Global enable checkbox: mutates `AlertSettings.state.enabled` directly
   - All other settings panel changes use `apply()` / `reset()` pattern with `loadState()`
 
-### Phase 9 resolution rule
+### Phase 10 resolution rule
 ```
-ProjectAlertSettings.state.useProfileOverrides == false  →  inherit global settings
-ProjectAlertSettings.state.useProfileOverrides == true   →  apply only selected override groups
-Unselected override groups                              →  continue inheriting global settings
+Global AlertSettings.State                              →  base
+Valid enabled .error-sound-alert.json                   →  applies selected repo fields
+ProjectAlertSettings.state.useProfileOverrides == true  →  applies selected workspace groups last
+Unselected workspace groups                             →  inherit repo values when present, otherwise global
 ```
 
 The resolver is called at the point of dispatch, not classification:
@@ -291,7 +293,9 @@ ResolvedSettingsResolver.getInstance(project).resolve()  →  AlertSettings.Stat
   └─ AlertDispatcher.tryAlert(key, resolvedState, kind, project, soundOverride?)
 ```
 
-`resolve()` always returns a copy and does not mutate global settings or project workspace state. Phase 9-supported project override groups are master enabled, per-kind monitoring, built-in/global and per-kind sound behavior, success sound, global/per-kind volume, alert duration/play-once, visual notifications, and minimum process duration. Custom regex rules, suppression rules, terminal exit-code rules, rule presets, rule import/export, Alert History, and terminal integration remain global/application-level in this phase.
+`resolve()` always returns a copy and does not mutate global settings, repo profile model, or project workspace state. Repo profile schema v1 and workspace profile overrides support safe profile-default fields: master enabled, per-kind monitoring, built-in/global and per-kind sound behavior, success sound, global/per-kind volume, alert duration/play-once, visual notifications, and minimum process duration. Custom regex rules, suppression rules, terminal exit-code rules, rule presets, rule import/export, Alert History, custom audio file paths, and terminal integration remain global/application-level in this phase.
+
+The repo profile is read-only local configuration. The plugin reads only `.error-sound-alert.json` at `project.basePath`, does not scan parents, does not auto-create/write the file, and falls back safely when the file is missing, invalid JSON, invalid schema, or contains unsupported values.
 
 Old workspace files with only `useOverride` / `enabledOverride` continue loading: normalization treats an existing enabled-only override as an active profile master override.
 
@@ -306,7 +310,8 @@ Settings → Tools → Error Sound Alert
 Error Monitor (Tool Window, right sidebar)
   └── ErrorSoundToolWindowFactory → ErrorSoundToolWindowPanel
         └── Collapsible Project Profile section:
-              uses ProjectProfilePanel + ProjectAlertSettings.state
+              uses ProjectProfilePanel + RepoProfileService + ProjectAlertSettings.state
+              shows repo profile status, reload, and open-file actions
         └── Global Monitoring section:
               manages: global enable/disable
         └── Collapsible Error Types section:
@@ -374,4 +379,4 @@ Unsupported targets are deterministically skipped — not reinterpreted.
 4. Built-in chunk accumulation (`builtInDetectedResult`, highest-priority kind seen in chunks)
 5. Built-in `ErrorClassifier.detectWithExplanation()` on full buffer
 
-*Last updated from code scan: 2026-05-17*
+*Last updated from code scan: 2026-05-18*
