@@ -4,6 +4,55 @@ Engineering-significant changes to the codebase. Not a full changelog — focuse
 
 ---
 
+## 1.1.19 — Team-Shared Repo Profile File (Phase 10)
+
+### Scope
+Phase 10 adds a shipped user-facing **Team-Shared Repo Profile File**. If `.error-sound-alert.json` exists directly under `project.basePath`, it is loaded as a read-only repo-shared profile layer.
+
+### New Files
+- `RepoProfileState.kt` — schema version 1 model and pure application helper for safe profile defaults
+- `RepoProfileLoadResult.kt` — load status, profile, path, and warnings model
+- `RepoProfileService.kt` — project service that reads, validates, caches, reloads, and opens the repo profile file
+
+### Effective Settings Resolution
+Resolution precedence is fixed for Phase 10:
+1. Global application settings
+2. Repo-shared profile file
+3. Workspace project profile overrides
+
+`ResolvedSettingsResolver` returns an effective settings copy without mutating global settings, repo profile data, or project workspace state. Workspace project profile overrides always win over repo profile values.
+
+### Repo Profile Schema
+- File name: `.error-sound-alert.json`
+- Location: project root / `project.basePath`
+- Supported schema: `schemaVersion = 1`
+- Supported categories: master enabled, per-kind monitoring, built-in/global sound behavior, per-kind sound enabled/id, success sound enabled/id, global/per-kind volume, alert duration, play-once mode, visual notifications, and minimum process duration
+
+### UI / Diagnostics
+- Error Monitor -> Project Profile shows repo profile status, profile name when available, and warning count
+- Added **Reload repo profile** and **Open repo profile file** actions
+- Diagnostics now reports repo profile status, schema, name, warnings count, and effective precedence
+
+### Safety Boundaries
+- No custom regex rules
+- No suppression rules
+- No terminal exit-code rules
+- No rule presets
+- No rule import/export schema changes
+- No Alert History
+- No custom audio file paths
+- No telemetry or network calls
+- No script execution
+- No terminal reflection behavior changes
+- No automatic `.error-sound-alert.json` creation or writes
+- Missing file, invalid JSON, invalid schema, unknown fields, and invalid values fall back safely with warnings where applicable
+
+### Marketplace metadata
+- Plugin version is `1.1.19`
+- Marketplace change notes and feature description include Team-Shared Repo Profile File as a shipped feature
+
+---
+
 ## 1.1.18 — Full Per-Project Profiles (Phase 9)
 
 ### Scope
@@ -41,7 +90,7 @@ Phase 9 expands the earlier enabled-only project override into opt-in workspace-
 - No per-project exit-code rules
 - No per-project rule presets or rule import/export
 - No per-project Alert History
-- No repo-shared profile file or merge-policy UI
+- No repo-shared profile file in Phase 9; repo profile support was added later in Phase 10
 - No per-run-configuration overrides
 - No AlertDispatcher, Alert History, rule import/export schema, terminal reflection, network, or telemetry behavior changes
 
@@ -785,4 +834,4 @@ projectOverride == false →  effective enabled = false (regardless of global)
 - Improved terminal compatibility with 2025.x reworked terminal engine
 
 ---
-*Last updated from code scan: 2026-05-17*
+*Last updated from code scan: 2026-05-18*
