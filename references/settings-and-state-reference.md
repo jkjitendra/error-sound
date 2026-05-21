@@ -137,6 +137,8 @@ Diagnostics / Self-Test is available only in Settings / Preferences -> Tools -> 
 
 The diagnostics summary may show:
 - monitoring enabled/disabled
+- repo profile present/absent/invalid state
+- repo profile schema, profile name, warning count, and effective precedence
 - snooze active/inactive
 - notification settings
 - sound source and selected sound
@@ -165,7 +167,7 @@ Diagnostics and self-tests do not mutate settings, write Alert History entries, 
 **Persistence:** `@State(name = "ErrorSoundProjectAlertSettings", storages = [Storage(StoragePathMacros.WORKSPACE_FILE)])`
 **Service level:** `@Service(Service.Level.PROJECT)` — workspace-scoped project state
 
-Phase 9 project profiles are opt-in overrides layered over global `AlertSettings.State`. When `useProfileOverrides` is `false`, the project inherits global settings. When it is `true`, only selected override groups replace global values; unselected groups continue inheriting global settings.
+Project profiles are opt-in workspace overrides layered over global and repo profile settings. When `useProfileOverrides` is `false`, the project inherits the repo profile when present, otherwise global settings. When it is `true`, only selected override groups replace lower-priority values; unselected groups continue inheriting repo/global settings.
 
 ### Project Profile Fields
 
@@ -182,7 +184,7 @@ Phase 9 project profiles are opt-in overrides layered over global `AlertSettings
 
 ### Project Profile Resolution
 
-`ResolvedSettingsResolver.resolve()` starts with a copy of global `AlertSettings.State`, applies only selected project override groups, and returns an effective copy. It does not mutate global settings or project workspace state.
+`ResolvedSettingsResolver.resolve()` starts with a copy of global `AlertSettings.State`, applies a valid enabled repo profile if present, then applies selected project override groups, and returns an effective copy. It does not mutate global settings, repo profile data, or project workspace state.
 
 Supported Phase 9 overrides:
 - master enabled
@@ -197,7 +199,7 @@ Supported Phase 9 overrides:
 - visual notification settings
 - minimum process duration threshold
 
-Project profile state does **not** include custom regex rules, suppression rules, terminal exit-code rules, rule presets, rule import/export data, Alert History, terminal integration state, repo-shared profile files, merge-policy UI, or per-run-configuration overrides.
+Project profile state does **not** include custom regex rules, suppression rules, terminal exit-code rules, rule presets, rule import/export data, Alert History, terminal integration state, merge-policy UI, or per-run-configuration overrides.
 
 ### Backward Compatibility
 
@@ -208,6 +210,111 @@ Legacy workspace files with only `useOverride` / `enabledOverride` still load. N
 - **Copy current global settings** seeds the project profile from current global settings and enables supported override groups.
 - **Reset project overrides** clears project profile state back to inheritance defaults.
 - Diagnostics can show active project profile override categories when an active project is available.
+
+## Team-Shared Repo Profile File
+
+**File name:** `.error-sound-alert.json`
+**Location:** project root / `project.basePath`
+**Service:** `RepoProfileService` (`@Service(Service.Level.PROJECT)`)
+
+Phase 10 repo profiles add a read-only local profile layer between global settings and workspace project profile overrides:
+
+```text
+Global application settings -> repo-shared profile -> workspace project profile overrides
+```
+
+The plugin does not auto-create, edit, or write `.error-sound-alert.json`. It reads only the file directly under `project.basePath`; it does not intentionally scan parent directories, use network paths, execute content, send telemetry, or change terminal reflection behavior.
+
+### Schema Version 1
+
+Top-level structure:
+
+```json
+{
+  "schemaVersion": 1,
+  "profileName": "Team defaults",
+  "enabled": true,
+  "overrides": {
+    "monitoring": {
+      "enabled": true,
+      "configuration": true,
+      "compilation": true,
+      "testFailure": true,
+      "network": true,
+      "exception": true,
+      "generic": true,
+      "success": false
+    },
+    "sound": {
+      "useGlobalBuiltInSound": true,
+      "globalBuiltInSoundId": "boom",
+      "perKind": {
+        "CONFIGURATION": { "enabled": true, "soundId": "boom" },
+        "COMPILATION": { "enabled": true, "soundId": "punch" }
+      },
+      "success": { "enabled": false, "soundId": "yeah_boy" }
+    },
+    "volume": {
+      "globalVolumePercent": 80,
+      "perKind": {
+        "CONFIGURATION": { "enabled": false, "volumePercent": 80 }
+      }
+    },
+    "duration": {
+      "alertDurationSeconds": 3,
+      "useActualSoundDuration": false
+    },
+    "visualNotifications": {
+      "showVisualNotification": true,
+      "onError": true,
+      "onSuccess": false
+    },
+    "minimumProcessDuration": {
+      "seconds": 0
+    }
+  }
+}
+```
+
+Supported override categories:
+- master enabled
+- per-kind monitoring toggles
+- built-in/global sound behavior
+- per-kind sound enabled/id
+- success sound enabled/id
+- global volume
+- per-kind volume overrides
+- alert duration
+- `useActualSoundDuration` / play once
+- visual notification settings
+- minimum process duration threshold
+
+Missing fields mean no repo override for that field.
+
+### Validation And Fallback
+
+- `schemaVersion` must be present and equal to `1`
+- Missing file means no repo profile layer
+- Invalid JSON, invalid schema, unreadable file, non-regular file, or oversized file returns an invalid result and falls back to global + workspace project overrides
+- Unknown top-level or override fields are ignored with warnings
+- Invalid enum/sound IDs are ignored with warnings
+- Numeric values are clamped to supported ranges where applicable
+- `enabled = false` disables the repo profile layer while preserving status visibility
+
+### Explicit Exclusions
+
+Repo profiles do **not** include:
+- custom regex rules
+- suppression rules
+- terminal exit-code rules
+- rule presets
+- rule import/export schema data
+- Alert History
+- custom audio file paths
+- telemetry or network behavior
+- script execution
+- terminal reflection behavior
+- automatic file creation/writes
 
 ## Rule Import / Export JSON
 
@@ -231,7 +338,7 @@ It does **not** cover:
 {
   "schemaVersion": 2,
   "exportedAt": "2026-05-02T00:00:00Z",
-  "pluginVersion": "1.1.18",
+  "pluginVersion": "1.1.19",
   "customRules": [
     {
       "id": "8e2d8f2f-4d8b-46cc-8f22-82a904f1d6aa",
@@ -321,4 +428,4 @@ Preset behavior:
 - Presets are bundled locally; no network, telemetry, remote preset downloads, script execution, or file writes are involved
 
 ---
-*Last updated from code scan: 2026-05-17*
+*Last updated from code scan: 2026-05-18*
