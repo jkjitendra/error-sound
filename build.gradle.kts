@@ -7,7 +7,7 @@ plugins {
 }
 
 group = "com.drostwades"
-version = "1.1.19"
+version = "1.1.20"
 
 repositories {
     mavenCentral()
@@ -74,6 +74,13 @@ intellijPlatform {
         """.trimIndent()
 
         changeNotes = """
+            <b>1.1.20</b>
+            <ul>
+              <li>Marketplace verifier compatibility fixes for the latest codebase</li>
+              <li>Removed internal <code>PluginManagerCore</code> API usage for plugin version metadata</li>
+              <li>Replaced deprecated <code>FileSaverDescriptor</code> constructor usage in rules export</li>
+              <li>Includes unpublished user-facing work since 1.1.12: rule presets, play-once sound duration, suppression rules, actionable notifications, diagnostics/self-test, full per-project profiles, and team-shared repo profiles</li>
+            </ul>
             <b>1.1.19</b>
             <ul>
               <li>Added support for an optional team-shared <code>.error-sound-alert.json</code> profile file in the project root</li>

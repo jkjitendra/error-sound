@@ -1,11 +1,7 @@
 package com.drostwades.errorsound
 
-import com.intellij.ide.plugins.PluginManagerCore
-import com.intellij.openapi.extensions.PluginId
 import com.intellij.openapi.fileChooser.FileChooser
 import com.intellij.openapi.fileChooser.FileChooserDescriptor
-import com.intellij.openapi.fileChooser.FileChooserFactory
-import com.intellij.openapi.fileChooser.FileSaverDescriptor
 import com.intellij.openapi.ui.TextBrowseFolderListener
 import com.intellij.openapi.options.Configurable
 import com.intellij.openapi.ui.ComboBox
@@ -24,20 +20,24 @@ import java.awt.BorderLayout
 import java.awt.Color
 import java.awt.Component
 import java.awt.FlowLayout
+import java.io.File
 import java.nio.charset.StandardCharsets
 import java.nio.file.Files
+import java.util.Properties
 import java.util.regex.PatternSyntaxException
 import javax.swing.BorderFactory
 import javax.swing.DefaultCellEditor
 import javax.swing.DefaultComboBoxModel
 import javax.swing.JButton
 import javax.swing.JComponent
+import javax.swing.JFileChooser
 import javax.swing.JLabel
 import javax.swing.JPanel
 import javax.swing.JTable
 import javax.swing.JTextArea
 import javax.swing.event.DocumentEvent
 import javax.swing.event.DocumentListener
+import javax.swing.filechooser.FileNameExtensionFilter
 import javax.swing.table.AbstractTableModel
 import javax.swing.table.DefaultTableCellRenderer
 
@@ -896,17 +896,7 @@ class ErrorSoundConfigurable : Configurable {
         stopRuleTableEditing()
         val parent = panel ?: return
 
-        val descriptor = FileSaverDescriptor(
-            "Export Error Sound Rules",
-            "Export custom regex, suppression, and terminal exit-code rules to a JSON file.",
-            "json",
-        )
-        val wrapper = FileChooserFactory.getInstance()
-            .createSaveFileDialog(descriptor, parent)
-            .save("error-sound-rules.json")
-            ?: return
-
-        val file = wrapper.file
+        val file = chooseRuleExportFile(parent) ?: return
         if (Files.exists(file.toPath())) {
             val choice = Messages.showYesNoDialog(
                 parent,
@@ -1008,8 +998,32 @@ class ErrorSoundConfigurable : Configurable {
     }
 
     private fun currentPluginVersion(): String {
-        return PluginManagerCore.getPlugin(PluginId.getId("com.drostwades.errorsound"))?.version
-            ?: "unknown"
+        return runCatching {
+            javaClass.classLoader
+                .getResourceAsStream("error-sound-alert.properties")
+                ?.use { input ->
+                    Properties().apply { load(input) }
+                        .getProperty("pluginVersion")
+                        ?.takeIf { it.isNotBlank() }
+                }
+        }.getOrNull() ?: "unknown"
+    }
+
+    private fun chooseRuleExportFile(parent: JComponent): File? {
+        val chooser = JFileChooser().apply {
+            dialogTitle = "Export Error Sound Rules"
+            fileFilter = FileNameExtensionFilter("JSON files (*.json)", "json")
+            selectedFile = File("error-sound-rules.json")
+        }
+        if (chooser.showSaveDialog(parent) != JFileChooser.APPROVE_OPTION) {
+            return null
+        }
+        val selected = chooser.selectedFile ?: return null
+        return if (selected.extension.equals("json", ignoreCase = true)) {
+            selected
+        } else {
+            File(selected.parentFile, "${selected.name}.json")
+        }
     }
 
     // ── Suppression Rules Panel ───────────────────────────────────────────────

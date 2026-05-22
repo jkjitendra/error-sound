@@ -32,7 +32,7 @@ IntelliJ Platform plugin that plays an audio alert when a Run/Debug process, con
 | Target platform | IC 2024.3 |
 | `sinceBuild` | 243 |
 | `untilBuild` | unset (open-ended) |
-| **Plugin version** | **1.1.19** |
+| **Plugin version** | **1.1.20** |
 
 ## Completed Phases
 
@@ -55,6 +55,7 @@ IntelliJ Platform plugin that plays an audio alert when a Run/Debug process, con
 - Phase 8 Roadmap — Diagnostics / Self-Test
 - Phase 9 Roadmap — Full Per-Project Profiles
 - Phase 10 Roadmap — Team-Shared Repo Profile File
+- Compatibility Fix — Marketplace Verifier API Usage
 
 ## Safe Editing Rules
 
@@ -101,4 +102,4 @@ IntelliJ Platform plugin that plays an audio alert when a Run/Debug process, con
 7. See `docs/agent-context/maintenance-rules.md` for the full update matrix.
 
 ---
-*Last updated from code scan: 2026-05-18*
+*Last updated from code scan: 2026-05-22*

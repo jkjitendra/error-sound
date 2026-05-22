@@ -4,6 +4,29 @@ Engineering-significant changes to the codebase. Not a full changelog — focuse
 
 ---
 
+## 1.1.20 — Marketplace Verifier Compatibility Fix
+
+### Scope
+This compatibility patch fixes Marketplace verifier API findings on the latest codebase so the next Marketplace upload can be published as 1.1.20 without uploading each unpublished intermediate version separately.
+
+### API compatibility fixes
+- Removed internal `PluginManagerCore.getPlugin(PluginId)` usage from settings-side rule export metadata
+- Added bundled `error-sound-alert.properties` as the public-safe plugin version source
+- Replaced deprecated `FileSaverDescriptor` constructor usage in rule export with a standard save chooser while preserving JSON filtering, user-selected path, explicit overwrite confirmation, and local-only file writes
+
+### Marketplace metadata
+- Plugin version is `1.1.20`
+- Change notes summarize verifier fixes and include the unpublished user-facing work since 1.1.12
+
+### Safety Boundaries
+- No runtime alert behavior changes
+- No terminal reflection logic changes
+- No rule import/export schema changes
+- No new product features
+- No network, telemetry, or dependency additions
+
+---
+
 ## 1.1.19 — Team-Shared Repo Profile File (Phase 10)
 
 ### Scope
@@ -834,4 +857,4 @@ projectOverride == false →  effective enabled = false (regardless of global)
 - Improved terminal compatibility with 2025.x reworked terminal engine
 
 ---
-*Last updated from code scan: 2026-05-18*
+*Last updated from code scan: 2026-05-22*
