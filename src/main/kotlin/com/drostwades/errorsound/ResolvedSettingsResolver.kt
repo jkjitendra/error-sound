@@ -19,19 +19,49 @@ class ResolvedSettingsResolver(private val project: Project) {
      * The returned state is **always a copy** — mutating it has no side effects on stored settings,
      * regardless of whether a project override is active.
      *
-     * Repo profile and project profile settings are opt-in by field/category. Rule collections
-     * and custom file path stay global in Phase 10.
+     * Repo profile and project profile settings are opt-in by field/category. The selected
+     * project merge policy controls whether repo or workspace layers are applied first.
+     * Rule collections and custom file path stay global.
      */
     fun resolve(): AlertSettings.State {
         val global = AlertSettings.getInstance().state
-        var resolved = global.copy()
-
-        val repoResult = RepoProfileService.getInstance(project).load()
-        if (repoResult.isApplied) {
-            repoResult.profile?.let { resolved = it.applyTo(resolved) }
-        }
-
         val projectState = ProjectAlertSettings.getInstance(project).state
+        val policy = ProfileMergePolicy.fromStored(projectState.profileMergePolicy)
+        val repoResult = RepoProfileService.getInstance(project).load()
+
+        return when (policy) {
+            ProfileMergePolicy.STANDARD_WORKSPACE_WINS -> {
+                var resolved = global.copy()
+                resolved = applyRepoProfile(resolved, repoResult)
+                applyProjectProfile(resolved, projectState)
+            }
+            ProfileMergePolicy.IGNORE_REPO_PROFILE -> {
+                applyProjectProfile(global.copy(), projectState)
+            }
+            ProfileMergePolicy.REPO_PROFILE_WINS -> {
+                var resolved = applyProjectProfile(global.copy(), projectState)
+                applyRepoProfile(resolved, repoResult)
+            }
+            ProfileMergePolicy.GLOBAL_ONLY -> global.copy()
+        }
+    }
+
+    private fun applyRepoProfile(
+        base: AlertSettings.State,
+        repoResult: RepoProfileLoadResult,
+    ): AlertSettings.State {
+        return if (repoResult.isApplied) {
+            repoResult.profile?.applyTo(base) ?: base
+        } else {
+            base
+        }
+    }
+
+    private fun applyProjectProfile(
+        base: AlertSettings.State,
+        projectState: ProjectAlertSettings.State,
+    ): AlertSettings.State {
+        var resolved = base
         if (!projectState.useProfileOverrides) {
             return resolved
         }
