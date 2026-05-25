@@ -501,6 +501,8 @@ private class ErrorSoundToolWindowPanel(
         // Use the effective settings so project profile overrides are reflected.
         val resolvedState = ResolvedSettingsResolver.getInstance(project).resolve()
         val repoProfile = RepoProfileService.getInstance(project).load()
+        val mergePolicy = projectSettings.mergePolicy()
+        val activeProjectOverrides = projectSettings.activeOverrideLabels().isNotEmpty()
         val resolvedEnabled = resolvedState.enabled
         projectProfilePanel.refreshFromState()
 
@@ -530,8 +532,13 @@ private class ErrorSoundToolWindowPanel(
         // Build status text — show whether the effective state is inherited or overridden
         val sourceNote = when {
             isSnoozed -> null
-            projectSettings.activeOverrideLabels().isNotEmpty() && repoProfile.isApplied -> "(project profile over repo)"
-            projectSettings.activeOverrideLabels().isNotEmpty() -> "(project profile)"
+            mergePolicy == ProfileMergePolicy.GLOBAL_ONLY -> "(global only)"
+            mergePolicy == ProfileMergePolicy.IGNORE_REPO_PROFILE && activeProjectOverrides -> "(project profile; repo ignored)"
+            mergePolicy == ProfileMergePolicy.IGNORE_REPO_PROFILE -> "(global; repo ignored)"
+            mergePolicy == ProfileMergePolicy.REPO_PROFILE_WINS && repoProfile.isApplied && activeProjectOverrides -> "(repo profile over project)"
+            mergePolicy == ProfileMergePolicy.REPO_PROFILE_WINS && repoProfile.isApplied -> "(repo profile)"
+            activeProjectOverrides && repoProfile.isApplied -> "(project profile over repo)"
+            activeProjectOverrides -> "(project profile)"
             repoProfile.isApplied -> "(repo profile)"
             else -> "(global)"
         }
