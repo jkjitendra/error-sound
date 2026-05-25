@@ -28,6 +28,12 @@ object ErrorSoundDiagnosticsService {
         val repoProfileStatus = activeProject?.let { project ->
             RepoProfileService.getInstance(project).reload()
         }
+        val projectProfileState = activeProject?.let { project ->
+            ProjectAlertSettings.getInstance(project).state
+        }
+        val mergePolicy = projectProfileState
+            ?.let { ProfileMergePolicy.fromStored(it.profileMergePolicy) }
+            ?: ProfileMergePolicy.default
         val projectProfileStatus = activeProject?.let { project ->
             val labels = ProjectAlertSettings.getInstance(project).activeOverrideLabels()
             if (labels.isEmpty()) {
@@ -51,7 +57,10 @@ object ErrorSoundDiagnosticsService {
                 "Repo profile schema" to (repoProfileStatus?.profile?.schemaVersion?.toString() ?: "n/a"),
                 "Repo profile name" to (repoProfileStatus?.profile?.profileName?.takeIf { it.isNotBlank() } ?: "n/a"),
                 "Repo profile warnings" to (repoProfileStatus?.warnings?.size?.toString() ?: "n/a"),
-                "Effective precedence" to "Global -> repo profile -> workspace project profile",
+                "Profile merge policy" to if (activeProject == null) "n/a" else mergePolicy.displayName,
+                "Effective precedence" to effectivePrecedenceLabel(activeProject, mergePolicy, repoProfileStatus),
+                "Repo profile layer" to repoLayerLabel(activeProject, mergePolicy, repoProfileStatus),
+                "Workspace profile layer" to workspaceLayerLabel(activeProject, mergePolicy, projectProfileState),
                 "Snooze" to (SnoozeState.statusLabel() ?: "Inactive"),
                 "Visual notifications" to enabledLabel(state.showVisualNotification),
                 "Notify on errors" to enabledLabel(state.visualNotificationOnError),
@@ -136,6 +145,53 @@ object ErrorSoundDiagnosticsService {
             RepoProfileLoadResult.Status.LOADED -> "Present and enabled"
             RepoProfileLoadResult.Status.DISABLED -> "Present but disabled"
             RepoProfileLoadResult.Status.INVALID -> "Present but invalid"
+        }
+    }
+
+    private fun effectivePrecedenceLabel(
+        project: Project?,
+        policy: ProfileMergePolicy,
+        repoProfile: RepoProfileLoadResult?,
+    ): String {
+        if (project == null) return "No active project context found"
+        val suffix = when {
+            policy == ProfileMergePolicy.GLOBAL_ONLY -> ""
+            policy == ProfileMergePolicy.IGNORE_REPO_PROFILE -> " (repo skipped by policy)"
+            repoProfile?.isApplied != true -> " (repo skipped)"
+            else -> ""
+        }
+        return "${policy.effectivePrecedenceText}$suffix"
+    }
+
+    private fun repoLayerLabel(
+        project: Project?,
+        policy: ProfileMergePolicy,
+        repoProfile: RepoProfileLoadResult?,
+    ): String {
+        if (project == null) return "No active project context found"
+        return when {
+            policy == ProfileMergePolicy.GLOBAL_ONLY -> "Skipped by Global settings only policy"
+            policy == ProfileMergePolicy.IGNORE_REPO_PROFILE -> "Skipped by selected policy"
+            repoProfile?.isApplied == true -> "Included"
+            repoProfile == null -> "Skipped; repo profile status unavailable"
+            else -> "Skipped; ${repoProfileStatusLabel(repoProfile).lowercase()}"
+        }
+    }
+
+    private fun workspaceLayerLabel(
+        project: Project?,
+        policy: ProfileMergePolicy,
+        projectProfile: ProjectAlertSettings.State?,
+    ): String {
+        if (project == null) return "No active project context found"
+        if (policy == ProfileMergePolicy.GLOBAL_ONLY) return "Skipped by Global settings only policy"
+        if (projectProfile?.useProfileOverrides != true) return "Skipped; project profile overrides disabled"
+
+        val labels = ProjectAlertSettings.getInstance(project).activeOverrideLabels()
+        return if (labels.isEmpty()) {
+            "Included; no override groups selected"
+        } else {
+            "Included (${labels.joinToString(", ")})"
         }
     }
 
