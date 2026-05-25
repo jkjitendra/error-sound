@@ -35,6 +35,8 @@ class ProjectProfilePanel(
     private val repoProfileStatusLabel = JBLabel()
     private val reloadRepoProfileButton = JButton("Reload repo profile")
     private val openRepoProfileButton = JButton("Open repo profile file")
+    private val mergePolicyCombo = ComboBox(ProfileMergePolicy.entries.toTypedArray())
+    private val effectivePrecedenceLabel = JBLabel()
 
     private val useEnabledOverrideCheckBox = JBCheckBox("Override master monitoring enabled")
     private val enabledOverrideCheckBox = JBCheckBox("Enable monitoring for this project")
@@ -119,6 +121,8 @@ class ProjectProfilePanel(
             val repoProfile = RepoProfileService.getInstance(project).load()
             repoProfileStatusLabel.text = repoProfileStatusText(repoProfile)
             openRepoProfileButton.isEnabled = repoProfile.isFilePresent
+            selectMergePolicy(state.profileMergePolicy)
+            effectivePrecedenceLabel.text = effectivePrecedenceText(selectedMergePolicy(), repoProfile)
 
             useProfileOverridesCheckBox.isSelected = state.useProfileOverrides
 
@@ -174,7 +178,7 @@ class ProjectProfilePanel(
 
         wrapper.add(left(hint("Unchecked means this project inherits the repo profile when present, otherwise global settings.")))
         wrapper.add(Box.createVerticalStrut(4))
-        wrapper.add(left(hint("Workspace overrides win over the repo profile; unchecked fields inherit repo values when present, otherwise global.")))
+        wrapper.add(left(hint("Controls here are stored in workspace state and are not written to the repository profile file.")))
         wrapper.add(Box.createVerticalStrut(4))
         wrapper.add(left(repoProfileStatusLabel.apply {
             foreground = UIUtil.getContextHelpForeground()
@@ -182,6 +186,14 @@ class ProjectProfilePanel(
         }))
         wrapper.add(Box.createVerticalStrut(4))
         wrapper.add(left(compactRow(reloadRepoProfileButton, openRepoProfileButton)))
+        wrapper.add(Box.createVerticalStrut(8))
+        wrapper.add(left(stackedField("Profile merge policy", mergePolicyCombo)))
+        wrapper.add(left(hint("Controls how global settings, .error-sound-alert.json, and workspace project overrides are merged for this project.")))
+        wrapper.add(Box.createVerticalStrut(2))
+        wrapper.add(left(effectivePrecedenceLabel.apply {
+            foreground = UIUtil.getContextHelpForeground()
+            font = JBFont.small()
+        }))
         wrapper.add(Box.createVerticalStrut(6))
         wrapper.add(left(useProfileOverridesCheckBox))
         wrapper.add(Box.createVerticalStrut(4))
@@ -269,6 +281,9 @@ class ProjectProfilePanel(
                 )
             }
         }
+        mergePolicyCombo.addActionListener {
+            mutate { it.profileMergePolicy = selectedMergePolicy().name }
+        }
 
         useEnabledOverrideCheckBox.addActionListener { mutate { it.useOverride = useEnabledOverrideCheckBox.isSelected } }
         enabledOverrideCheckBox.addActionListener { mutate { it.enabledOverride = enabledOverrideCheckBox.isSelected } }
@@ -339,6 +354,10 @@ class ProjectProfilePanel(
         val profile = useProfileOverridesCheckBox.isSelected
         copyGlobalButton.isEnabled = true
         resetButton.isEnabled = true
+        effectivePrecedenceLabel.text = effectivePrecedenceText(
+            selectedMergePolicy(),
+            RepoProfileService.getInstance(project).load(),
+        )
 
         setEnabledRecursive(useEnabledOverrideCheckBox, profile)
         enabledOverrideCheckBox.isEnabled = profile && useEnabledOverrideCheckBox.isSelected
@@ -390,18 +409,31 @@ class ProjectProfilePanel(
     private fun repoProfileStatusText(result: RepoProfileLoadResult): String {
         val warningSuffix = if (result.warnings.isEmpty()) "" else ", ${result.warnings.size} warning(s)"
         return when (result.status) {
-            RepoProfileLoadResult.Status.NO_PROJECT_BASE_PATH -> "Repo profile: project root unavailable."
-            RepoProfileLoadResult.Status.ABSENT -> "Repo profile: not found (${RepoProfileService.FILE_NAME})."
+            RepoProfileLoadResult.Status.NO_PROJECT_BASE_PATH -> "Repo profile: project root unavailable; repo layer is skipped."
+            RepoProfileLoadResult.Status.ABSENT -> "Repo profile: not found (${RepoProfileService.FILE_NAME}); repo layer is skipped."
             RepoProfileLoadResult.Status.LOADED -> {
                 val name = result.profile?.profileName?.takeIf { it.isNotBlank() } ?: "unnamed profile"
                 "Repo profile: $name (schema v${result.profile?.schemaVersion ?: "?"}$warningSuffix)."
             }
             RepoProfileLoadResult.Status.DISABLED -> {
                 val name = result.profile?.profileName?.takeIf { it.isNotBlank() } ?: "unnamed profile"
-                "Repo profile: $name is disabled$warningSuffix."
+                "Repo profile: $name is disabled$warningSuffix; repo layer is skipped."
             }
-            RepoProfileLoadResult.Status.INVALID -> "Repo profile: invalid$warningSuffix."
+            RepoProfileLoadResult.Status.INVALID -> "Repo profile: invalid$warningSuffix; repo layer is skipped."
         }
+    }
+
+    private fun effectivePrecedenceText(
+        policy: ProfileMergePolicy,
+        repoProfile: RepoProfileLoadResult,
+    ): String {
+        val suffix = when {
+            policy == ProfileMergePolicy.GLOBAL_ONLY -> ""
+            policy == ProfileMergePolicy.IGNORE_REPO_PROFILE -> " (repo layer skipped by policy)"
+            !repoProfile.isApplied && policy != ProfileMergePolicy.IGNORE_REPO_PROFILE -> " (repo layer skipped)"
+            else -> ""
+        }
+        return "Effective precedence: ${policy.effectivePrecedenceText}$suffix"
     }
 
     private fun clearOverrideFlags(state: ProjectAlertSettings.State) {
@@ -501,6 +533,13 @@ class ProjectProfilePanel(
 
     private fun selectedSoundId(combo: ComboBox<BuiltInSound>): String =
         (combo.selectedItem as? BuiltInSound)?.id ?: BuiltInSounds.default.id
+
+    private fun selectMergePolicy(storedValue: String) {
+        mergePolicyCombo.selectedItem = ProfileMergePolicy.fromStored(storedValue)
+    }
+
+    private fun selectedMergePolicy(): ProfileMergePolicy =
+        mergePolicyCombo.selectedItem as? ProfileMergePolicy ?: ProfileMergePolicy.default
 
     private fun soundEnabled(state: ProjectAlertSettings.State, kind: ErrorKind): Boolean = when (kind) {
         ErrorKind.CONFIGURATION -> state.configurationSoundEnabledOverride
