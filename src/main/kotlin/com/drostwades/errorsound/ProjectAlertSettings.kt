@@ -39,6 +39,12 @@ class ProjectAlertSettings : PersistentStateComponent<ProjectAlertSettings.State
         var useProfileOverrides: Boolean = false,
 
         /**
+         * Workspace-scoped Phase 11 merge policy for global, repo, and project profile layers.
+         * Stored as a string for resilient XML serialization; unknown values normalize to default.
+         */
+        var profileMergePolicy: String = ProfileMergePolicy.default.name,
+
+        /**
          * Whether the project-level override for `enabled` is active.
          * When `false`, `enabledOverride` is ignored and the global value is used.
          */
@@ -118,12 +124,14 @@ class ProjectAlertSettings : PersistentStateComponent<ProjectAlertSettings.State
         if (state.useProfileOverrides && state.useOverride) state.enabledOverride else null
 
     fun resetOverrides() {
-        state = State()
+        state = State(profileMergePolicy = mergePolicy().name)
     }
 
     fun copyGlobalSettings(global: AlertSettings.State) {
+        val currentMergePolicy = mergePolicy().name
         state = State(
             useProfileOverrides = true,
+            profileMergePolicy = currentMergePolicy,
             useOverride = true,
             enabledOverride = global.enabled,
             useMonitoringOverrides = true,
@@ -185,10 +193,13 @@ class ProjectAlertSettings : PersistentStateComponent<ProjectAlertSettings.State
         return labels
     }
 
+    fun mergePolicy(): ProfileMergePolicy = ProfileMergePolicy.fromStored(state.profileMergePolicy)
+
     private fun normalize(input: State): State {
         val migratedProfileEnabled = input.useProfileOverrides || input.useOverride
         return input.copy(
             useProfileOverrides = migratedProfileEnabled,
+            profileMergePolicy = ProfileMergePolicy.fromStored(input.profileMergePolicy).name,
             builtInSoundIdOverride = normalizeSoundId(input.builtInSoundIdOverride),
             configurationSoundIdOverride = normalizeSoundId(input.configurationSoundIdOverride),
             compilationSoundIdOverride = normalizeSoundId(input.compilationSoundIdOverride),
