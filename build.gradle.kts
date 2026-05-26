@@ -7,7 +7,7 @@ plugins {
 }
 
 group = "com.drostwades"
-version = "1.1.20"
+version = "1.1.21"
 
 repositories {
     mavenCentral()
@@ -56,6 +56,7 @@ intellijPlatform {
               <li><b>Diagnostics / Self-Test:</b> inspect applied settings and run safe sound and notification checks from the settings page</li>
               <li><b>Full per-project profiles:</b> override monitoring, sound, volume, duration, notification, and threshold behavior per workspace without changing global settings</li>
               <li><b>Team-shared repo profiles:</b> load safe profile defaults from <code>.error-sound-alert.json</code> in the project root before workspace overrides are applied</li>
+              <li><b>Profile merge policy:</b> choose whether workspace overrides, repo defaults, global settings, or local-only settings determine the effective project profile</li>
               <li><b>Exit-code rules for terminal commands:</b> map specific exit codes to error kinds, optional per-code sound overrides, or suppress alerts entirely (e.g. silence Ctrl+C / exit&nbsp;130)</li>
               <li>Per-kind sounds, or one global sound for all alerts</li>
               <li><b>Success sounds:</b> optional alert on successful process completion (off by default)</li>
@@ -74,6 +75,13 @@ intellijPlatform {
         """.trimIndent()
 
         changeNotes = """
+            <b>1.1.21</b>
+            <ul>
+              <li>Added a project/workspace-scoped Profile Merge Policy for effective settings resolution</li>
+              <li>Policies include Standard workspace-wins behavior, Ignore repo profile, Repo profile wins, and Global settings only</li>
+              <li>Error Monitor and Diagnostics now show the selected policy and effective precedence for global, repo, and workspace profile layers</li>
+              <li>Repo profile schema, rule import/export, Alert History, terminal reflection, sound playback, and notification behavior are unchanged</li>
+            </ul>
             <b>1.1.20</b>
             <ul>
               <li>Marketplace verifier compatibility fixes for the latest codebase</li>

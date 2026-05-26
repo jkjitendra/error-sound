@@ -34,6 +34,7 @@
 | Snooze / mute | Temporarily silence alerts for 15 minutes or 1 hour from the Error Monitor panel |
 | Full per-project profiles | Opt-in workspace-scoped project overrides for monitoring, sounds, volume, duration, notifications, and process-duration threshold |
 | Team-shared repo profiles | Commit `.error-sound-alert.json` at the project root to share safe profile defaults across a team |
+| Profile merge policy | Choose whether workspace overrides, repo defaults, global settings, or global-only troubleshooting determine the effective project profile |
 | 7 built-in sounds | Boom, Faaa, Huh, Punch, Yeah Boy, Yooo, Dog Laughing |
 | Custom audio support | Point to any local WAV / AIFF / AU file |
 | Per-kind sounds | Assign a different sound to each error category |
@@ -87,15 +88,15 @@ The Alert History section shows recent accepted alerts in newest-first order. It
 
 ### Full Per-Project Profiles
 
-Use **Error Monitor → Project Profile** to enable opt-in project profile overrides for the current workspace. When **Use project profile overrides** is unchecked, the project inherits the repo profile if present, otherwise global settings. When it is checked, only the selected override groups replace lower-priority values; any unselected fields continue inheriting repo/global settings.
+Use **Error Monitor → Project Profile** to enable opt-in project profile overrides for the current workspace. When **Use project profile overrides** is unchecked, workspace override fields are skipped and the project inherits from the lower-priority layers selected by the profile merge policy. When it is checked, only the selected override groups replace inherited values; any unselected fields continue inheriting from lower-priority layers.
 
 Supported project override groups include master monitoring, per-kind monitoring toggles, built-in/global sound behavior, per-kind and success sound selections, global and per-kind volume, alert duration, **Use actual sound file duration (play once)**, visual notification settings, and the minimum process duration threshold. Project profiles are stored in JetBrains workspace state and are not exported by rule import/export.
 
 Use **Copy current global settings** to seed a project profile from the current global configuration, or **Reset project overrides** to return the project to global inheritance. The initial enabled-only project override from earlier versions is preserved and migrated into the new master profile behavior.
 
-Project profile controls also show repo profile status, a **Reload repo profile** action, and an **Open repo profile file** action when `.error-sound-alert.json` exists. Workspace project profile overrides always win over repo profile values.
+Project profile controls also show repo profile status, a **Reload repo profile** action, an **Open repo profile file** action when `.error-sound-alert.json` exists, a **Profile merge policy** dropdown, and the current effective precedence.
 
-Phase 10 keeps rules and operational history global: custom regex rules, suppression rules, terminal exit-code rules, rule presets, rule import/export, Alert History, and terminal integration are not project-scoped.
+Rules and operational history remain global: custom regex rules, suppression rules, terminal exit-code rules, rule presets, rule import/export, Alert History, and terminal integration are not project-scoped.
 
 ### Team-Shared Repo Profile File
 
@@ -105,7 +106,7 @@ Teams can commit a read-only repo profile file at:
 <project-root>/.error-sound-alert.json
 ```
 
-The plugin only looks at `project.basePath`; it does not scan parent directories and does not create or write this file. Effective settings resolve in fixed order:
+The plugin only looks at `project.basePath`; it does not scan parent directories and does not create or write this file. By default, effective settings resolve in Phase 10's original order:
 
 ```text
 Global application settings → repo-shared profile → workspace project profile overrides
@@ -153,6 +154,18 @@ Missing fields mean “no repo override” for that field. Unknown fields and in
 
 Repo profiles cover safe defaults only: monitoring, built-in sound behavior, volume, duration/play-once, visual notifications, and minimum process duration. They do not include custom regex rules, suppression rules, terminal exit-code rules, rule presets, rule import/export, Alert History, custom audio file paths, network behavior, telemetry, or terminal reflection changes.
 
+### Profile Merge Policy UI
+
+Use **Error Monitor → Project Profile → Profile merge policy** to choose how global settings, `.error-sound-alert.json`, and workspace project overrides are combined for the current project workspace. The selected policy is stored in workspace project state, not in the repo profile file.
+
+Available policies:
+- **Standard: workspace project overrides repo profile** — default; `Global → repo profile → workspace project profile`.
+- **Ignore repo profile** — `Global → workspace project profile`; useful when you want local project settings but not committed repo defaults.
+- **Repo profile overrides workspace project** — `Global → workspace project profile → repo profile`; useful when committed team defaults should take priority over local workspace overrides.
+- **Global settings only** — ignores both repo and workspace project profile layers; useful for troubleshooting.
+
+Missing or invalid repo profiles fall back safely while warnings remain visible. Invalid or missing stored policy values normalize to the default policy. Resolution returns an effective settings copy and does not mutate global settings, project state, or the repo file. The policy adds no network access, telemetry, repo-file writes, rule import/export changes, or terminal reflection changes.
+
 ### Audio Settings
 
 | Option | Description |
@@ -182,7 +195,7 @@ The **Use actual sound file duration (play once)** checkbox is useful when a bun
 
 Use **Diagnostics / Self-Test** in **Settings / Preferences → Tools → Error Sound Alert** to verify the plugin locally without causing a real build or test failure. Diagnostics are settings-only and are not shown in the Error Monitor tool window.
 
-The summary reads existing applied state and status, including monitoring, repo profile status/schema/name/warning count/precedence, snooze, visual notification settings, sound source/selected sound, global volume, alert duration, play-once mode, custom regex rule count, suppression rule count, terminal exit-code rule count, Alert History count, rule preset availability, rule import/export schema support, and terminal integration status.
+The summary reads existing applied state and status, including monitoring, selected profile merge policy, effective precedence, repo layer included/skipped status, workspace layer included/skipped status, repo profile status/schema/name/warning count, snooze, visual notification settings, sound source/selected sound, global volume, alert duration, play-once mode, custom regex rule count, suppression rule count, terminal exit-code rule count, Alert History count, rule preset availability, rule import/export schema support, and terminal integration status.
 
 Available self-tests:
 - **Test error sound**
