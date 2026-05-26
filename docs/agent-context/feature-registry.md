@@ -320,13 +320,13 @@ Lets users add bundled rule sets for common stacks without replacing existing ru
 | Version introduced | 1.1.18 expanded full-profile behavior; enabled-only override introduced in 1.1.7 |
 | Relevant classes/files | `ProjectAlertSettings.kt`, `ProjectProfilePanel.kt`, `ResolvedSettingsResolver.kt`, `ErrorSoundToolWindowFactory.kt`, `ErrorSoundDiagnosticsService.kt`, `plugin.xml` |
 
-Allows one project workspace to opt into selected profile overrides while preserving repo/global defaults for everything else. Supported override groups include master enabled, per-kind monitoring, built-in/global and per-kind sound behavior, success sound, global/per-kind volume, alert duration, play-once mode, visual notifications, and minimum process duration. `ResolvedSettingsResolver` applies selected overrides after global and repo profile layers, then returns an effective settings copy without mutating global, repo, or project state.
+Allows one project workspace to opt into selected profile overrides while preserving inherited defaults for everything else. Supported override groups include master enabled, per-kind monitoring, built-in/global and per-kind sound behavior, success sound, global/per-kind volume, alert duration, play-once mode, visual notifications, and minimum process duration. `ResolvedSettingsResolver` applies selected overrides according to the workspace Profile Merge Policy, then returns an effective settings copy without mutating global, repo, or project state.
 
 **How to enable/use:** Open View -> Tool Windows -> Error Monitor, expand **Project Profile**, enable **Use project profile overrides**, then enable the specific override groups to replace global values for that project. Use **Copy current global settings** to seed the profile or **Reset project overrides** to return the project to inheritance.
 
 **Example usage:** Keep monitoring globally enabled, but open a noisy scratch project, enable project profile overrides, disable GENERIC monitoring, lower volume, and turn off visual notifications only for that workspace.
 
-**Notes/limitations:** Project profile storage is workspace-scoped via `WORKSPACE_FILE`; workspace overrides win over repo profiles. Older enabled-only workspace overrides are preserved and migrated into the new master profile behavior. Custom regex rules, suppression rules, terminal exit-code rules, rule presets, rule import/export, Alert History, and terminal integration remain global/application-level.
+**Notes/limitations:** Project profile storage is workspace-scoped via `WORKSPACE_FILE`; default policy preserves workspace-over-repo precedence, but Phase 11 lets users choose alternate precedence locally. Older enabled-only workspace overrides are preserved and migrated into the new master profile behavior. Custom regex rules, suppression rules, terminal exit-code rules, rule presets, rule import/export, Alert History, and terminal integration remain global/application-level.
 
 ---
 
@@ -338,13 +338,31 @@ Allows one project workspace to opt into selected profile overrides while preser
 | Version introduced | 1.1.19 |
 | Relevant classes/files | `RepoProfileService.kt`, `RepoProfileState.kt`, `RepoProfileLoadResult.kt`, `ResolvedSettingsResolver.kt`, `ProjectProfilePanel.kt`, `ErrorSoundDiagnosticsService.kt`, `plugin.xml` |
 
-Lets teams commit safe Error Sound Alert defaults in `.error-sound-alert.json` at the project root (`project.basePath`). The repo profile is applied between global settings and workspace project profile overrides. Workspace project profile overrides always win over repo values.
+Lets teams commit safe Error Sound Alert defaults in `.error-sound-alert.json` at the project root (`project.basePath`). By default, the repo profile is applied between global settings and workspace project profile overrides. Phase 11 Profile Merge Policy can ignore the repo layer, make repo values win, or use global settings only.
 
 **How to enable/use:** Add `.error-sound-alert.json` to the project root with `schemaVersion: 1`, then open Error Monitor -> Project Profile and click **Reload repo profile**. The panel shows profile status, profile name when present, warning count, and an **Open repo profile file** action when the file exists.
 
 **Example usage:** A team commits a profile that enables visual notifications, uses `boom` as the global built-in sound, lowers global volume to 70%, and disables GENERIC monitoring. Individual developers can still override those defaults from their workspace Project Profile.
 
 **Notes/limitations:** The plugin reads only `project.basePath/.error-sound-alert.json`, does not scan parents, and does not auto-create or write the file. Schema v1 supports safe profile categories only: master enabled, per-kind monitoring, built-in/global and per-kind sound behavior, success sound, global/per-kind volume, alert duration/play-once, visual notifications, and minimum process duration. Missing file, invalid JSON, invalid schema, unknown fields, invalid enum/sound ids, and invalid values fall back safely with warnings where applicable. No custom regex rules, suppression rules, terminal exit-code rules, rule presets, rule import/export schema changes, Alert History, custom audio file paths, telemetry, network calls, script execution, or terminal reflection behavior are included.
+
+---
+
+## Profile Merge Policy UI
+
+| Field | Value |
+|---|---|
+| Status | Available |
+| Version introduced | 1.1.21 |
+| Relevant classes/files | `ProfileMergePolicy.kt`, `ProjectAlertSettings.kt`, `ResolvedSettingsResolver.kt`, `ProjectProfilePanel.kt`, `ErrorSoundDiagnosticsService.kt`, `ErrorSoundToolWindowFactory.kt` |
+
+Lets users choose how global application settings, the repo-shared `.error-sound-alert.json` profile, and workspace project profile overrides are combined for a project. The policy is stored in workspace/project state and defaults to Standard / Workspace wins to preserve Phase 10 behavior. Diagnostics reports the selected policy, effective precedence, and whether repo/workspace layers are included or skipped.
+
+**How to enable/use:** Open View -> Tool Windows -> Error Monitor, expand **Project Profile**, then choose **Profile merge policy**. The panel shows effective precedence immediately below the dropdown and keeps repo profile warnings/status visible.
+
+**Example usage:** Choose **Ignore repo profile** to temporarily opt out of committed team defaults, **Repo profile overrides workspace project** when team defaults should win over local overrides, or **Global settings only** to troubleshoot behavior with both repo and workspace profile layers bypassed.
+
+**Notes/limitations:** Policies are workspace/project-scoped and are not stored in `.error-sound-alert.json`. Repo profile schema remains version 1 and unchanged. Missing/invalid repo files fall back safely with warnings, and invalid/missing stored policy values normalize to `STANDARD_WORKSPACE_WINS`. Resolution returns an effective copy and does not mutate global settings, repo profile data, or project state. Rule import/export remains rules-only; terminal reflection behavior, Alert History, notification behavior, network/telemetry, and repo file writing are unchanged.
 
 ---
 
@@ -419,4 +437,4 @@ Prevents rapid duplicate alerts when multiple detection paths or repeated output
 **Notes/limitations:** Cooldown values are fixed in code and not currently configurable.
 
 ---
-*Last updated from code scan: 2026-05-18*
+*Last updated from code scan: 2026-05-25*
