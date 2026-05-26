@@ -4,6 +4,41 @@ Engineering-significant changes to the codebase. Not a full changelog — focuse
 
 ---
 
+## 1.1.21 — Profile Merge Policy UI (Phase 11)
+
+### Scope
+Phase 11 adds a shipped user-facing **Profile Merge Policy UI** for controlling how global settings, the repo-shared profile, and workspace project profile overrides are combined for the current project workspace.
+
+### User-facing behavior
+- Added **Profile merge policy** in **Error Monitor -> Project Profile**
+- Shows effective precedence text next to the selected policy
+- Diagnostics now reports selected policy, effective precedence, repo layer included/skipped status, workspace layer included/skipped status, and repo warnings when present
+
+### Policy options
+- **Standard: workspace project overrides repo profile** — default; `Global -> repo profile -> workspace project profile`
+- **Ignore repo profile** — `Global -> workspace project profile`
+- **Repo profile overrides workspace project** — `Global -> workspace project profile -> repo profile`
+- **Global settings only** — global application settings only
+
+### Implementation notes
+- Added `ProfileMergePolicy.kt`
+- Added `ProjectAlertSettings.State.profileMergePolicy`
+- Updated `ResolvedSettingsResolver` to apply the selected policy without mutating global settings, repo profile data, or project workspace state
+- Invalid/missing stored policy values normalize to `STANDARD_WORKSPACE_WINS`, preserving Phase 10 behavior for existing users
+
+### Safety Boundaries
+- Repo profile schema remains unchanged
+- Repo profile file is not written or auto-created
+- Rule import/export remains rules-only
+- Terminal reflection behavior is unchanged
+- No network, telemetry, or file writes beyond normal workspace state persistence
+- Marketplace verifier compatibility fixes remain preserved: no `PluginManagerCore`, `PluginId`, or `FileSaverDescriptor` usage in source/resources
+
+### Version
+- Plugin version is `1.1.21`
+
+---
+
 ## 1.1.20 — Marketplace Verifier Compatibility Fix
 
 ### Scope
@@ -857,4 +892,4 @@ projectOverride == false →  effective enabled = false (regardless of global)
 - Improved terminal compatibility with 2025.x reworked terminal engine
 
 ---
-*Last updated from code scan: 2026-05-22*
+*Last updated from code scan: 2026-05-25*
