@@ -255,7 +255,7 @@ Class-by-class reference for the `com.drostwades.errorsound` package.
 |---|---|
 | `Snapshot(rows, notes)` | Immutable diagnostics summary data rendered by settings UI |
 | `SelfTestResult(success, message)` | User-facing status for sound/notification self-test actions |
-| `buildSnapshot()` | Reads applied `AlertSettings`, `SnoozeState`, `AlertHistoryService`, rule counts, preset availability, import/export schema support, terminal integration status, repo profile status/schema/name/warnings/precedence, and active project profile override categories when an active project is available |
+| `buildSnapshot()` | Reads applied `AlertSettings`, `SnoozeState`, `AlertHistoryService`, rule counts, preset availability, import/export schema support, terminal integration status, selected profile merge policy, effective precedence, repo/workspace layer status, repo profile status/schema/name/warnings, and active project profile override categories when an active project is available |
 | `testErrorSound()` | Plays a GENERIC error sound through the preview path using current applied settings |
 | `testSuccessSound()` | Plays a SUCCESS sound through the preview path when enabled by current applied settings |
 | `showTestNotification(project?)` | Sends a real IntelliJ Platform balloon notification using `NotificationGroupManager`, group id `Error Sound Alert`, and `NotificationType.INFORMATION` |
@@ -439,15 +439,33 @@ Class-by-class reference for the `com.drostwades.errorsound` package.
 
 ---
 
+## ProfileMergePolicy
+
+**File:** `ProfileMergePolicy.kt`
+**Purpose:** Workspace/project-scoped enum for Phase 11 Profile Merge Policy UI. Controls how `ResolvedSettingsResolver` combines global settings, the optional repo profile, and workspace project profile overrides.
+
+**Values:**
+- `STANDARD_WORKSPACE_WINS` — default; `Global -> repo profile -> workspace project profile`
+- `IGNORE_REPO_PROFILE` — `Global -> workspace project profile`
+- `REPO_PROFILE_WINS` — `Global -> workspace project profile -> repo profile`
+- `GLOBAL_ONLY` — global settings only
+
+**Helpers:** `displayName`, `effectivePrecedenceText`, and `fromStored(value)` for resilient XML string normalization. Unknown or missing stored values normalize to `STANDARD_WORKSPACE_WINS`.
+
+- **Risk:** LOW — pure enum; no runtime behavior beyond resolver policy selection
+
+---
+
 ## ProjectAlertSettings
 
 **File:** `ProjectAlertSettings.kt`  
-**Purpose:** Project-scoped settings service for Full Per-Project Profiles. Persisted to workspace storage (`WORKSPACE_FILE`) so overrides are per-workspace, not shared across clones.
+**Purpose:** Project-scoped settings service for Full Per-Project Profiles and Profile Merge Policy UI. Persisted to workspace storage (`WORKSPACE_FILE`) so overrides and selected policy are per-workspace, not shared across clones.
 
 **Level:** `@Service(Service.Level.PROJECT)`
 
 **State fields:**
 - `useProfileOverrides: Boolean = false` — master opt-in switch; when false all project override fields are ignored and global settings are inherited
+- `profileMergePolicy: String = STANDARD_WORKSPACE_WINS` — workspace-scoped merge policy stored as a string and normalized through `ProfileMergePolicy.fromStored()`
 - `useOverride`, `enabledOverride` — master monitoring enabled override; legacy enabled-only state is preserved and migrated by normalization
 - `useMonitoringOverrides` plus monitor-kind override booleans — CONFIGURATION, COMPILATION, TEST_FAILURE, NETWORK, EXCEPTION, GENERIC, SUCCESS
 - `useSoundOverrides` plus built-in/global sound mode, global built-in sound id, per-kind sound enabled/id, and success sound enabled/id
@@ -461,9 +479,10 @@ Class-by-class reference for the `com.drostwades.errorsound` package.
 - `copyGlobalSettings(global)` — seeds the project profile from current global settings and enables all supported override groups
 - `resetOverrides()` — clears the project profile back to inheritance defaults
 - `activeOverrideLabels()` — returns active override category labels for diagnostics
+- `mergePolicy()` — returns the normalized `ProfileMergePolicy`
 - `getInstance(project): ProjectAlertSettings` — companion helper
 
-**Scope boundary:** Rules, presets, rule import/export schema, Alert History, terminal integration, and custom file path remain global/application-level. Repo profile data is separate and read from `.error-sound-alert.json`.
+**Scope boundary:** Rules, presets, rule import/export schema, Alert History, terminal integration, and custom file path remain global/application-level. Repo profile data is separate and read from `.error-sound-alert.json`; the merge policy is not stored in the repo profile file.
 
 - **Risk:** LOW-MEDIUM — workspace-scoped persistent state; storage path and migration behavior must stay stable
 
@@ -545,12 +564,18 @@ Class-by-class reference for the `com.drostwades.errorsound` package.
 
 | Method | Description |
 |---|---|
-| `resolve()` | Returns an `AlertSettings.State` copy after applying global → repo profile → workspace project profile precedence |
+| `resolve()` | Returns an `AlertSettings.State` copy after applying the selected `ProfileMergePolicy` |
 | `getInstance(project)` | Companion helper |
 
-**Resolution policy:** Does not mutate global `AlertSettings.State`, repo profile model, or project `ProjectAlertSettings.State`. Missing/invalid repo profile data is ignored safely. Workspace project profile overrides win over repo profile values.
+**Resolution policies:**
+- `STANDARD_WORKSPACE_WINS` — `Global -> repo profile -> workspace project profile`
+- `IGNORE_REPO_PROFILE` — `Global -> workspace project profile`
+- `REPO_PROFILE_WINS` — `Global -> workspace project profile -> repo profile`
+- `GLOBAL_ONLY` — global settings only
 
-**Global/application-level in Phase 10:** `customRules`, `suppressionRules`, `exitCodeRules`, rule presets, rule import/export, Alert History, terminal reflection behavior, and custom sound file path.
+**Resolution safety:** Does not mutate global `AlertSettings.State`, repo profile model, or project `ProjectAlertSettings.State`. Missing/disabled/invalid repo profile data is ignored safely while warnings remain visible. Workspace project profile enablement still controls whether workspace overrides apply, except `GLOBAL_ONLY` bypasses them.
+
+**Global/application-level:** `customRules`, `suppressionRules`, `exitCodeRules`, rule presets, rule import/export, Alert History, terminal reflection behavior, and custom sound file path.
 
 **Usage pattern:** All three detection paths call `ResolvedSettingsResolver.getInstance(project).resolve()` instead of `AlertSettings.getInstance().state` when passing settings to `AlertDispatcher.tryAlert()`.
 
@@ -565,16 +590,17 @@ Class-by-class reference for the `com.drostwades.errorsound` package.
 
 **Controls:**
 - Repo profile status label plus **Reload repo profile** and **Open repo profile file** actions
+- **Profile merge policy** dropdown and effective precedence text
 - Top-level `Use project profile overrides`, `Copy current global settings`, and `Reset project overrides`
 - Collapsible override groups for master monitoring, monitoring kinds, built-in sound behavior, volume, duration / play once, visual notifications, and minimum process duration
 - Advanced groups stay grouped under Project Profile so the narrow Error Monitor tool window remains readable
 
 **Behavior:**
-- Clarifies inheritance order: unchecked workspace fields inherit repo values when present, otherwise global
+- Clarifies selected merge behavior and whether the repo layer is included or skipped
 - Reload action refreshes the cached repo profile result; open-file action opens the existing `.error-sound-alert.json`
 - Mutates `ProjectAlertSettings.state` for the current project only
 - Copy action seeds project profile values from current global `AlertSettings.State`
-- Reset action clears project overrides and returns the project to global inheritance
+- Reset action clears project overrides and returns the project to inheritance while preserving the selected merge policy
 - Collapsing sections does not change active overrides or lose values
 
 - **Risk:** LOW — project UI only; persistence remains in `ProjectAlertSettings`
@@ -771,7 +797,7 @@ Class-by-class reference for the `com.drostwades.errorsound` package.
 - No Diagnostics / Self-Test controls; diagnostics are Settings-only
 
 **Behavior:**
-- Project Profile shows repo profile status, warning count, reload, and open-file controls
+- Project Profile shows repo profile status, warning count, reload/open-file controls, selected merge policy, and effective precedence
 - Project Profile controls mutate `ProjectAlertSettings.state` directly
 - Global enable checkbox mutates `AlertSettings.state.enabled`
 - `refreshUiState()` uses `ResolvedSettingsResolver.resolve()` as the effective settings state for display and enablement
@@ -794,4 +820,4 @@ Class-by-class reference for the `com.drostwades.errorsound` package.
 **Risk:** LOW — additive, no external dependencies.
 
 ---
-*Last updated from code scan: 2026-05-18*
+*Last updated from code scan: 2026-05-25*
