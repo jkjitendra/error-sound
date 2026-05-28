@@ -151,6 +151,7 @@ The diagnostics summary may show:
 - Alert History count
 - rule preset availability
 - rule import/export schema support
+- Run/Debug run-configuration override count
 - terminal integration status
 
 Self-test actions:
@@ -213,7 +214,7 @@ Supported Phase 9 overrides:
 - visual notification settings
 - minimum process duration threshold
 
-Project profile state does **not** include custom regex rules, suppression rules, terminal exit-code rules, rule presets, rule import/export data, Alert History, terminal integration state, repo profile schema data, or per-run-configuration overrides.
+Project profile state does **not** include custom regex rules, suppression rules, terminal exit-code rules, rule presets, rule import/export data, Alert History, terminal integration state, repo profile schema data, or run-configuration overrides.
 
 ### Backward Compatibility
 
@@ -224,6 +225,72 @@ Legacy workspace files with only `useOverride` / `enabledOverride` still load. N
 - **Copy current global settings** seeds the project profile from current global settings and enables supported override groups.
 - **Reset project overrides** clears project profile override groups back to inheritance defaults while preserving the selected merge policy.
 - Diagnostics can show active project profile override categories, selected merge policy, effective precedence, and whether repo/workspace layers are included or skipped when an active project is available.
+
+## Run Configuration Override State
+
+**Collection:** `AlertSettings.State.runConfigurationOverrides`
+**Persistence:** application-level `errorSoundAlert.xml`
+**Scope:** Run/Debug executions only
+
+Rows are stored as `AlertSettings.RunConfigurationOverrideState`. First matching enabled row wins after global/repo/workspace project profile settings are resolved.
+
+### Fields
+
+| Field | Type | Default | Description |
+|---|---|---|---|
+| `id` | String | UUID | Stable row identifier |
+| `enabled` | Boolean | `true` | Disabled rows are preserved but ignored |
+| `matchType` | String | `EXACT_NAME` | Stored `RunConfigurationOverrideMatchType` |
+| `pattern` | String | `""` | Name/type text or regex pattern |
+| `suppressAllAlerts` | Boolean | `false` | Skip all alerts for matching Run/Debug config |
+| `suppressSuccessAlerts` | Boolean | `false` | Skip SUCCESS alerts only |
+| `overrideMinProcessDurationSeconds` | Boolean | `false` | Enables `minProcessDurationSeconds` override |
+| `minProcessDurationSeconds` | Int | `0` | 0-300 seconds |
+| `overrideAlertDurationSeconds` | Boolean | `false` | Enables `alertDurationSeconds` override |
+| `alertDurationSeconds` | Int | `3` | 1-10 seconds |
+| `overrideUseActualSoundDuration` | Boolean | `false` | Enables play-once override |
+| `useActualSoundDuration` | Boolean | `false` | Run-specific play-once value |
+| `overrideShowVisualNotification` | Boolean | `false` | Enables visual notification master override |
+| `showVisualNotification` | Boolean | `false` | Run-specific visual notification master value |
+| `overrideVisualNotificationOnError` | Boolean | `false` | Enables error notification override |
+| `visualNotificationOnError` | Boolean | `true` | Run-specific error notification value |
+| `overrideVisualNotificationOnSuccess` | Boolean | `false` | Enables success notification override |
+| `visualNotificationOnSuccess` | Boolean | `true` | Run-specific success notification value |
+| `description` | String | `""` | Optional note for the user |
+
+### Match Types
+
+| Stored Value | Behavior |
+|---|---|
+| `EXACT_NAME` | Exact run configuration name |
+| `NAME_CONTAINS` | Case-insensitive run configuration name substring |
+| `NAME_REGEX` | Regex applied to run configuration name |
+| `TYPE_CONTAINS` | Case-insensitive substring against configuration type id/name |
+
+Unknown stored match types normalize to `EXACT_NAME`.
+
+### Normalization And Runtime Safety
+
+- Maximum rows: 100
+- Pattern length uses `CustomRuleEngine.MAX_PATTERN_LENGTH`
+- Description length is capped at 240 characters
+- Numeric override values are clamped to supported ranges
+- Blank patterns are preserved in settings and skipped at runtime
+- Invalid regex patterns are preserved in settings and skipped safely at runtime
+
+### Runtime Application
+
+Run/Debug effective settings resolution is:
+
+```text
+global settings -> repo profile -> workspace project profile -> run-configuration override
+```
+
+The exact global/repo/workspace ordering depends on `ProfileMergePolicy`; run-configuration override is always applied after that resolution and only for the matched Run/Debug execution. The override creates a run-specific effective settings copy and does not mutate global settings, repo profile data, or project profile state.
+
+Suppressed run-config matches do not call `AlertDispatcher`, play sound, show visual notifications, or enter Alert History.
+
+Run configuration overrides are not part of `.error-sound-alert.json` and are not included in rule import/export.
 
 ## Team-Shared Repo Profile File
 
@@ -354,7 +421,7 @@ It does **not** cover:
 {
   "schemaVersion": 2,
   "exportedAt": "2026-05-02T00:00:00Z",
-  "pluginVersion": "1.1.21",
+  "pluginVersion": "1.1.22",
   "customRules": [
     {
       "id": "8e2d8f2f-4d8b-46cc-8f22-82a904f1d6aa",
@@ -444,4 +511,4 @@ Preset behavior:
 - Presets are bundled locally; no network, telemetry, remote preset downloads, script execution, or file writes are involved
 
 ---
-*Last updated from code scan: 2026-05-25*
+*Last updated from code scan: 2026-05-27*
