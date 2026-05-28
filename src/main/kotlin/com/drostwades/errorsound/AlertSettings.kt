@@ -54,6 +54,32 @@ class AlertSettings : PersistentStateComponent<AlertSettings.State> {
         var suppress: Boolean = false,
     )
 
+    /**
+     * Per-Run/Debug configuration override. Matching is evaluated only for Run/Debug executions.
+     * Invalid or blank patterns are preserved for editing and skipped safely at runtime.
+     */
+    data class RunConfigurationOverrideState(
+        var id: String = UUID.randomUUID().toString(),
+        var enabled: Boolean = true,
+        var matchType: String = RunConfigurationOverrideMatchType.default.name,
+        var pattern: String = "",
+        var suppressAllAlerts: Boolean = false,
+        var suppressSuccessAlerts: Boolean = false,
+        var overrideMinProcessDurationSeconds: Boolean = false,
+        var minProcessDurationSeconds: Int = 0,
+        var overrideAlertDurationSeconds: Boolean = false,
+        var alertDurationSeconds: Int = 3,
+        var overrideUseActualSoundDuration: Boolean = false,
+        var useActualSoundDuration: Boolean = false,
+        var overrideShowVisualNotification: Boolean = false,
+        var showVisualNotification: Boolean = false,
+        var overrideVisualNotificationOnError: Boolean = false,
+        var visualNotificationOnError: Boolean = true,
+        var overrideVisualNotificationOnSuccess: Boolean = false,
+        var visualNotificationOnSuccess: Boolean = true,
+        var description: String = "",
+    )
+
     data class State(
         var enabled: Boolean = true,
 
@@ -123,6 +149,9 @@ class AlertSettings : PersistentStateComponent<AlertSettings.State> {
             // 143 = SIGTERM (graceful kill)
             ExitCodeRuleState(exitCode = 143, enabled = true, kind = ErrorKind.GENERIC.name, soundId = null, suppress = false),
         ),
+
+        // Run/Debug-only per-configuration overrides. First matching enabled row wins.
+        var runConfigurationOverrides: MutableList<RunConfigurationOverrideState> = mutableListOf(),
     )
 
     enum class SoundSource {
@@ -198,6 +227,19 @@ class AlertSettings : PersistentStateComponent<AlertSettings.State> {
                         ?.let { normalizeSoundId(it) },
                 )
             }.toMutableList(),
+            runConfigurationOverrides = state.runConfigurationOverrides
+                .take(RunConfigurationOverrideEngine.MAX_OVERRIDES)
+                .map { r ->
+                    r.copy(
+                        id = r.id.ifBlank { UUID.randomUUID().toString() },
+                        matchType = RunConfigurationOverrideMatchType.fromStored(r.matchType).name,
+                        pattern = r.pattern.trim().take(CustomRuleEngine.MAX_PATTERN_LENGTH),
+                        minProcessDurationSeconds = r.minProcessDurationSeconds.coerceIn(0, 300),
+                        alertDurationSeconds = r.alertDurationSeconds.coerceIn(1, 10),
+                        description = r.description.trim().take(RunConfigurationOverrideEngine.MAX_DESCRIPTION_LENGTH),
+                    )
+                }
+                .toMutableList(),
         )
         compiledRuleEngine = null  // invalidate cached engine whenever settings change
         compiledSuppressionRuleEngine = null
