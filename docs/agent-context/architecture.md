@@ -23,7 +23,11 @@
      - no match + exit code 0 → converts to `SUCCESS` with `Cause.SUCCESS_FALLBACK`
      - duration threshold suppression → logged with `Cause.DURATION_THRESHOLD_SUPPRESSED`
   6. Resolve effective settings through `ResolvedSettingsResolver.getInstance(project).resolve()`
-  7. → `AlertDispatcher.tryAlert(key, resolvedSettings, kind, explanation = explanation)`
+  7. Apply first matching enabled Run Configuration Override, if any, to the resolved settings copy
+     - suppress-all and suppress-success matches log `Cause.RUN_CONFIGURATION_OVERRIDE_SUPPRESSED` and return before dispatch
+     - duration/play-once/visual/min-duration overrides create a run-specific effective settings copy
+  8. Duration threshold uses the run-specific effective settings
+  9. → `AlertDispatcher.tryAlert(key, runSpecificSettings, kind, explanation = explanation)`
 
 ### 2. ConsoleFilterProvider Path
 - **Class:** `ErrorConsoleFilterProvider` → `ErrorDetectionFilter`
@@ -78,6 +82,7 @@ Detection Source
    ResolvedSettingsResolver.resolve()
          └── global settings → repo-shared profile → selected workspace project profile overrides
          └── rules remain global/application-level
+         └── Run/Debug only: RunConfigurationOverrideEngine may apply a run-specific settings copy or return before dispatch
          │
          ▼
    Suppression match? log and return before AlertDispatcher
@@ -130,13 +135,14 @@ Phase 2 adds internal/runtime-facing explanation plumbing. It is not a playback 
 | `TERMINAL_EXIT_CODE_RULE` | Terminal exit-code rule that maps to an alert |
 | `TERMINAL_EXIT_CODE_SUPPRESSED` | Terminal exit-code rule with `suppress=true` |
 | `SUPPRESSION_RULE` | Ignore / Suppression Rule matched before dispatch |
+| `RUN_CONFIGURATION_OVERRIDE_SUPPRESSED` | Run/Debug alert suppressed by a per-run-configuration override |
 | `SUCCESS_FALLBACK` | Run/Debug `NONE` + exit code `0` converted to SUCCESS |
 | `NO_MATCH` | Classification completed without an alert |
 | `DURATION_THRESHOLD_SUPPRESSED` | Run/Debug alert suppressed by minimum duration threshold |
 
 **Policy:**
 - Explanation is produced at classification time, before dispatch.
-- Suppression-rule explanations are debug-only in this phase because matching suppression rules return before `AlertDispatcher`.
+- Suppression-rule and run-configuration suppression explanations are debug-only because matching rows return before `AlertDispatcher`.
 - `AlertDispatcher` accepts the explanation and logs gate decisions, but gate order is unchanged: Snooze → AlertMonitoring → AlertEventGate → AlertHistoryService → ErrorSoundPlayer → optional notification.
 - `ErrorSoundPlayer` does not receive or inspect explanations.
 - Explanation objects feed Alert History and the optional Show alert details notification action.
@@ -302,6 +308,23 @@ ResolvedSettingsResolver.getInstance(project).resolve()  →  AlertSettings.Stat
 
 The repo profile is read-only local configuration. The plugin reads only `.error-sound-alert.json` at `project.basePath`, does not scan parents, does not auto-create/write the file, does not store merge policy in the repo file, and falls back safely when the file is missing, invalid JSON, invalid schema, or contains unsupported values.
 
+### Phase 12 run-configuration override layer
+
+Run Configuration Overrides are application settings but apply only in the Run/Debug execution listener path:
+
+```
+ResolvedSettingsResolver.resolve()
+  → global/repo/workspace effective settings copy
+  → RunConfigurationOverrideEngine.firstMatch(configuration name/type)
+  → optional run-specific settings copy
+  → duration threshold
+  → AlertDispatcher.tryAlert(...)
+```
+
+First matching enabled row wins. Blank patterns and invalid regex rows are preserved in settings and skipped safely at runtime. Suppressed run-config matches do not call `AlertDispatcher`, do not play sound, do not show notifications, and do not enter Alert History.
+
+Console and Terminal paths do not evaluate run-configuration overrides. Repo profile schema and rules-only import/export remain unchanged.
+
 Old workspace files with only `useOverride` / `enabledOverride` continue loading: normalization treats an existing enabled-only override as an active profile master override.
 
 ## UI Relationships
@@ -385,4 +408,4 @@ Unsupported targets are deterministically skipped — not reinterpreted.
 4. Built-in chunk accumulation (`builtInDetectedResult`, highest-priority kind seen in chunks)
 5. Built-in `ErrorClassifier.detectWithExplanation()` on full buffer
 
-*Last updated from code scan: 2026-05-25*
+*Last updated from code scan: 2026-05-27*
