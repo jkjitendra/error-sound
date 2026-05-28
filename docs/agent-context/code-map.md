@@ -92,6 +92,7 @@ Class-by-class reference for the `com.drostwades.errorsound` package.
 | `successFallback(...)` | Explanation for `NONE + exitCode 0 -> SUCCESS` |
 | `noMatch(...)` | Explanation for no-alert classification outcomes |
 | `durationThresholdSuppressed(...)` | Explanation for Run/Debug duration-threshold suppression |
+| `runConfigurationOverrideSuppressed(...)` | Debug explanation for Run/Debug suppression by a per-run-configuration override |
 
 - **Risk:** LOW — pure object construction; no dispatch or playback side effects
 
@@ -255,7 +256,7 @@ Class-by-class reference for the `com.drostwades.errorsound` package.
 |---|---|
 | `Snapshot(rows, notes)` | Immutable diagnostics summary data rendered by settings UI |
 | `SelfTestResult(success, message)` | User-facing status for sound/notification self-test actions |
-| `buildSnapshot()` | Reads applied `AlertSettings`, `SnoozeState`, `AlertHistoryService`, rule counts, preset availability, import/export schema support, terminal integration status, selected profile merge policy, effective precedence, repo/workspace layer status, repo profile status/schema/name/warnings, and active project profile override categories when an active project is available |
+| `buildSnapshot()` | Reads applied `AlertSettings`, `SnoozeState`, `AlertHistoryService`, rule counts, Run/Debug run-configuration override count, preset availability, import/export schema support, terminal integration status, selected profile merge policy, effective precedence, repo/workspace layer status, repo profile status/schema/name/warnings, and active project profile override categories when an active project is available |
 | `testErrorSound()` | Plays a GENERIC error sound through the preview path using current applied settings |
 | `testSuccessSound()` | Plays a SUCCESS sound through the preview path when enabled by current applied settings |
 | `showTestNotification(project?)` | Sends a real IntelliJ Platform balloon notification using `NotificationGroupManager`, group id `Error Sound Alert`, and `NotificationType.INFORMATION` |
@@ -368,12 +369,47 @@ Class-by-class reference for the `com.drostwades.errorsound` package.
 - Phase 2: classification accumulators now retain explanation-capable results (`CustomRuleMatch` / `BuiltInClassificationResult`) so the final alert can carry an `AlertMatchExplanation`
 - Priority system for chunk accumulation: CONFIGURATION > COMPILATION > TEST_FAILURE > NETWORK > EXCEPTION > GENERIC > NONE
 - If final kind is NONE and exitCode == 0, converts to SUCCESS
+- Resolves effective global/repo/workspace settings, then applies the first matching enabled Run Configuration Override for that Run/Debug execution
+- Run Configuration Overrides can suppress all alerts, suppress success alerts, or override min duration, alert duration, play-once, and visual notification behavior for that run-specific effective settings copy
 - Duration threshold: if `elapsedMillis < minProcessDurationSeconds * 1000`, alert suppressed (Run/Debug only)
 - Dedup key: `"exec:{handlerIdentityHash}:{errorKind}"`
 - Routes through `AlertDispatcher.tryAlert()` only when no suppression rule matched
 
-- Phase 9: `processTerminated()` resolves effective settings via `ResolvedSettingsResolver.getInstance(env.project).resolve()` — selected project profile overrides are layered over global settings at dispatch time
+- Phase 12: `processTerminated()` resolves effective settings via `ResolvedSettingsResolver.getInstance(env.project).resolve()`, then applies Run/Debug-only run-configuration overrides before duration threshold and dispatch
 - **Risk:** LOW — straightforward listener pattern
+
+---
+
+## RunConfigurationOverrideMatchType
+
+**File:** `RunConfigurationOverrideMatchType.kt`
+**Purpose:** Stored/display enum for Run/Debug run-configuration override matching.
+
+**Values:** `EXACT_NAME`, `NAME_CONTAINS`, `NAME_REGEX`, `TYPE_CONTAINS`.
+
+**Helpers:** `displayName`, `toString()`, and `fromStored(value)`; unknown values normalize to `EXACT_NAME`.
+
+- **Risk:** LOW — pure enum
+
+---
+
+## RunConfigurationOverrideEngine
+
+**File:** `RunConfigurationOverrideEngine.kt`
+**Purpose:** Pure Run/Debug override matcher and applier. Evaluates `AlertSettings.RunConfigurationOverrideState` rows against the current run configuration context.
+
+| Method / Type | Description |
+|---|---|
+| `Context(configurationName, configurationTypeId?, configurationTypeName?)` | Runtime input extracted from `ExecutionEnvironment` |
+| `Match(rowNumber, override)` | First matching enabled override row |
+| `firstMatch(context)` | Returns the first enabled matching row; blank and invalid regex rows are skipped safely |
+| `applyTo(settings, match)` | Returns a run-specific `AlertSettings.State` copy with duration/play-once/visual/min-duration overrides applied |
+
+**Limits:** `MAX_OVERRIDES = 100`, `MAX_DESCRIPTION_LENGTH = 240`; pattern length follows `CustomRuleEngine.MAX_PATTERN_LENGTH` during settings normalization.
+
+**Scope boundary:** Does not mutate global settings, project profile state, repo profile data, or the stored override row. Does not apply to Console or Terminal paths.
+
+- **Risk:** LOW-MEDIUM — affects Run/Debug dispatch eligibility and run-specific settings only
 
 ---
 
@@ -408,6 +444,7 @@ Class-by-class reference for the `com.drostwades.errorsound` package.
 - `data class CustomRuleState(id, enabled, pattern, matchTarget, kind)` — a single user-defined rule
 - `data class SuppressionRuleState(id, enabled, pattern, matchTarget, description)` — a single user-defined suppression rule
 - `data class ExitCodeRuleState(exitCode, enabled, kind, soundId?, suppress)` — a single terminal exit-code rule
+- `data class RunConfigurationOverrideState(...)` — a Run/Debug-only per-run-configuration override row
 
 **State fields:**
 - `enabled` — master toggle
@@ -428,12 +465,13 @@ Class-by-class reference for the `com.drostwades.errorsound` package.
 - `customRules: MutableList<CustomRuleState> = mutableListOf()` — user-defined regex rules (evaluated before built-in classification)
 - `suppressionRules: MutableList<SuppressionRuleState> = mutableListOf()` — user-defined regex rules that silence matching contexts before dispatch
 - `exitCodeRules: MutableList<ExitCodeRuleState>` — terminal exit code → kind/sound/suppress mapping (4 defaults: 130 suppress, 127/137/143 GENERIC)
+- `runConfigurationOverrides: MutableList<RunConfigurationOverrideState> = mutableListOf()` — Run/Debug-only per-run-configuration overrides
 
 **Methods:**
 - `getCompiledRuleEngine(): CustomRuleEngine` — returns cached compiled rule engine; lazily created, invalidated by `loadState()`
 - `getCompiledSuppressionRuleEngine(): SuppressionRuleEngine` — returns cached compiled suppression engine; lazily created, invalidated by `loadState()`
 
-**Validation:** `loadState()` normalizes sound IDs, clamps numeric values, normalizes custom rules (count, pattern length, matchTarget, kind, IDs), normalizes suppression rules (count, pattern length, matchTarget, IDs, description length), and normalizes exit code rules (kind, soundId blank/CUSTOM_FILE → null).
+**Validation:** `loadState()` normalizes sound IDs, clamps numeric values, normalizes custom rules (count, pattern length, matchTarget, kind, IDs), normalizes suppression rules (count, pattern length, matchTarget, IDs, description length), normalizes exit code rules (kind, soundId blank/CUSTOM_FILE → null), and normalizes run-configuration overrides (max 100, IDs, match type, pattern length, duration ranges, description length). Blank/invalid patterns are preserved and skipped safely at runtime.
 
 - **Risk:** LOW — standard `PersistentStateComponent` pattern
 
@@ -743,6 +781,13 @@ Class-by-class reference for the `com.drostwades.errorsound` package.
 - Uses `RuleTestService.evaluate()` against the current table model so unsaved rule edits can be tested before Apply
 - Shows custom rule match status, matched rule row/id/pattern, resulting `ErrorKind`, built-in classifier fallback, regex validation errors, no-match message, and source/target applicability notes
 
+**Run Configuration Overrides section (Phase 12):**
+- `RunConfigurationOverrideTableModel` (inner class) — `AbstractTableModel` for `AlertSettings.RunConfigurationOverrideState`
+- Settings-side table under **Run Configuration Overrides**
+- Columns cover enabled state, match type, pattern, suppress-all, suppress-success, min-duration override, alert-duration override, play-once override, visual-notification overrides, and description
+- Applies to Run/Debug only; first matching enabled row wins at runtime
+- Not included in rule import/export or repo profile schema
+
 **Exit Code Rules section (Phase 6 addition):**
 - `ExitCodeRuleTableModel` (inner class) — `AbstractTableModel` with internal `Row` data class; handles `SoundChoice ↔ soundId` conversion in `setRules()`/`getRules()`
 - `SoundChoice` (inner data class) — wraps nullable built-in sound ID; `null` id = "(default)"; `toString()` returns label for JComboBox rendering
@@ -820,4 +865,4 @@ Class-by-class reference for the `com.drostwades.errorsound` package.
 **Risk:** LOW — additive, no external dependencies.
 
 ---
-*Last updated from code scan: 2026-05-25*
+*Last updated from code scan: 2026-05-27*
