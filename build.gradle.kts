@@ -7,7 +7,7 @@ plugins {
 }
 
 group = "com.drostwades"
-version = "1.1.21"
+version = "1.1.22"
 
 repositories {
     mavenCentral()
@@ -57,6 +57,7 @@ intellijPlatform {
               <li><b>Full per-project profiles:</b> override monitoring, sound, volume, duration, notification, and threshold behavior per workspace without changing global settings</li>
               <li><b>Team-shared repo profiles:</b> load safe profile defaults from <code>.error-sound-alert.json</code> in the project root before workspace overrides are applied</li>
               <li><b>Profile merge policy:</b> choose whether workspace overrides, repo defaults, global settings, or local-only settings determine the effective project profile</li>
+              <li><b>Run configuration overrides:</b> customize Run/Debug alert behavior for specific configuration names or types</li>
               <li><b>Exit-code rules for terminal commands:</b> map specific exit codes to error kinds, optional per-code sound overrides, or suppress alerts entirely (e.g. silence Ctrl+C / exit&nbsp;130)</li>
               <li>Per-kind sounds, or one global sound for all alerts</li>
               <li><b>Success sounds:</b> optional alert on successful process completion (off by default)</li>
@@ -75,6 +76,13 @@ intellijPlatform {
         """.trimIndent()
 
         changeNotes = """
+            <b>1.1.22</b>
+            <ul>
+              <li>Added Run Configuration Overrides for Run/Debug executions</li>
+              <li>Overrides can match exact names, name substrings, name regex patterns, or configuration type id/name substrings</li>
+              <li>First matching enabled override can suppress all alerts, suppress success alerts, or override duration, play-once, visual notification, and minimum process duration behavior for that run only</li>
+              <li>Terminal, console-only behavior, repo profile schema, rule import/export, Alert History, and terminal reflection behavior are unchanged</li>
+            </ul>
             <b>1.1.21</b>
             <ul>
               <li>Added a project/workspace-scoped Profile Merge Policy for effective settings resolution</li>
