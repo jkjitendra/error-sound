@@ -1,6 +1,7 @@
 package com.drostwades.errorsound
 
 import com.intellij.execution.ExecutionListener
+import com.intellij.execution.configurations.RunConfiguration
 import com.intellij.execution.process.ProcessListener
 import com.intellij.execution.process.ProcessEvent
 import com.intellij.execution.process.ProcessHandler
@@ -141,7 +142,38 @@ class AlertOnErrorExecutionListener : ExecutionListener {
 
                 // Phase 7: use resolved effective settings so the per-project enabled override
                 // is respected. All other settings (sounds, per-kind flags, …) come from global.
-                val settingsState = ResolvedSettingsResolver.getInstance(env.project).resolve()
+                var settingsState = ResolvedSettingsResolver.getInstance(env.project).resolve()
+                val runConfigurationContext = runConfigurationContext(env)
+                val runConfigurationOverrideEngine = RunConfigurationOverrideEngine(settingsState.runConfigurationOverrides)
+                val runConfigurationOverrideMatch = runConfigurationOverrideEngine.firstMatch(runConfigurationContext)
+                if (runConfigurationOverrideMatch != null) {
+                    if (runConfigurationOverrideMatch.override.suppressAllAlerts) {
+                        val suppressedExplanation = ClassificationExplanationFactory.runConfigurationOverrideSuppressed(
+                            kind = errorKind,
+                            exitCode = exitCode,
+                            context = env.runProfile.name,
+                            match = runConfigurationOverrideMatch,
+                            reason = "all alerts disabled for this run configuration",
+                        )
+                        log.debug(suppressedExplanation.summary())
+                        return
+                    }
+                    if (errorKind == ErrorKind.SUCCESS && runConfigurationOverrideMatch.override.suppressSuccessAlerts) {
+                        val suppressedExplanation = ClassificationExplanationFactory.runConfigurationOverrideSuppressed(
+                            kind = errorKind,
+                            exitCode = exitCode,
+                            context = env.runProfile.name,
+                            match = runConfigurationOverrideMatch,
+                            reason = "success alerts disabled for this run configuration",
+                        )
+                        log.debug(suppressedExplanation.summary())
+                        return
+                    }
+                    settingsState = runConfigurationOverrideEngine.applyTo(settingsState, runConfigurationOverrideMatch)
+                    log.debug(
+                        "Run configuration override matched. profile=${env.runProfile.name}, row=${runConfigurationOverrideMatch.rowNumber}, id=${runConfigurationOverrideMatch.override.id}"
+                    )
+                }
 
                 // Duration threshold — only applies to Run/Debug path (console and terminal excluded)
                 val elapsedMillis = System.currentTimeMillis() - startedAtMillis
@@ -166,6 +198,16 @@ class AlertOnErrorExecutionListener : ExecutionListener {
                 AlertDispatcher.tryAlert(key, settingsState, errorKind, env.project, explanation = explanation)
             }
         })
+    }
+
+    private fun runConfigurationContext(env: ExecutionEnvironment): RunConfigurationOverrideEngine.Context {
+        val runConfiguration = env.runProfile as? RunConfiguration
+        val type = runConfiguration?.type
+        return RunConfigurationOverrideEngine.Context(
+            configurationName = env.runProfile.name,
+            configurationTypeId = type?.id ?: env.runProfile.javaClass.name,
+            configurationTypeName = type?.displayName ?: env.runProfile.javaClass.simpleName,
+        )
     }
 
     private fun updateDetectedMatch(

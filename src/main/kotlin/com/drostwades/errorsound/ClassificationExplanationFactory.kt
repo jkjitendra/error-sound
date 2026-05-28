@@ -135,4 +135,23 @@ object ClassificationExplanationFactory {
             commandOrConfig = context,
             suppressed = true,
         )
+
+    fun runConfigurationOverrideSuppressed(
+        kind: ErrorKind,
+        exitCode: Int,
+        context: String,
+        match: RunConfigurationOverrideEngine.Match,
+        reason: String,
+    ): AlertMatchExplanation =
+        AlertMatchExplanation(
+            source = AlertMatchExplanation.Source.RUN_DEBUG,
+            cause = AlertMatchExplanation.Cause.RUN_CONFIGURATION_OVERRIDE_SUPPRESSED,
+            kind = kind,
+            message = "Suppressed by run configuration override row ${match.rowNumber}: $reason",
+            ruleId = match.override.id,
+            rulePattern = match.override.pattern,
+            exitCode = exitCode,
+            commandOrConfig = context,
+            suppressed = true,
+        )
 }

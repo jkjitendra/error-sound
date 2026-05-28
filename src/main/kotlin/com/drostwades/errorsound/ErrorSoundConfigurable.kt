@@ -174,6 +174,9 @@ class ErrorSoundConfigurable : Configurable {
     private val exitCodeRuleTableModel = ExitCodeRuleTableModel(soundChoices)
     private val exitCodeRuleTable = JBTable(exitCodeRuleTableModel)
 
+    private val runConfigurationOverrideTableModel = RunConfigurationOverrideTableModel()
+    private val runConfigurationOverrideTable = JBTable(runConfigurationOverrideTableModel)
+
     private val rulePresetCombo = ComboBox(RulePresetService.bundles.toTypedArray())
     private val rulePresetDescription = JTextArea(2, 60).apply {
         isEditable = false
@@ -418,6 +421,8 @@ class ErrorSoundConfigurable : Configurable {
                 false
             )
             .addSeparator(8)
+            .addComponent(createRunConfigurationOverridesPanel(), 1)
+            .addSeparator(8)
             .addComponent(createDiagnosticsPanel(), 1)
             .addSeparator(8)
             .addComponent(createRulePresetPanel(), 1)
@@ -488,7 +493,8 @@ class ErrorSoundConfigurable : Configurable {
             visualNotificationOnSuccessCheck.isSelected != state.visualNotificationOnSuccess ||
             customRuleTableModel.getRules() != state.customRules ||
             suppressionRuleTableModel.getRules() != state.suppressionRules ||
-            exitCodeRuleTableModel.getRules() != state.exitCodeRules
+            exitCodeRuleTableModel.getRules() != state.exitCodeRules ||
+            runConfigurationOverrideTableModel.getRules() != state.runConfigurationOverrides
     }
 
     override fun apply() {
@@ -497,6 +503,7 @@ class ErrorSoundConfigurable : Configurable {
         if (customRuleTable.isEditing) customRuleTable.cellEditor?.stopCellEditing()
         if (suppressionRuleTable.isEditing) suppressionRuleTable.cellEditor?.stopCellEditing()
         if (exitCodeRuleTable.isEditing) exitCodeRuleTable.cellEditor?.stopCellEditing()
+        if (runConfigurationOverrideTable.isEditing) runConfigurationOverrideTable.cellEditor?.stopCellEditing()
 
         val selectedSource = (sourceCombo.selectedItem as? AlertSettings.SoundSource)?.name
             ?: AlertSettings.SoundSource.BUNDLED.name
@@ -541,12 +548,14 @@ class ErrorSoundConfigurable : Configurable {
                 customRules = customRuleTableModel.getRules().toMutableList(),
                 suppressionRules = suppressionRuleTableModel.getRules().toMutableList(),
                 exitCodeRules = exitCodeRuleTableModel.getRules().toMutableList(),
+                runConfigurationOverrides = runConfigurationOverrideTableModel.getRules().toMutableList(),
             )
         )
         // Sync tables back to normalized state so isModified() returns false immediately after Apply.
         customRuleTableModel.setRules(settings.state.customRules)
         suppressionRuleTableModel.setRules(settings.state.suppressionRules)
         exitCodeRuleTableModel.setRules(settings.state.exitCodeRules)
+        runConfigurationOverrideTableModel.setRules(settings.state.runConfigurationOverrides)
         refreshDiagnosticsSummary()
     }
 
@@ -632,6 +641,7 @@ class ErrorSoundConfigurable : Configurable {
             customRuleTableModel.setRules(state.customRules)
             suppressionRuleTableModel.setRules(state.suppressionRules)
             exitCodeRuleTableModel.setRules(state.exitCodeRules)
+            runConfigurationOverrideTableModel.setRules(state.runConfigurationOverrides)
             refreshDiagnosticsSummary()
         } finally {
             suppressPreview = false
@@ -705,6 +715,75 @@ class ErrorSoundConfigurable : Configurable {
         return JPanel(FlowLayout(FlowLayout.LEFT, 8, 0)).apply {
             add(visualNotificationOnErrorCheck)
             add(visualNotificationOnSuccessCheck)
+        }
+    }
+
+    // ── Run Configuration Overrides ─────────────────────────────────────────
+
+    private fun createRunConfigurationOverridesPanel(): JPanel {
+        runConfigurationOverrideTable.autoResizeMode = JTable.AUTO_RESIZE_OFF
+        runConfigurationOverrideTable.fillsViewportHeight = true
+        runConfigurationOverrideTable.rowHeight = 24
+
+        val cm = runConfigurationOverrideTable.columnModel
+        val widths = listOf(
+            65, 210, 210, 85, 105, 95, 70, 120, 90,
+            120, 75, 115, 75, 135, 95, 145, 105, 190,
+        )
+        widths.forEachIndexed { index, width ->
+            cm.getColumn(index).preferredWidth = width
+        }
+        cm.getColumn(1).cellEditor = DefaultCellEditor(
+            javax.swing.JComboBox(RunConfigurationOverrideMatchType.entries.toTypedArray())
+        )
+
+        val tablePanel = ToolbarDecorator.createDecorator(runConfigurationOverrideTable)
+            .disableUpAction()
+            .disableDownAction()
+            .setAddAction {
+                if (runConfigurationOverrideTable.isEditing) runConfigurationOverrideTable.cellEditor?.stopCellEditing()
+                runConfigurationOverrideTableModel.addRule(AlertSettings.RunConfigurationOverrideState())
+                val newRow = runConfigurationOverrideTableModel.rowCount - 1
+                runConfigurationOverrideTable.setRowSelectionInterval(newRow, newRow)
+                runConfigurationOverrideTable.scrollRectToVisible(runConfigurationOverrideTable.getCellRect(newRow, 2, true))
+            }
+            .setRemoveAction {
+                if (runConfigurationOverrideTable.isEditing) runConfigurationOverrideTable.cellEditor?.stopCellEditing()
+                runConfigurationOverrideTable.selectedRows.sortedDescending().forEach {
+                    runConfigurationOverrideTableModel.removeRule(it)
+                }
+            }
+            .createPanel().apply {
+                preferredSize = java.awt.Dimension(0, 210)
+            }
+
+        val helpTop = JBLabel(
+            """
+            <html>
+              Run configuration overrides apply only to <b>Run/Debug</b> executions.
+              First matching enabled override wins.
+            </html>
+            """.trimIndent()
+        ).apply {
+            border = BorderFactory.createEmptyBorder(0, 0, 4, 0)
+        }
+
+        val helpBottom = JBLabel(
+            """
+            <html>
+              Blank patterns and invalid regex rows are preserved for editing but skipped at runtime.
+              These overrides are not included in rule import/export or repo profiles.
+            </html>
+            """.trimIndent()
+        ).apply {
+            foreground = JBColor.GRAY
+            border = BorderFactory.createEmptyBorder(4, 0, 0, 0)
+        }
+
+        return JPanel(BorderLayout(0, 0)).apply {
+            add(helpTop, BorderLayout.NORTH)
+            add(tablePanel, BorderLayout.CENTER)
+            add(helpBottom, BorderLayout.SOUTH)
         }
     }
 
@@ -1487,6 +1566,125 @@ class ErrorSoundConfigurable : Configurable {
                 3 -> rules[row].description = value as? String ?: ""
             }
             fireTableCellUpdated(row, col)
+        }
+    }
+
+    private class RunConfigurationOverrideTableModel : AbstractTableModel() {
+        private val rules: MutableList<AlertSettings.RunConfigurationOverrideState> = mutableListOf()
+
+        fun setRules(newRules: List<AlertSettings.RunConfigurationOverrideState>) {
+            rules.clear()
+            rules.addAll(newRules.map { it.copy() })
+            fireTableDataChanged()
+        }
+
+        fun getRules(): List<AlertSettings.RunConfigurationOverrideState> = rules.map {
+            it.copy(matchType = RunConfigurationOverrideMatchType.fromStored(it.matchType).name)
+        }
+
+        fun addRule(rule: AlertSettings.RunConfigurationOverrideState) {
+            rules.add(rule.copy())
+            fireTableRowsInserted(rules.size - 1, rules.size - 1)
+        }
+
+        fun removeRule(index: Int) {
+            if (index in rules.indices) {
+                rules.removeAt(index)
+                fireTableRowsDeleted(index, index)
+            }
+        }
+
+        override fun getRowCount(): Int = rules.size
+        override fun getColumnCount(): Int = 18
+        override fun getColumnName(col: Int): String = when (col) {
+            0 -> "Enabled"
+            1 -> "Match Type"
+            2 -> "Pattern"
+            3 -> "Disable All"
+            4 -> "Disable Success"
+            5 -> "Override Min"
+            6 -> "Min Sec"
+            7 -> "Override Duration"
+            8 -> "Duration Sec"
+            9 -> "Override Play Once"
+            10 -> "Play Once"
+            11 -> "Override Visual"
+            12 -> "Visual"
+            13 -> "Override Notify Error"
+            14 -> "Notify Error"
+            15 -> "Override Notify Success"
+            16 -> "Notify Success"
+            17 -> "Description"
+            else -> ""
+        }
+
+        override fun getColumnClass(col: Int): Class<*> = when (col) {
+            0, 3, 4, 5, 7, 9, 10, 11, 12, 13, 14, 15, 16 -> Boolean::class.javaObjectType
+            1 -> RunConfigurationOverrideMatchType::class.java
+            6, 8 -> Int::class.javaObjectType
+            else -> String::class.java
+        }
+
+        override fun isCellEditable(row: Int, col: Int): Boolean = true
+
+        override fun getValueAt(row: Int, col: Int): Any = rules[row].let { rule ->
+            when (col) {
+                0 -> rule.enabled
+                1 -> RunConfigurationOverrideMatchType.fromStored(rule.matchType)
+                2 -> rule.pattern
+                3 -> rule.suppressAllAlerts
+                4 -> rule.suppressSuccessAlerts
+                5 -> rule.overrideMinProcessDurationSeconds
+                6 -> rule.minProcessDurationSeconds
+                7 -> rule.overrideAlertDurationSeconds
+                8 -> rule.alertDurationSeconds
+                9 -> rule.overrideUseActualSoundDuration
+                10 -> rule.useActualSoundDuration
+                11 -> rule.overrideShowVisualNotification
+                12 -> rule.showVisualNotification
+                13 -> rule.overrideVisualNotificationOnError
+                14 -> rule.visualNotificationOnError
+                15 -> rule.overrideVisualNotificationOnSuccess
+                16 -> rule.visualNotificationOnSuccess
+                17 -> rule.description
+                else -> ""
+            }
+        }
+
+        override fun setValueAt(value: Any?, row: Int, col: Int) {
+            if (row !in rules.indices) return
+            val rule = rules[row]
+            when (col) {
+                0 -> rule.enabled = value as? Boolean ?: true
+                1 -> rule.matchType = when (value) {
+                    is RunConfigurationOverrideMatchType -> value.name
+                    is String -> RunConfigurationOverrideMatchType.fromStored(value).name
+                    else -> RunConfigurationOverrideMatchType.default.name
+                }
+                2 -> rule.pattern = value as? String ?: ""
+                3 -> rule.suppressAllAlerts = value as? Boolean ?: false
+                4 -> rule.suppressSuccessAlerts = value as? Boolean ?: false
+                5 -> rule.overrideMinProcessDurationSeconds = value as? Boolean ?: false
+                6 -> rule.minProcessDurationSeconds = intValue(value, rule.minProcessDurationSeconds).coerceIn(0, 300)
+                7 -> rule.overrideAlertDurationSeconds = value as? Boolean ?: false
+                8 -> rule.alertDurationSeconds = intValue(value, rule.alertDurationSeconds).coerceIn(1, 10)
+                9 -> rule.overrideUseActualSoundDuration = value as? Boolean ?: false
+                10 -> rule.useActualSoundDuration = value as? Boolean ?: false
+                11 -> rule.overrideShowVisualNotification = value as? Boolean ?: false
+                12 -> rule.showVisualNotification = value as? Boolean ?: false
+                13 -> rule.overrideVisualNotificationOnError = value as? Boolean ?: false
+                14 -> rule.visualNotificationOnError = value as? Boolean ?: true
+                15 -> rule.overrideVisualNotificationOnSuccess = value as? Boolean ?: false
+                16 -> rule.visualNotificationOnSuccess = value as? Boolean ?: true
+                17 -> rule.description = value as? String ?: ""
+            }
+            fireTableCellUpdated(row, col)
+        }
+
+        private fun intValue(value: Any?, fallback: Int): Int = when (value) {
+            is Number -> value.toInt()
+            is String -> value.toIntOrNull() ?: fallback
+            else -> fallback
         }
     }
 
