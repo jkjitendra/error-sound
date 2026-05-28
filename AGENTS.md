@@ -21,6 +21,7 @@ IntelliJ Platform plugin that plays an audio alert when a Run/Debug process, con
 11. Provides a Settings-only Diagnostics / Self-Test section for local applied-status checks, sound self-tests, and a real IDE balloon notification test.
 12. Supports an optional team-shared repo profile file at `project.basePath/.error-sound-alert.json` for safe shared profile defaults.
 13. Lets users choose the project/workspace Profile Merge Policy from Error Monitor → Project Profile.
+14. Applies optional Run/Debug-only per-run-configuration overrides after global/repo/project settings resolution.
 
 ## Minimum Build Baseline
 
@@ -33,7 +34,7 @@ IntelliJ Platform plugin that plays an audio alert when a Run/Debug process, con
 | Target platform | IC 2024.3 |
 | `sinceBuild` | 243 |
 | `untilBuild` | unset (open-ended) |
-| **Plugin version** | **1.1.21** |
+| **Plugin version** | **1.1.22** |
 
 ## Completed Phases
 
@@ -58,6 +59,7 @@ IntelliJ Platform plugin that plays an audio alert when a Run/Debug process, con
 - Phase 10 Roadmap — Team-Shared Repo Profile File
 - Compatibility Fix — Marketplace Verifier API Usage
 - Phase 11 Roadmap — Profile Merge Policy UI
+- Phase 12 Roadmap — Per-Run-Configuration Overrides
 
 ## Safe Editing Rules
 
@@ -81,6 +83,7 @@ IntelliJ Platform plugin that plays an audio alert when a Run/Debug process, con
 | `ErrorSoundPlayer.kt` | **LOW-MEDIUM** — Audio thread management. Clip leaks if not closed properly. |
 | `ProjectAlertSettings.kt` | **LOW** — Workspace-scoped persistent state; changing storage path would lose saved overrides. |
 | `ResolvedSettingsResolver.kt` | **LOW-MEDIUM** — Applies the selected profile merge policy across global, repo profile, and workspace profile state for all detection paths without mutating stored settings. |
+| `RunConfigurationOverrideEngine.kt` | **LOW-MEDIUM** — Applies Run/Debug-only run-configuration overrides to a run-specific effective settings copy; invalid regex must remain safe. |
 | `RepoProfileService.kt` | **LOW-MEDIUM** — Reads untrusted local repo JSON; must stay local-only, read-only, and fail safe. |
 
 ## Required Verification Commands
@@ -104,4 +107,4 @@ IntelliJ Platform plugin that plays an audio alert when a Run/Debug process, con
 7. See `docs/agent-context/maintenance-rules.md` for the full update matrix.
 
 ---
-*Last updated from code scan: 2026-05-25*
+*Last updated from code scan: 2026-05-27*
