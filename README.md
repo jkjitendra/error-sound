@@ -35,6 +35,7 @@
 | Full per-project profiles | Opt-in workspace-scoped project overrides for monitoring, sounds, volume, duration, notifications, and process-duration threshold |
 | Team-shared repo profiles | Commit `.error-sound-alert.json` at the project root to share safe profile defaults across a team |
 | Profile merge policy | Choose whether workspace overrides, repo defaults, global settings, or global-only troubleshooting determine the effective project profile |
+| Per-run-configuration overrides | Customize Run/Debug alert behavior for specific run configuration names or configuration types |
 | 7 built-in sounds | Boom, Faaa, Huh, Punch, Yeah Boy, Yooo, Dog Laughing |
 | Custom audio support | Point to any local WAV / AIFF / AU file |
 | Per-kind sounds | Assign a different sound to each error category |
@@ -166,6 +167,22 @@ Available policies:
 
 Missing or invalid repo profiles fall back safely while warnings remain visible. Invalid or missing stored policy values normalize to the default policy. Resolution returns an effective settings copy and does not mutate global settings, project state, or the repo file. The policy adds no network access, telemetry, repo-file writes, rule import/export changes, or terminal reflection changes.
 
+### Per-Run-Configuration Overrides
+
+Use **Settings / Preferences → Tools → Error Sound Alert → Run Configuration Overrides** to customize alert behavior for specific Run/Debug configurations. Overrides are application settings, apply only to Run/Debug executions, and are evaluated after global settings, repo profile, and workspace project profile resolution.
+
+Matching is first-match-wins across enabled rows. Supported match types:
+- **Exact configuration name**
+- **Configuration name contains**
+- **Configuration name regex**
+- **Configuration type id/name contains**
+
+A matching override can suppress all alerts, suppress only success alerts, override the minimum process duration threshold, override alert duration, override **Use actual sound file duration (play once)**, or override visual notification behavior for that run only. The plugin creates a run-specific effective settings copy; it does not mutate global settings, repo profile data, or project profile state.
+
+Example: add a **Configuration name contains** override for `dev server` with **Disable All** enabled to silence a noisy local server, or add an exact-name override for one test configuration that disables success alerts while leaving global success alerts enabled elsewhere.
+
+Blank patterns and invalid regex patterns are preserved for editing but skipped safely at runtime. Run configuration overrides are not included in rule import/export or `.error-sound-alert.json`, and they do not affect Terminal commands, console-only detection, Alert History persistence, terminal reflection, network behavior, telemetry, or file writes.
+
 ### Audio Settings
 
 | Option | Description |
@@ -181,6 +198,7 @@ Missing or invalid repo profiles fall back safely while warnings remain visible.
 | Use actual sound file duration (play once) | Disabled by default. When enabled, the selected file-based sound starts once, ignores the configured alert duration, and disables the duration slider/value label |
 | Minimum process duration | Suppress Run/Debug alerts for short-lived processes |
 | Visual notifications | Show optional balloon notifications for errors and/or successes, with actionable controls |
+| Run configuration overrides | Match Run/Debug configurations by name/type and override suppression, duration/play-once, minimum duration, or visual notifications |
 | Custom regex rules | Add user-defined regex rules with LINE_TEXT, FULL_OUTPUT, or EXIT_CODE_AND_TEXT targets |
 | Suppression rules | Add regex rules that silence matching Run/Debug, Console, or Terminal contexts before alerts are dispatched |
 | Rule Testing Sandbox | Choose Source, Match Target, optional Exit Code, paste sample output, and click **Test Rules** |
@@ -195,7 +213,7 @@ The **Use actual sound file duration (play once)** checkbox is useful when a bun
 
 Use **Diagnostics / Self-Test** in **Settings / Preferences → Tools → Error Sound Alert** to verify the plugin locally without causing a real build or test failure. Diagnostics are settings-only and are not shown in the Error Monitor tool window.
 
-The summary reads existing applied state and status, including monitoring, selected profile merge policy, effective precedence, repo layer included/skipped status, workspace layer included/skipped status, repo profile status/schema/name/warning count, snooze, visual notification settings, sound source/selected sound, global volume, alert duration, play-once mode, custom regex rule count, suppression rule count, terminal exit-code rule count, Alert History count, rule preset availability, rule import/export schema support, and terminal integration status.
+The summary reads existing applied state and status, including monitoring, selected profile merge policy, effective precedence, repo layer included/skipped status, workspace layer included/skipped status, repo profile status/schema/name/warning count, snooze, visual notification settings, sound source/selected sound, global volume, alert duration, play-once mode, custom regex rule count, suppression rule count, terminal exit-code rule count, Run/Debug run-configuration override count, Alert History count, rule preset availability, rule import/export schema support, and terminal integration status.
 
 Available self-tests:
 - **Test error sound**
