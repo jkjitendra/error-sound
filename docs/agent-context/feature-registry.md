@@ -366,6 +366,24 @@ Lets users choose how global application settings, the repo-shared `.error-sound
 
 ---
 
+## Per-Run-Configuration Overrides
+
+| Field | Value |
+|---|---|
+| Status | Available |
+| Version introduced | 1.1.22 |
+| Relevant classes/files | `RunConfigurationOverrideEngine.kt`, `RunConfigurationOverrideMatchType.kt`, `AlertSettings.kt`, `ErrorSoundConfigurable.kt`, `AlertOnErrorExecutionListener.kt`, `AlertMatchExplanation.kt`, `ClassificationExplanationFactory.kt`, `ErrorSoundDiagnosticsService.kt` |
+
+Lets users customize alert behavior for specific Run/Debug configurations after global, repo, and workspace project profile settings have been resolved. Matching supports exact configuration name, configuration name contains, configuration name regex, and configuration type id/name contains. First matching enabled override wins and produces a run-specific effective settings copy.
+
+**How to enable/use:** Open Settings / Preferences -> Tools -> Error Sound Alert -> **Run Configuration Overrides**, add a row, choose a match type and pattern, then select suppression or override fields. Changes follow the normal settings Apply/Reset workflow.
+
+**Example usage:** Suppress all alerts for a noisy local dev server by matching a configuration name containing `dev server`, or disable success alerts for one exact test configuration while leaving global success alerts enabled elsewhere.
+
+**Notes/limitations:** Applies only to Run/Debug executions. Suppressed matches skip `AlertDispatcher`, sound, visual notifications, and Alert History. Blank patterns and invalid regex are preserved in settings and skipped safely at runtime. Terminal behavior, console-only behavior, repo profile schema, rule import/export schema, Alert History persistence, terminal reflection, network/telemetry, and file writes are unchanged.
+
+---
+
 ## Per-Kind Volume
 
 | Field | Value |
@@ -437,4 +455,4 @@ Prevents rapid duplicate alerts when multiple detection paths or repeated output
 **Notes/limitations:** Cooldown values are fixed in code and not currently configurable.
 
 ---
-*Last updated from code scan: 2026-05-25*
+*Last updated from code scan: 2026-05-27*

@@ -14,7 +14,7 @@ Quick lookup for build configuration.
 | Target platform | IC 2024.3 | `build.gradle.kts` |
 | sinceBuild | 243 | `build.gradle.kts` |
 | untilBuild | unset | `build.gradle.kts` |
-| Plugin version | 1.1.21 | `build.gradle.kts` |
+| Plugin version | 1.1.22 | `build.gradle.kts` |
 
 ## Key Commands
 
@@ -46,4 +46,4 @@ freeCompilerArgs = ["-Xjvm-default=all"]
 - Plugin ZIP: `build/distributions/error-sound-<version>.zip`
 
 ---
-*Last updated from code scan: 2026-05-25*
+*Last updated from code scan: 2026-05-27*

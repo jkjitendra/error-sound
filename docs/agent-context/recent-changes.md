@@ -4,6 +4,46 @@ Engineering-significant changes to the codebase. Not a full changelog — focuse
 
 ---
 
+## 1.1.22 — Per-Run-Configuration Overrides (Phase 12)
+
+### Scope
+Phase 12 adds shipped user-facing **Per-Run-Configuration Overrides** for Run/Debug executions. Users can customize alert behavior for specific run configuration names or configuration types without changing global, repo profile, or workspace project profile settings.
+
+### User-facing behavior
+- Added **Run Configuration Overrides** in **Settings -> Tools -> Error Sound Alert**
+- First matching enabled row wins
+- Match types: exact configuration name, configuration name contains, configuration name regex, and configuration type id/name contains
+- Overrides can suppress all alerts, suppress success alerts, override minimum process duration, override alert duration, override play-once sound duration, and override visual notification behavior
+
+### Runtime behavior
+- `AlertOnErrorExecutionListener` applies run-configuration overrides after global/repo/project settings resolution and before duration threshold/dispatch
+- Matching overrides create a run-specific effective settings copy and do not mutate stored global settings, repo profile data, or project profile state
+- Suppressed run-config matches skip `AlertDispatcher`, sound playback, visual notifications, and Alert History
+- Blank patterns and invalid regex are preserved in settings and skipped safely at runtime
+
+### Implementation notes
+- Added `RunConfigurationOverrideEngine.kt`
+- Added `RunConfigurationOverrideMatchType.kt`
+- Added `AlertSettings.State.runConfigurationOverrides`
+- Added debug-only `RUN_CONFIGURATION_OVERRIDE_SUPPRESSED` explanation cause
+- Diagnostics now reports Run/Debug run-configuration override count
+
+### Safety Boundaries
+- Run/Debug path only
+- No terminal behavior changes
+- No console-only behavior changes
+- No repo profile schema changes
+- No rule import/export schema changes
+- No Alert History persistence changes
+- No terminal reflection changes
+- No network, telemetry, or file writes beyond normal application settings persistence
+- Marketplace verifier compatibility fixes remain preserved: no `PluginManagerCore`, `PluginId`, or `FileSaverDescriptor` usage in source/resources
+
+### Version
+- Plugin version is `1.1.22`
+
+---
+
 ## 1.1.21 — Profile Merge Policy UI (Phase 11)
 
 ### Scope
@@ -892,4 +932,4 @@ projectOverride == false →  effective enabled = false (regardless of global)
 - Improved terminal compatibility with 2025.x reworked terminal engine
 
 ---
-*Last updated from code scan: 2026-05-25*
+*Last updated from code scan: 2026-05-27*
