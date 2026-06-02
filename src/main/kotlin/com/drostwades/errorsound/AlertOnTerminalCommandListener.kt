@@ -530,10 +530,21 @@ class AlertOnTerminalCommandListener : ProjectActivity {
         val settings = AlertSettings.getInstance()
         val engine = settings.getCompiledRuleEngine()
         val suppressionEngine = settings.getCompiledSuppressionRuleEngine()
+        val terminalCommandSuppressionEngine = settings.getCompiledTerminalCommandSuppressionEngine()
 
-        // Phase 7: resolve effective settings (only `enabled` may differ per project).
-        // Custom rule engine and exit-code rules remain global — only enabled is project-aware.
+        // Resolve effective profile settings; rule collections remain application-level in this path.
         val resolvedState = ResolvedSettingsResolver.getInstance(project).resolve()
+
+        val terminalCommandSuppressionMatch = terminalCommandSuppressionEngine.firstMatch(command, exitCode)
+        if (terminalCommandSuppressionMatch != null) {
+            val explanation = ClassificationExplanationFactory.terminalCommandSuppressed(
+                command = command,
+                exitCode = exitCode,
+                match = terminalCommandSuppressionMatch,
+            )
+            log.debug("ErrorSound: [Event] terminal command alert suppressed. ${explanation.summary()}")
+            return
+        }
 
         val suppressionMatch = if (suppressionEngine.hasExitCodeAndTextRules) {
             suppressionEngine.explainExitCodeAndText(command, exitCode)

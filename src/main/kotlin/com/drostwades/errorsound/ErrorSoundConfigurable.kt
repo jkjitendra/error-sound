@@ -177,6 +177,9 @@ class ErrorSoundConfigurable : Configurable {
     private val runConfigurationOverrideTableModel = RunConfigurationOverrideTableModel()
     private val runConfigurationOverrideTable = JBTable(runConfigurationOverrideTableModel)
 
+    private val terminalCommandSuppressionTableModel = TerminalCommandSuppressionTableModel()
+    private val terminalCommandSuppressionTable = JBTable(terminalCommandSuppressionTableModel)
+
     private val rulePresetCombo = ComboBox(RulePresetService.bundles.toTypedArray())
     private val rulePresetDescription = JTextArea(2, 60).apply {
         isEditable = false
@@ -435,6 +438,8 @@ class ErrorSoundConfigurable : Configurable {
             .addSeparator(8)
             .addComponent(createRuleTestingSandboxPanel(), 1)
             .addSeparator(8)
+            .addComponent(createTerminalCommandSuppressionsPanel(), 1)
+            .addSeparator(8)
             .addComponent(createExitCodeRulesPanel(), 1)
             .addComponentFillVertically(JPanel(), 0)
             .panel
@@ -494,7 +499,8 @@ class ErrorSoundConfigurable : Configurable {
             customRuleTableModel.getRules() != state.customRules ||
             suppressionRuleTableModel.getRules() != state.suppressionRules ||
             exitCodeRuleTableModel.getRules() != state.exitCodeRules ||
-            runConfigurationOverrideTableModel.getRules() != state.runConfigurationOverrides
+            runConfigurationOverrideTableModel.getRules() != state.runConfigurationOverrides ||
+            terminalCommandSuppressionTableModel.getRules() != state.terminalCommandSuppressions
     }
 
     override fun apply() {
@@ -504,6 +510,7 @@ class ErrorSoundConfigurable : Configurable {
         if (suppressionRuleTable.isEditing) suppressionRuleTable.cellEditor?.stopCellEditing()
         if (exitCodeRuleTable.isEditing) exitCodeRuleTable.cellEditor?.stopCellEditing()
         if (runConfigurationOverrideTable.isEditing) runConfigurationOverrideTable.cellEditor?.stopCellEditing()
+        if (terminalCommandSuppressionTable.isEditing) terminalCommandSuppressionTable.cellEditor?.stopCellEditing()
 
         val selectedSource = (sourceCombo.selectedItem as? AlertSettings.SoundSource)?.name
             ?: AlertSettings.SoundSource.BUNDLED.name
@@ -549,6 +556,7 @@ class ErrorSoundConfigurable : Configurable {
                 suppressionRules = suppressionRuleTableModel.getRules().toMutableList(),
                 exitCodeRules = exitCodeRuleTableModel.getRules().toMutableList(),
                 runConfigurationOverrides = runConfigurationOverrideTableModel.getRules().toMutableList(),
+                terminalCommandSuppressions = terminalCommandSuppressionTableModel.getRules().toMutableList(),
             )
         )
         // Sync tables back to normalized state so isModified() returns false immediately after Apply.
@@ -556,6 +564,7 @@ class ErrorSoundConfigurable : Configurable {
         suppressionRuleTableModel.setRules(settings.state.suppressionRules)
         exitCodeRuleTableModel.setRules(settings.state.exitCodeRules)
         runConfigurationOverrideTableModel.setRules(settings.state.runConfigurationOverrides)
+        terminalCommandSuppressionTableModel.setRules(settings.state.terminalCommandSuppressions)
         refreshDiagnosticsSummary()
     }
 
@@ -642,6 +651,7 @@ class ErrorSoundConfigurable : Configurable {
             suppressionRuleTableModel.setRules(state.suppressionRules)
             exitCodeRuleTableModel.setRules(state.exitCodeRules)
             runConfigurationOverrideTableModel.setRules(state.runConfigurationOverrides)
+            terminalCommandSuppressionTableModel.setRules(state.terminalCommandSuppressions)
             refreshDiagnosticsSummary()
         } finally {
             suppressPreview = false
@@ -961,7 +971,7 @@ class ErrorSoundConfigurable : Configurable {
         val actions = JPanel(FlowLayout(FlowLayout.LEFT, 8, 0)).apply {
             add(exportRulesButton)
             add(importRulesButton)
-            add(JBLabel("Custom regex, suppression, and terminal exit-code rules only.").apply {
+            add(JBLabel("Custom regex, suppression, terminal command suppression, and terminal exit-code rules only.").apply {
                 foreground = JBColor.GRAY
             })
         }
@@ -989,6 +999,7 @@ class ErrorSoundConfigurable : Configurable {
         val json = RuleImportExportService.exportRules(
             customRules = customRuleTableModel.getRules(),
             suppressionRules = suppressionRuleTableModel.getRules(),
+            terminalCommandSuppressions = terminalCommandSuppressionTableModel.getRules(),
             exitCodeRules = exitCodeRuleTableModel.getRules(),
             pluginVersion = currentPluginVersion(),
         )
@@ -997,7 +1008,7 @@ class ErrorSoundConfigurable : Configurable {
             Files.writeString(file.toPath(), json, StandardCharsets.UTF_8)
             Messages.showInfoMessage(
                 parent,
-                "Exported ${customRuleTableModel.rowCount} custom rule(s), ${suppressionRuleTableModel.rowCount} suppression rule(s), and ${exitCodeRuleTableModel.rowCount} exit-code rule(s).",
+                "Exported ${customRuleTableModel.rowCount} custom rule(s), ${suppressionRuleTableModel.rowCount} suppression rule(s), ${terminalCommandSuppressionTableModel.rowCount} terminal command suppression(s), and ${exitCodeRuleTableModel.rowCount} exit-code rule(s).",
                 "Export Rules",
             )
         } catch (e: Exception) {
@@ -1042,18 +1053,20 @@ class ErrorSoundConfigurable : Configurable {
 
         customRuleTableModel.setRules(result.customRules)
         suppressionRuleTableModel.setRules(result.suppressionRules)
+        terminalCommandSuppressionTableModel.setRules(result.terminalCommandSuppressions)
         exitCodeRuleTableModel.setRules(result.exitCodeRules)
     }
 
     private fun stopRuleTableEditing() {
         if (customRuleTable.isEditing) customRuleTable.cellEditor?.stopCellEditing()
         if (suppressionRuleTable.isEditing) suppressionRuleTable.cellEditor?.stopCellEditing()
+        if (terminalCommandSuppressionTable.isEditing) terminalCommandSuppressionTable.cellEditor?.stopCellEditing()
         if (exitCodeRuleTable.isEditing) exitCodeRuleTable.cellEditor?.stopCellEditing()
     }
 
     private fun formatImportSummary(result: RuleImportExportResult): String {
         val lines = mutableListOf(
-            "Import ${result.customRules.size} custom rule(s), ${result.suppressionRules.size} suppression rule(s), and ${result.exitCodeRules.size} exit-code rule(s)?",
+            "Import ${result.customRules.size} custom rule(s), ${result.suppressionRules.size} suppression rule(s), ${result.terminalCommandSuppressions.size} terminal command suppression(s), and ${result.exitCodeRules.size} exit-code rule(s)?",
             "",
             "This replaces the current rule tables. Changes are not saved until Apply is clicked.",
         )
@@ -1366,6 +1379,102 @@ class ErrorSoundConfigurable : Configurable {
         }
 
         return lines.joinToString("\n")
+    }
+
+    // ── Terminal Command Suppression Patterns ───────────────────────────────
+
+    private fun createTerminalCommandSuppressionsPanel(): JPanel {
+        terminalCommandSuppressionTable.autoResizeMode = JTable.AUTO_RESIZE_SUBSEQUENT_COLUMNS
+        terminalCommandSuppressionTable.fillsViewportHeight = true
+        terminalCommandSuppressionTable.rowHeight = 24
+
+        val cm = terminalCommandSuppressionTable.columnModel
+        cm.getColumn(0).apply {
+            preferredWidth = 55
+            maxWidth = 65
+        }
+        cm.getColumn(1).apply {
+            preferredWidth = 150
+            cellEditor = DefaultCellEditor(
+                javax.swing.JComboBox(TerminalCommandSuppressionMatchType.entries.toTypedArray())
+            )
+        }
+        cm.getColumn(2).apply {
+            preferredWidth = 240
+            cellRenderer = TerminalCommandPatternRenderer()
+        }
+        cm.getColumn(3).apply {
+            preferredWidth = 150
+            cellEditor = DefaultCellEditor(
+                javax.swing.JComboBox(TerminalCommandSuppressionExitCodeMode.entries.toTypedArray())
+            )
+        }
+        cm.getColumn(4).apply {
+            preferredWidth = 80
+            maxWidth = 95
+        }
+        cm.getColumn(5).preferredWidth = 190
+
+        val tablePanel = ToolbarDecorator.createDecorator(terminalCommandSuppressionTable)
+            .disableUpAction()
+            .disableDownAction()
+            .setAddAction {
+                if (terminalCommandSuppressionTable.isEditing) {
+                    terminalCommandSuppressionTable.cellEditor?.stopCellEditing()
+                }
+                terminalCommandSuppressionTableModel.addRule(AlertSettings.TerminalCommandSuppressionState())
+                val newRow = terminalCommandSuppressionTableModel.rowCount - 1
+                terminalCommandSuppressionTable.setRowSelectionInterval(newRow, newRow)
+                terminalCommandSuppressionTable.scrollRectToVisible(
+                    terminalCommandSuppressionTable.getCellRect(newRow, 2, true)
+                )
+            }
+            .setRemoveAction {
+                if (terminalCommandSuppressionTable.isEditing) {
+                    terminalCommandSuppressionTable.cellEditor?.stopCellEditing()
+                }
+                terminalCommandSuppressionTable.selectedRows.sortedDescending().forEach {
+                    terminalCommandSuppressionTableModel.removeRule(it)
+                }
+            }
+            .createPanel().apply {
+                preferredSize = java.awt.Dimension(0, 160)
+            }
+
+        val helpTop = JBLabel(
+            """
+            <html>
+              Terminal command suppressions apply only to <b>terminal command completions</b>.
+              First matching enabled pattern wins.
+            </html>
+            """.trimIndent()
+        ).apply {
+            border = BorderFactory.createEmptyBorder(0, 0, 4, 0)
+        }
+
+        val helpBottom = JBLabel(
+            """
+            <html>
+              Use these for commands that intentionally return non-zero, such as <tt>grep</tt> exit 1.
+              Blank patterns and invalid regex rows are preserved for editing but skipped at runtime.
+            </html>
+            """.trimIndent()
+        ).apply {
+            foreground = JBColor.GRAY
+            border = BorderFactory.createEmptyBorder(4, 0, 0, 0)
+        }
+
+        val header = JPanel().apply {
+            layout = javax.swing.BoxLayout(this, javax.swing.BoxLayout.Y_AXIS)
+            add(JBLabel("Terminal Command Suppression Patterns"))
+            add(helpTop)
+        }
+
+        return JPanel(BorderLayout(0, 0)).apply {
+            add(header, BorderLayout.NORTH)
+            add(tablePanel, BorderLayout.CENTER)
+            add(helpBottom, BorderLayout.SOUTH)
+        }
     }
 
     // ── Exit Code Rules Panel ──────────────────────────────────────────────────
@@ -1688,6 +1797,104 @@ class ErrorSoundConfigurable : Configurable {
         }
     }
 
+    private class TerminalCommandSuppressionTableModel : AbstractTableModel() {
+        private val rules: MutableList<AlertSettings.TerminalCommandSuppressionState> = mutableListOf()
+
+        fun setRules(newRules: List<AlertSettings.TerminalCommandSuppressionState>) {
+            rules.clear()
+            rules.addAll(newRules.map { it.copy() })
+            fireTableDataChanged()
+        }
+
+        fun getRules(): List<AlertSettings.TerminalCommandSuppressionState> = rules.map {
+            it.copy(
+                matchType = TerminalCommandSuppressionMatchType.fromStored(it.matchType).name,
+                exitCodeMode = TerminalCommandSuppressionExitCodeMode.fromStored(it.exitCodeMode).name,
+                exitCode = it.exitCode.coerceIn(
+                    TerminalCommandSuppressionEngine.MIN_EXIT_CODE,
+                    TerminalCommandSuppressionEngine.MAX_EXIT_CODE,
+                ),
+            )
+        }
+
+        fun addRule(rule: AlertSettings.TerminalCommandSuppressionState) {
+            rules.add(rule.copy())
+            fireTableRowsInserted(rules.size - 1, rules.size - 1)
+        }
+
+        fun removeRule(index: Int) {
+            if (index in rules.indices) {
+                rules.removeAt(index)
+                fireTableRowsDeleted(index, index)
+            }
+        }
+
+        override fun getRowCount(): Int = rules.size
+        override fun getColumnCount(): Int = 6
+        override fun getColumnName(col: Int): String = when (col) {
+            0 -> "Enabled"
+            1 -> "Match Type"
+            2 -> "Pattern"
+            3 -> "Exit Code Filter"
+            4 -> "Exit Code"
+            5 -> "Description"
+            else -> ""
+        }
+
+        override fun getColumnClass(col: Int): Class<*> = when (col) {
+            0 -> Boolean::class.javaObjectType
+            1 -> TerminalCommandSuppressionMatchType::class.java
+            3 -> TerminalCommandSuppressionExitCodeMode::class.java
+            4 -> Int::class.javaObjectType
+            else -> String::class.java
+        }
+
+        override fun isCellEditable(row: Int, col: Int): Boolean = true
+
+        override fun getValueAt(row: Int, col: Int): Any = rules[row].let { rule ->
+            when (col) {
+                0 -> rule.enabled
+                1 -> TerminalCommandSuppressionMatchType.fromStored(rule.matchType)
+                2 -> rule.pattern
+                3 -> TerminalCommandSuppressionExitCodeMode.fromStored(rule.exitCodeMode)
+                4 -> rule.exitCode
+                5 -> rule.description
+                else -> ""
+            }
+        }
+
+        override fun setValueAt(value: Any?, row: Int, col: Int) {
+            if (row !in rules.indices) return
+            val rule = rules[row]
+            when (col) {
+                0 -> rule.enabled = value as? Boolean ?: true
+                1 -> rule.matchType = when (value) {
+                    is TerminalCommandSuppressionMatchType -> value.name
+                    is String -> TerminalCommandSuppressionMatchType.fromStored(value).name
+                    else -> TerminalCommandSuppressionMatchType.default.name
+                }
+                2 -> rule.pattern = value as? String ?: ""
+                3 -> rule.exitCodeMode = when (value) {
+                    is TerminalCommandSuppressionExitCodeMode -> value.name
+                    is String -> TerminalCommandSuppressionExitCodeMode.fromStored(value).name
+                    else -> TerminalCommandSuppressionExitCodeMode.default.name
+                }
+                4 -> rule.exitCode = intValue(value, rule.exitCode).coerceIn(
+                    TerminalCommandSuppressionEngine.MIN_EXIT_CODE,
+                    TerminalCommandSuppressionEngine.MAX_EXIT_CODE,
+                )
+                5 -> rule.description = value as? String ?: ""
+            }
+            fireTableCellUpdated(row, col)
+        }
+
+        private fun intValue(value: Any?, fallback: Int): Int = when (value) {
+            is Number -> value.toInt()
+            is String -> value.toIntOrNull() ?: fallback
+            else -> fallback
+        }
+    }
+
     /** Renders the Pattern cell with a red tint when the regex is syntactically invalid. */
     private class PatternValidatingRenderer : DefaultTableCellRenderer() {
         override fun getTableCellRendererComponent(
@@ -1708,6 +1915,33 @@ class ErrorSoundConfigurable : Configurable {
                     (comp as? JLabel)?.toolTipText = "Invalid regex pattern"
                 } else {
                     (comp as? JLabel)?.toolTipText = null
+                }
+            }
+            return comp
+        }
+    }
+
+    /** Renders terminal command regex patterns with a red tint only when regex mode is selected. */
+    private class TerminalCommandPatternRenderer : DefaultTableCellRenderer() {
+        override fun getTableCellRendererComponent(
+            table: JTable,
+            value: Any?,
+            isSelected: Boolean,
+            hasFocus: Boolean,
+            row: Int,
+            column: Int,
+        ): Component {
+            val comp = super.getTableCellRendererComponent(table, value, isSelected, hasFocus, row, column)
+            val pattern = value as? String ?: ""
+            (comp as? JLabel)?.toolTipText = null
+
+            if (pattern.isNotBlank() && !isSelected) {
+                val modelRow = table.convertRowIndexToModel(row)
+                val matchType = table.model.getValueAt(modelRow, 1)
+                val isRegex = matchType == TerminalCommandSuppressionMatchType.COMMAND_REGEX
+                if (isRegex && !TerminalCommandSuppressionEngine.isValidRegex(pattern)) {
+                    comp.background = JBColor(Color(255, 185, 185), Color(110, 55, 55))
+                    (comp as? JLabel)?.toolTipText = "Invalid command regex pattern"
                 }
             }
             return comp
