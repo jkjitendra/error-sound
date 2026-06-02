@@ -177,6 +177,7 @@ object AlertDispatcher {
         AlertMatchExplanation.Cause.TERMINAL_EXIT_CODE_SUPPRESSED -> "Terminal exit-code suppressed"
         AlertMatchExplanation.Cause.SUPPRESSION_RULE -> "Suppression rule"
         AlertMatchExplanation.Cause.RUN_CONFIGURATION_OVERRIDE_SUPPRESSED -> "Run configuration override suppressed"
+        AlertMatchExplanation.Cause.TERMINAL_COMMAND_SUPPRESSION -> "Terminal command suppression"
         AlertMatchExplanation.Cause.SUCCESS_FALLBACK -> "Success fallback"
         AlertMatchExplanation.Cause.NO_MATCH -> "No match"
         AlertMatchExplanation.Cause.DURATION_THRESHOLD_SUPPRESSED -> "Duration threshold suppressed"
