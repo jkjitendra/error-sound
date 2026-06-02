@@ -80,6 +80,20 @@ class AlertSettings : PersistentStateComponent<AlertSettings.State> {
         var description: String = "",
     )
 
+    /**
+     * Terminal-only command suppression rule. Matching enabled rows silence terminal alerts before dispatch.
+     * Invalid or blank command patterns are preserved for editing and skipped safely at runtime.
+     */
+    data class TerminalCommandSuppressionState(
+        var id: String = UUID.randomUUID().toString(),
+        var enabled: Boolean = true,
+        var matchType: String = TerminalCommandSuppressionMatchType.default.name,
+        var pattern: String = "",
+        var exitCodeMode: String = TerminalCommandSuppressionExitCodeMode.default.name,
+        var exitCode: Int = 1,
+        var description: String = "",
+    )
+
     data class State(
         var enabled: Boolean = true,
 
@@ -152,6 +166,9 @@ class AlertSettings : PersistentStateComponent<AlertSettings.State> {
 
         // Run/Debug-only per-configuration overrides. First matching enabled row wins.
         var runConfigurationOverrides: MutableList<RunConfigurationOverrideState> = mutableListOf(),
+
+        // Terminal command suppressions. First matching enabled row wins in terminal command completion path only.
+        var terminalCommandSuppressions: MutableList<TerminalCommandSuppressionState> = mutableListOf(),
     )
 
     enum class SoundSource {
@@ -166,6 +183,9 @@ class AlertSettings : PersistentStateComponent<AlertSettings.State> {
 
     @Volatile
     private var compiledSuppressionRuleEngine: SuppressionRuleEngine? = null
+
+    @Volatile
+    private var compiledTerminalCommandSuppressionEngine: TerminalCommandSuppressionEngine? = null
 
     override fun getState(): State = state
 
@@ -240,9 +260,26 @@ class AlertSettings : PersistentStateComponent<AlertSettings.State> {
                     )
                 }
                 .toMutableList(),
+            terminalCommandSuppressions = state.terminalCommandSuppressions
+                .take(TerminalCommandSuppressionEngine.MAX_RULES)
+                .map { r ->
+                    r.copy(
+                        id = r.id.ifBlank { UUID.randomUUID().toString() },
+                        matchType = TerminalCommandSuppressionMatchType.fromStored(r.matchType).name,
+                        pattern = r.pattern.trim().take(TerminalCommandSuppressionEngine.MAX_PATTERN_LENGTH),
+                        exitCodeMode = TerminalCommandSuppressionExitCodeMode.fromStored(r.exitCodeMode).name,
+                        exitCode = r.exitCode.coerceIn(
+                            TerminalCommandSuppressionEngine.MIN_EXIT_CODE,
+                            TerminalCommandSuppressionEngine.MAX_EXIT_CODE,
+                        ),
+                        description = r.description.trim().take(TerminalCommandSuppressionEngine.MAX_DESCRIPTION_LENGTH),
+                    )
+                }
+                .toMutableList(),
         )
         compiledRuleEngine = null  // invalidate cached engine whenever settings change
         compiledSuppressionRuleEngine = null
+        compiledTerminalCommandSuppressionEngine = null
     }
 
     /**
@@ -258,6 +295,12 @@ class AlertSettings : PersistentStateComponent<AlertSettings.State> {
     fun getCompiledSuppressionRuleEngine(): SuppressionRuleEngine {
         return compiledSuppressionRuleEngine ?: SuppressionRuleEngine(state.suppressionRules).also {
             compiledSuppressionRuleEngine = it
+        }
+    }
+
+    fun getCompiledTerminalCommandSuppressionEngine(): TerminalCommandSuppressionEngine {
+        return compiledTerminalCommandSuppressionEngine ?: TerminalCommandSuppressionEngine(state.terminalCommandSuppressions).also {
+            compiledTerminalCommandSuppressionEngine = it
         }
     }
 
