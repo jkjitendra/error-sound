@@ -11,8 +11,8 @@ import java.util.UUID
 import java.util.regex.PatternSyntaxException
 
 object RuleImportExportService {
-    private const val SCHEMA_VERSION = 2
-    private val SUPPORTED_SCHEMA_VERSIONS = setOf(1, 2)
+    private const val SCHEMA_VERSION = 3
+    private val SUPPORTED_SCHEMA_VERSIONS = setOf(1, 2, 3)
 
     private val gson = GsonBuilder()
         .serializeNulls()
@@ -25,15 +25,26 @@ object RuleImportExportService {
         "pluginVersion",
         "customRules",
         "suppressionRules",
+        "terminalCommandSuppressions",
         "exitCodeRules",
     )
     private val customRuleFields = setOf("id", "enabled", "pattern", "matchTarget", "kind")
     private val suppressionRuleFields = setOf("id", "enabled", "pattern", "matchTarget", "description")
+    private val terminalCommandSuppressionFields = setOf(
+        "id",
+        "enabled",
+        "matchType",
+        "pattern",
+        "exitCodeMode",
+        "exitCode",
+        "description",
+    )
     private val exitCodeRuleFields = setOf("exitCode", "enabled", "kind", "soundId", "suppress")
 
     fun exportRules(
         customRules: List<AlertSettings.CustomRuleState>,
         suppressionRules: List<AlertSettings.SuppressionRuleState>,
+        terminalCommandSuppressions: List<AlertSettings.TerminalCommandSuppressionState>,
         exitCodeRules: List<AlertSettings.ExitCodeRuleState>,
         pluginVersion: String,
     ): String {
@@ -57,6 +68,17 @@ object RuleImportExportService {
                     pattern = rule.pattern,
                     matchTarget = rule.matchTarget,
                     description = rule.description,
+                )
+            },
+            terminalCommandSuppressions = terminalCommandSuppressions.map { suppression ->
+                RuleImportExportBundle.TerminalCommandSuppression(
+                    id = suppression.id,
+                    enabled = suppression.enabled,
+                    matchType = suppression.matchType,
+                    pattern = suppression.pattern,
+                    exitCodeMode = suppression.exitCodeMode,
+                    exitCode = suppression.exitCode,
+                    description = suppression.description,
                 )
             },
             exitCodeRules = exitCodeRules.map { rule ->
@@ -96,6 +118,7 @@ object RuleImportExportService {
         var skippedCount = 0
         val customRules = mutableListOf<AlertSettings.CustomRuleState>()
         val suppressionRules = mutableListOf<AlertSettings.SuppressionRuleState>()
+        val terminalCommandSuppressions = mutableListOf<AlertSettings.TerminalCommandSuppressionState>()
         val exitCodeRules = mutableListOf<AlertSettings.ExitCodeRuleState>()
 
         rootObject.optionalArray("customRules", "customRules")?.forEachIndexed { index, element ->
@@ -136,6 +159,25 @@ object RuleImportExportService {
             if (rule != null) suppressionRules += rule
         }
 
+        rootObject.optionalArray("terminalCommandSuppressions", "terminalCommandSuppressions")?.forEachIndexed { index, element ->
+            if (index >= TerminalCommandSuppressionEngine.MAX_RULES) {
+                if (index == TerminalCommandSuppressionEngine.MAX_RULES) {
+                    warnings += "Skipped terminal command suppressions after row ${TerminalCommandSuppressionEngine.MAX_RULES}; only ${TerminalCommandSuppressionEngine.MAX_RULES} terminal command suppressions are supported."
+                }
+                skippedCount++
+                return@forEachIndexed
+            }
+
+            val path = "terminalCommandSuppressions[${index + 1}]"
+            val suppression = runCatching { parseTerminalCommandSuppression(element, path, warnings) }
+                .getOrElse { error ->
+                    warnings += "Skipped $path: ${error.message ?: "Invalid suppression."}"
+                    skippedCount++
+                    null
+                }
+            if (suppression != null) terminalCommandSuppressions += suppression
+        }
+
         rootObject.optionalArray("exitCodeRules", "exitCodeRules")?.forEachIndexed { index, element ->
             val path = "exitCodeRules[${index + 1}]"
             val rule = runCatching { parseExitCodeRule(element, path, warnings) }
@@ -150,9 +192,74 @@ object RuleImportExportService {
         return RuleImportExportResult(
             customRules = customRules,
             suppressionRules = suppressionRules,
+            terminalCommandSuppressions = terminalCommandSuppressions,
             exitCodeRules = exitCodeRules,
             warnings = warnings,
             skippedCount = skippedCount,
+        )
+    }
+
+    private fun parseTerminalCommandSuppression(
+        element: JsonElement,
+        path: String,
+        warnings: MutableList<String>,
+    ): AlertSettings.TerminalCommandSuppressionState {
+        val obj = element.asObject(path)
+        rejectUnknownFields(obj, terminalCommandSuppressionFields, path)
+
+        val id = obj.optionalString("id", "$path.id")?.trim()
+            ?.takeIf { it.isNotEmpty() }
+            ?: UUID.randomUUID().toString().also {
+                warnings += "$path has no id; generated a new one."
+            }
+        val enabled = obj.optionalBoolean("enabled", "$path.enabled") ?: true
+        val matchType = obj.requiredString("matchType", "$path.matchType")
+        validateTerminalCommandMatchType(matchType, "$path.matchType")
+        val rawPattern = obj.requiredString("pattern", "$path.pattern")
+        val pattern = rawPattern.trim().let {
+            if (it.length > TerminalCommandSuppressionEngine.MAX_PATTERN_LENGTH) {
+                warnings += "$path.pattern was truncated to ${TerminalCommandSuppressionEngine.MAX_PATTERN_LENGTH} characters."
+                it.take(TerminalCommandSuppressionEngine.MAX_PATTERN_LENGTH)
+            } else {
+                it
+            }
+        }
+        val exitCodeMode = obj.requiredString("exitCodeMode", "$path.exitCodeMode")
+        validateTerminalCommandExitCodeMode(exitCodeMode, "$path.exitCodeMode")
+        val rawExitCode = obj.requiredInt("exitCode", "$path.exitCode")
+        val exitCode = rawExitCode.coerceIn(
+            TerminalCommandSuppressionEngine.MIN_EXIT_CODE,
+            TerminalCommandSuppressionEngine.MAX_EXIT_CODE,
+        )
+        if (exitCode != rawExitCode) {
+            warnings += "$path.exitCode was clamped to $exitCode."
+        }
+        val description = obj.optionalString("description", "$path.description")
+            ?.trim()
+            ?.let {
+                if (it.length > TerminalCommandSuppressionEngine.MAX_DESCRIPTION_LENGTH) {
+                    warnings += "$path.description was truncated to ${TerminalCommandSuppressionEngine.MAX_DESCRIPTION_LENGTH} characters."
+                    it.take(TerminalCommandSuppressionEngine.MAX_DESCRIPTION_LENGTH)
+                } else {
+                    it
+                }
+            }
+            ?: ""
+
+        if (pattern.isNotBlank() && matchType == TerminalCommandSuppressionMatchType.COMMAND_REGEX.name) {
+            if (!TerminalCommandSuppressionEngine.isValidRegex(pattern)) {
+                warnings += "$path.pattern is not a valid regex and will be ignored at runtime until edited."
+            }
+        }
+
+        return AlertSettings.TerminalCommandSuppressionState(
+            id = id,
+            enabled = enabled,
+            matchType = matchType,
+            pattern = pattern,
+            exitCodeMode = exitCodeMode,
+            exitCode = exitCode,
+            description = description,
         )
     }
 
@@ -300,6 +407,18 @@ object RuleImportExportService {
         val kind = ErrorKind.entries.find { it.name == value }
         if (kind == null || kind !in CustomRuleEngine.ALLOWED_CUSTOM_RULE_KINDS) {
             throw IllegalArgumentException("$path '$value' is not an allowed error kind.")
+        }
+    }
+
+    private fun validateTerminalCommandMatchType(value: String, path: String) {
+        if (TerminalCommandSuppressionMatchType.entries.none { it.name == value }) {
+            throw IllegalArgumentException("$path '$value' is not supported.")
+        }
+    }
+
+    private fun validateTerminalCommandExitCodeMode(value: String, path: String) {
+        if (TerminalCommandSuppressionExitCodeMode.entries.none { it.name == value }) {
+            throw IllegalArgumentException("$path '$value' is not supported.")
         }
     }
 
