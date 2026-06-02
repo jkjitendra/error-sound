@@ -154,4 +154,27 @@ object ClassificationExplanationFactory {
             commandOrConfig = context,
             suppressed = true,
         )
+
+    fun terminalCommandSuppressed(
+        command: String,
+        exitCode: Int,
+        match: TerminalCommandSuppressionEngine.Match,
+    ): AlertMatchExplanation {
+        val rule = match.suppression
+        return AlertMatchExplanation(
+            source = AlertMatchExplanation.Source.TERMINAL,
+            cause = AlertMatchExplanation.Cause.TERMINAL_COMMAND_SUPPRESSION,
+            kind = ErrorKind.NONE,
+            message = if (rule.description.isBlank()) {
+                "Terminal command suppression row ${match.rowNumber} matched"
+            } else {
+                "Terminal command suppression row ${match.rowNumber} matched: ${rule.description}"
+            },
+            ruleId = rule.id,
+            rulePattern = rule.pattern,
+            exitCode = exitCode,
+            commandOrConfig = command,
+            suppressed = true,
+        )
+    }
 }
