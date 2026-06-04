@@ -25,8 +25,9 @@
 | Custom regex rules | Define LINE_TEXT, FULL_OUTPUT, and EXIT_CODE_AND_TEXT patterns that run before built-in classification |
 | Suppression rules | Silence known noisy false positives with local regex rules before alert dispatch |
 | Rule Testing Sandbox | Paste sample output and see which custom rule or built-in classifier would match |
+| Terminal command suppressions | Silence expected non-zero terminal commands by exact command, contains match, or regex with optional exit-code filtering |
 | Terminal exit-code rules | Map terminal exit codes to error kinds, optional built-in sound overrides, or suppression |
-| Rule import/export | Export and import custom regex rules, suppression rules, and terminal exit-code rules as local JSON |
+| Rule import/export | Export and import custom regex rules, suppression rules, terminal command suppressions, and terminal exit-code rules as local JSON |
 | Rule presets | Add bundled custom regex and terminal exit-code rule bundles for common stacks |
 | Diagnostics / Self-Test | Inspect applied status and run safe sound/notification checks from Settings |
 | Success sounds | Optional alert when a Run/Debug process completes successfully |
@@ -183,6 +184,24 @@ Example: add a **Configuration name contains** override for `dev server` with **
 
 Blank patterns and invalid regex patterns are preserved for editing but skipped safely at runtime. Run configuration overrides are not included in rule import/export or `.error-sound-alert.json`, and they do not affect Terminal commands, console-only detection, Alert History persistence, terminal reflection, network behavior, telemetry, or file writes.
 
+### Terminal Command Suppression Patterns
+
+Use **Settings / Preferences → Tools → Error Sound Alert → Terminal Command Suppression Patterns** to silence expected terminal command failures before terminal alerts are dispatched. This feature applies only to terminal command completions. It does not affect Run/Debug executions, console-only detection, repo profile schema, terminal reflection, or Alert History persistence.
+
+Matching is first-match-wins across enabled rows. Supported command match types:
+- **Exact command**
+- **Command contains**
+- **Command regex**
+
+Exit-code filters support **Any non-zero exit code** or **Specific exit code**. A matching suppression skips `AlertDispatcher`, so no sound plays, no visual notification appears, and no Alert History entry is created.
+
+Examples:
+- Suppress `grep` with **Command contains** = `grep` and **Specific exit code** = `1` because `grep` returns 1 when no match is found.
+- Suppress a known noisy local script with **Command contains** = `npm run flaky-local` and **Any non-zero exit code**.
+- Suppress dry-run commands with **Command regex** = `^kubectl .* --dry-run` and **Any non-zero exit code**.
+
+Blank patterns and invalid command regex patterns are preserved in settings for editing but skipped safely at runtime. Terminal command suppressions are included in rules-only import/export schema v3.
+
 ### Audio Settings
 
 | Option | Description |
@@ -201,9 +220,10 @@ Blank patterns and invalid regex patterns are preserved for editing but skipped 
 | Run configuration overrides | Match Run/Debug configurations by name/type and override suppression, duration/play-once, minimum duration, or visual notifications |
 | Custom regex rules | Add user-defined regex rules with LINE_TEXT, FULL_OUTPUT, or EXIT_CODE_AND_TEXT targets |
 | Suppression rules | Add regex rules that silence matching Run/Debug, Console, or Terminal contexts before alerts are dispatched |
+| Terminal command suppressions | Silence terminal command completions by exact command, contains match, or regex plus optional exit-code filtering |
 | Rule Testing Sandbox | Choose Source, Match Target, optional Exit Code, paste sample output, and click **Test Rules** |
 | Exit-code rules | Map terminal exit codes to kinds, sound overrides, or suppression |
-| Rule import/export | **Export Rules…** / **Import Rules…** for custom regex, suppression, and terminal exit-code rules only |
+| Rule import/export | **Export Rules…** / **Import Rules…** for custom regex, suppression, terminal command suppression, and terminal exit-code rules only |
 | Rule presets | Choose a bundled preset and click **Add Preset Rules** to append rules to the current tables |
 | Diagnostics / Self-Test | Review applied settings/status and test error sound, success sound, or visual notification behavior |
 
@@ -213,7 +233,7 @@ The **Use actual sound file duration (play once)** checkbox is useful when a bun
 
 Use **Diagnostics / Self-Test** in **Settings / Preferences → Tools → Error Sound Alert** to verify the plugin locally without causing a real build or test failure. Diagnostics are settings-only and are not shown in the Error Monitor tool window.
 
-The summary reads existing applied state and status, including monitoring, selected profile merge policy, effective precedence, repo layer included/skipped status, workspace layer included/skipped status, repo profile status/schema/name/warning count, snooze, visual notification settings, sound source/selected sound, global volume, alert duration, play-once mode, custom regex rule count, suppression rule count, terminal exit-code rule count, Run/Debug run-configuration override count, Alert History count, rule preset availability, rule import/export schema support, and terminal integration status.
+The summary reads existing applied state and status, including monitoring, selected profile merge policy, effective precedence, repo layer included/skipped status, workspace layer included/skipped status, repo profile status/schema/name/warning count, snooze, visual notification settings, sound source/selected sound, global volume, alert duration, play-once mode, custom regex rule count, suppression rule count, terminal command suppression count, terminal exit-code rule count, Run/Debug run-configuration override count, Alert History count, rule preset availability, rule import/export schema support, and terminal integration status.
 
 Available self-tests:
 - **Test error sound**
@@ -271,11 +291,12 @@ Choose a preset, review its description, then click **Add Preset Rules**. The co
 Use **Export Rules…** and **Import Rules…** in **Settings / Preferences → Tools → Error Sound Alert** to move rules between IDEs or share rule presets. The JSON bundle covers only:
 - Custom Regex Rules
 - Suppression Rules
+- Terminal Command Suppression Patterns
 - Terminal Exit-Code Rules
 
 It does **not** include global sound settings, per-kind volume, success settings, project profiles/overrides, alert history, snooze state, or a full plugin settings export.
 
-Export uses the current rule tables exactly as shown, including unsaved edits. Import validates the JSON, shows a confirmation summary, and replaces only the rule tables. Exports use schema version 2 with `customRules`, `suppressionRules`, and `exitCodeRules`; schema version 1 files remain import-compatible. Imported changes follow the normal settings workflow: click **Apply** to persist them, or **Reset** to discard imported-but-not-applied changes. Import/export uses local files only; there is no network or telemetry.
+Export uses the current rule tables exactly as shown, including unsaved edits. Import validates the JSON, shows a confirmation summary, and replaces only the rule tables. Exports use schema version 3 with `customRules`, `suppressionRules`, `terminalCommandSuppressions`, and `exitCodeRules`; schema version 1 and 2 files remain import-compatible. Imported changes follow the normal settings workflow: click **Apply** to persist them, or **Reset** to discard imported-but-not-applied changes. Import/export uses local files only; there is no network or telemetry.
 
 ### Rule Testing Sandbox
 
