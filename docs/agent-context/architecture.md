@@ -211,7 +211,7 @@ The diagnostics summary reads applied state and status only:
 - snooze active/inactive
 - visual notification settings
 - sound source, selected sound, global volume, alert duration, and play-once mode
-- custom regex, suppression, and terminal exit-code rule counts
+- custom regex, suppression, terminal command suppression, and terminal exit-code rule counts
 - Alert History count
 - rule preset availability
 - rule import/export schema support
@@ -327,13 +327,34 @@ Console and Terminal paths do not evaluate run-configuration overrides. Repo pro
 
 Old workspace files with only `useOverride` / `enabledOverride` continue loading: normalization treats an existing enabled-only override as an active profile master override.
 
+### Phase 13 terminal command suppression layer
+
+Terminal Command Suppression Patterns are application settings but apply only in `AlertOnTerminalCommandListener` after a terminal command completion is observed:
+
+```
+Terminal command finished(command, exitCode)
+  → ResolvedSettingsResolver.resolve()
+  → TerminalCommandSuppressionEngine.firstMatch(command, exitCode)
+  → if matched: return before AlertDispatcher
+  → suppression EXIT_CODE_AND_TEXT rules
+  → custom EXIT_CODE_AND_TEXT rules
+  → terminal exit-code rules
+  → built-in terminal fallback
+  → AlertDispatcher.tryAlert(...)
+```
+
+First matching enabled terminal command suppression row wins. Matching supports exact command, case-insensitive command contains, and command regex. Exit-code filtering supports any non-zero exit code or one specific exit code. Blank patterns and invalid regex rows are preserved in settings and skipped safely at runtime.
+
+Suppressed terminal commands do not call `AlertDispatcher`, do not play sound, do not show visual notifications, and do not enter Alert History. Run/Debug and Console paths do not evaluate terminal command suppressions. Terminal reflection attachment logic is unchanged.
+
 ## UI Relationships
 
 ```
 Settings → Tools → Error Sound Alert
   └── ErrorSoundConfigurable (Configurable)
         └── manages: sound source, built-in/custom sounds, per-kind sounds,
-            volume, duration, global mode, preview (all global/app-level)
+            volume, duration, global mode, preview, Run Configuration Overrides,
+            and Terminal Command Suppression Patterns (all global/app-level)
 
 Error Monitor (Tool Window, right sidebar)
   └── ErrorSoundToolWindowFactory → ErrorSoundToolWindowPanel
@@ -408,4 +429,4 @@ Unsupported targets are deterministically skipped — not reinterpreted.
 4. Built-in chunk accumulation (`builtInDetectedResult`, highest-priority kind seen in chunks)
 5. Built-in `ErrorClassifier.detectWithExplanation()` on full buffer
 
-*Last updated from code scan: 2026-05-27*
+*Last updated from code scan: 2026-05-29*
