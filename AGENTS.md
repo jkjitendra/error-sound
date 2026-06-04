@@ -22,7 +22,8 @@ IntelliJ Platform plugin that plays an audio alert when a Run/Debug process, con
 12. Supports an optional team-shared repo profile file at `project.basePath/.error-sound-alert.json` for safe shared profile defaults.
 13. Lets users choose the project/workspace Profile Merge Policy from Error Monitor → Project Profile.
 14. Applies optional Run/Debug-only per-run-configuration overrides after global/repo/project settings resolution.
-15. Applies terminal-only command suppression patterns before terminal alerts are dispatched.
+15. Applies terminal-only command allowlist/blocklist filters before terminal suppressions and alert dispatch.
+16. Applies terminal-only command suppression patterns before terminal alerts are dispatched.
 
 ## Minimum Build Baseline
 
@@ -35,7 +36,7 @@ IntelliJ Platform plugin that plays an audio alert when a Run/Debug process, con
 | Target platform | IC 2024.3 |
 | `sinceBuild` | 243 |
 | `untilBuild` | unset (open-ended) |
-| **Plugin version** | **1.1.23** |
+| **Plugin version** | **1.1.24** |
 
 ## Completed Phases
 
@@ -62,6 +63,7 @@ IntelliJ Platform plugin that plays an audio alert when a Run/Debug process, con
 - Phase 11 Roadmap — Profile Merge Policy UI
 - Phase 12 Roadmap — Per-Run-Configuration Overrides
 - Phase 13 Roadmap — Terminal Command Suppression Patterns
+- Phase 14 Roadmap — Terminal Command Allowlist / Blocklist
 
 ## Safe Editing Rules
 
@@ -86,6 +88,7 @@ IntelliJ Platform plugin that plays an audio alert when a Run/Debug process, con
 | `ProjectAlertSettings.kt` | **LOW** — Workspace-scoped persistent state; changing storage path would lose saved overrides. |
 | `ResolvedSettingsResolver.kt` | **LOW-MEDIUM** — Applies the selected profile merge policy across global, repo profile, and workspace profile state for all detection paths without mutating stored settings. |
 | `RunConfigurationOverrideEngine.kt` | **LOW-MEDIUM** — Applies Run/Debug-only run-configuration overrides to a run-specific effective settings copy; invalid regex must remain safe. |
+| `TerminalCommandFilterEngine.kt` | **LOW-MEDIUM** — Terminal-only allowlist/blocklist eligibility matcher; default OFF must preserve existing terminal behavior and invalid regex must remain safe. |
 | `TerminalCommandSuppressionEngine.kt` | **LOW-MEDIUM** — Terminal-only command suppression matcher; invalid regex must remain safe and must not alter terminal reflection behavior. |
 | `RepoProfileService.kt` | **LOW-MEDIUM** — Reads untrusted local repo JSON; must stay local-only, read-only, and fail safe. |
 
@@ -110,4 +113,4 @@ IntelliJ Platform plugin that plays an audio alert when a Run/Debug process, con
 7. See `docs/agent-context/maintenance-rules.md` for the full update matrix.
 
 ---
-*Last updated from code scan: 2026-05-29*
+*Last updated from code scan: 2026-06-04*
