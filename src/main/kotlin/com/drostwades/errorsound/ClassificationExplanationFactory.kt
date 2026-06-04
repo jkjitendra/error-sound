@@ -177,4 +177,35 @@ object ClassificationExplanationFactory {
             suppressed = true,
         )
     }
+
+    fun terminalCommandFilterSkipped(
+        command: String,
+        exitCode: Int,
+        decision: TerminalCommandFilterEngine.Decision,
+    ): AlertMatchExplanation {
+        val match = decision.match
+        val message = when {
+            decision.mode == TerminalCommandFilterMode.ALLOWLIST_ONLY && match == null ->
+                "Terminal command filter skipped command because allowlist mode had no matching row"
+            decision.mode == TerminalCommandFilterMode.BLOCKLIST && match != null ->
+                if (match.filter.description.isBlank()) {
+                    "Terminal command filter skipped command by blocklist row ${match.rowNumber}"
+                } else {
+                    "Terminal command filter skipped command by blocklist row ${match.rowNumber}: ${match.filter.description}"
+                }
+            else ->
+                "Terminal command filter skipped command"
+        }
+        return AlertMatchExplanation(
+            source = AlertMatchExplanation.Source.TERMINAL,
+            cause = AlertMatchExplanation.Cause.TERMINAL_COMMAND_FILTER_SKIPPED,
+            kind = ErrorKind.NONE,
+            message = message,
+            ruleId = match?.filter?.id,
+            rulePattern = match?.filter?.pattern,
+            exitCode = exitCode,
+            commandOrConfig = command,
+            suppressed = true,
+        )
+    }
 }
