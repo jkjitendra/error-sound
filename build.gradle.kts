@@ -7,7 +7,7 @@ plugins {
 }
 
 group = "com.drostwades"
-version = "1.1.23"
+version = "1.1.24"
 
 repositories {
     mavenCentral()
@@ -58,6 +58,7 @@ intellijPlatform {
               <li><b>Team-shared repo profiles:</b> load safe profile defaults from <code>.error-sound-alert.json</code> in the project root before workspace overrides are applied</li>
               <li><b>Profile merge policy:</b> choose whether workspace overrides, repo defaults, global settings, or local-only settings determine the effective project profile</li>
               <li><b>Run configuration overrides:</b> customize Run/Debug alert behavior for specific configuration names or types</li>
+              <li><b>Terminal command filter:</b> choose whether terminal alerts monitor all commands, allow only matching commands, or skip matching commands</li>
               <li><b>Terminal command suppressions:</b> silence expected non-zero terminal commands by exact command, contains match, or regex with optional exit-code filtering</li>
               <li><b>Exit-code rules for terminal commands:</b> map specific exit codes to error kinds, optional per-code sound overrides, or suppress alerts entirely (e.g. silence Ctrl+C / exit&nbsp;130)</li>
               <li>Per-kind sounds, or one global sound for all alerts</li>
@@ -77,6 +78,13 @@ intellijPlatform {
         """.trimIndent()
 
         changeNotes = """
+            <b>1.1.24</b>
+            <ul>
+              <li>Added Terminal Command Filter controls for terminal command allowlist/blocklist behavior</li>
+              <li>Default Off mode preserves existing terminal alert behavior; Allowlist only mode alerts only for matching commands; Blocklist mode skips matching commands</li>
+              <li>Terminal command filters run before terminal command suppressions and before alert dispatch, without changing Run/Debug, console, or terminal reflection behavior</li>
+              <li>Rules-only import/export now uses schema version 4 with terminal command filter mode and rows while preserving schema version 1, 2, and 3 imports</li>
+            </ul>
             <b>1.1.23</b>
             <ul>
               <li>Added Terminal Command Suppression Patterns for terminal command completions</li>
