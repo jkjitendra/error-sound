@@ -712,6 +712,7 @@ private class ErrorSoundToolWindowPanel(
             AlertMatchExplanation.Cause.TERMINAL_EXIT_CODE_SUPPRESSED -> "Exit-code suppressed"
             AlertMatchExplanation.Cause.SUPPRESSION_RULE -> "Suppression rule"
             AlertMatchExplanation.Cause.RUN_CONFIGURATION_OVERRIDE_SUPPRESSED -> "Run-config suppressed"
+            AlertMatchExplanation.Cause.TERMINAL_COMMAND_FILTER_SKIPPED -> "Terminal filter skipped"
             AlertMatchExplanation.Cause.TERMINAL_COMMAND_SUPPRESSION -> "Terminal command suppressed"
             AlertMatchExplanation.Cause.SUCCESS_FALLBACK -> "Success fallback"
             AlertMatchExplanation.Cause.NO_MATCH -> "No match"
