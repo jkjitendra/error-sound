@@ -94,6 +94,19 @@ class AlertSettings : PersistentStateComponent<AlertSettings.State> {
         var description: String = "",
     )
 
+    /**
+     * Terminal-only command eligibility filter row. The table acts as either an allowlist or blocklist
+     * depending on [State.terminalCommandFilterMode]. Invalid or blank command patterns are preserved
+     * for editing and skipped safely at runtime.
+     */
+    data class TerminalCommandFilterState(
+        var id: String = UUID.randomUUID().toString(),
+        var enabled: Boolean = true,
+        var matchType: String = TerminalCommandFilterMatchType.default.name,
+        var pattern: String = "",
+        var description: String = "",
+    )
+
     data class State(
         var enabled: Boolean = true,
 
@@ -167,6 +180,10 @@ class AlertSettings : PersistentStateComponent<AlertSettings.State> {
         // Run/Debug-only per-configuration overrides. First matching enabled row wins.
         var runConfigurationOverrides: MutableList<RunConfigurationOverrideState> = mutableListOf(),
 
+        // Terminal command eligibility filter. OFF preserves previous terminal behavior.
+        var terminalCommandFilterMode: String = TerminalCommandFilterMode.default.name,
+        var terminalCommandFilters: MutableList<TerminalCommandFilterState> = mutableListOf(),
+
         // Terminal command suppressions. First matching enabled row wins in terminal command completion path only.
         var terminalCommandSuppressions: MutableList<TerminalCommandSuppressionState> = mutableListOf(),
     )
@@ -186,6 +203,9 @@ class AlertSettings : PersistentStateComponent<AlertSettings.State> {
 
     @Volatile
     private var compiledTerminalCommandSuppressionEngine: TerminalCommandSuppressionEngine? = null
+
+    @Volatile
+    private var compiledTerminalCommandFilterEngine: TerminalCommandFilterEngine? = null
 
     override fun getState(): State = state
 
@@ -260,6 +280,18 @@ class AlertSettings : PersistentStateComponent<AlertSettings.State> {
                     )
                 }
                 .toMutableList(),
+            terminalCommandFilterMode = TerminalCommandFilterMode.fromStored(state.terminalCommandFilterMode).name,
+            terminalCommandFilters = state.terminalCommandFilters
+                .take(TerminalCommandFilterEngine.MAX_RULES)
+                .map { r ->
+                    r.copy(
+                        id = r.id.ifBlank { UUID.randomUUID().toString() },
+                        matchType = TerminalCommandFilterMatchType.fromStored(r.matchType).name,
+                        pattern = r.pattern.trim().take(TerminalCommandFilterEngine.MAX_PATTERN_LENGTH),
+                        description = r.description.trim().take(TerminalCommandFilterEngine.MAX_DESCRIPTION_LENGTH),
+                    )
+                }
+                .toMutableList(),
             terminalCommandSuppressions = state.terminalCommandSuppressions
                 .take(TerminalCommandSuppressionEngine.MAX_RULES)
                 .map { r ->
@@ -280,6 +312,7 @@ class AlertSettings : PersistentStateComponent<AlertSettings.State> {
         compiledRuleEngine = null  // invalidate cached engine whenever settings change
         compiledSuppressionRuleEngine = null
         compiledTerminalCommandSuppressionEngine = null
+        compiledTerminalCommandFilterEngine = null
     }
 
     /**
@@ -301,6 +334,15 @@ class AlertSettings : PersistentStateComponent<AlertSettings.State> {
     fun getCompiledTerminalCommandSuppressionEngine(): TerminalCommandSuppressionEngine {
         return compiledTerminalCommandSuppressionEngine ?: TerminalCommandSuppressionEngine(state.terminalCommandSuppressions).also {
             compiledTerminalCommandSuppressionEngine = it
+        }
+    }
+
+    fun getCompiledTerminalCommandFilterEngine(): TerminalCommandFilterEngine {
+        return compiledTerminalCommandFilterEngine ?: TerminalCommandFilterEngine(
+            mode = TerminalCommandFilterMode.fromStored(state.terminalCommandFilterMode),
+            filters = state.terminalCommandFilters,
+        ).also {
+            compiledTerminalCommandFilterEngine = it
         }
     }
 

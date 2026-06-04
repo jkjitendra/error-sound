@@ -11,8 +11,8 @@ import java.util.UUID
 import java.util.regex.PatternSyntaxException
 
 object RuleImportExportService {
-    private const val SCHEMA_VERSION = 3
-    private val SUPPORTED_SCHEMA_VERSIONS = setOf(1, 2, 3)
+    private const val SCHEMA_VERSION = 4
+    private val SUPPORTED_SCHEMA_VERSIONS = setOf(1, 2, 3, 4)
 
     private val gson = GsonBuilder()
         .serializeNulls()
@@ -25,11 +25,20 @@ object RuleImportExportService {
         "pluginVersion",
         "customRules",
         "suppressionRules",
+        "terminalCommandFilterMode",
+        "terminalCommandFilters",
         "terminalCommandSuppressions",
         "exitCodeRules",
     )
     private val customRuleFields = setOf("id", "enabled", "pattern", "matchTarget", "kind")
     private val suppressionRuleFields = setOf("id", "enabled", "pattern", "matchTarget", "description")
+    private val terminalCommandFilterFields = setOf(
+        "id",
+        "enabled",
+        "matchType",
+        "pattern",
+        "description",
+    )
     private val terminalCommandSuppressionFields = setOf(
         "id",
         "enabled",
@@ -44,6 +53,8 @@ object RuleImportExportService {
     fun exportRules(
         customRules: List<AlertSettings.CustomRuleState>,
         suppressionRules: List<AlertSettings.SuppressionRuleState>,
+        terminalCommandFilterMode: String,
+        terminalCommandFilters: List<AlertSettings.TerminalCommandFilterState>,
         terminalCommandSuppressions: List<AlertSettings.TerminalCommandSuppressionState>,
         exitCodeRules: List<AlertSettings.ExitCodeRuleState>,
         pluginVersion: String,
@@ -68,6 +79,16 @@ object RuleImportExportService {
                     pattern = rule.pattern,
                     matchTarget = rule.matchTarget,
                     description = rule.description,
+                )
+            },
+            terminalCommandFilterMode = TerminalCommandFilterMode.fromStored(terminalCommandFilterMode).name,
+            terminalCommandFilters = terminalCommandFilters.map { filter ->
+                RuleImportExportBundle.TerminalCommandFilter(
+                    id = filter.id,
+                    enabled = filter.enabled,
+                    matchType = filter.matchType,
+                    pattern = filter.pattern,
+                    description = filter.description,
                 )
             },
             terminalCommandSuppressions = terminalCommandSuppressions.map { suppression ->
@@ -118,6 +139,7 @@ object RuleImportExportService {
         var skippedCount = 0
         val customRules = mutableListOf<AlertSettings.CustomRuleState>()
         val suppressionRules = mutableListOf<AlertSettings.SuppressionRuleState>()
+        val terminalCommandFilters = mutableListOf<AlertSettings.TerminalCommandFilterState>()
         val terminalCommandSuppressions = mutableListOf<AlertSettings.TerminalCommandSuppressionState>()
         val exitCodeRules = mutableListOf<AlertSettings.ExitCodeRuleState>()
 
@@ -159,6 +181,35 @@ object RuleImportExportService {
             if (rule != null) suppressionRules += rule
         }
 
+        val terminalCommandFilterArray = rootObject.optionalArray("terminalCommandFilters", "terminalCommandFilters")
+        val terminalCommandFilterMode = if (terminalCommandFilterArray == null) {
+            if (rootObject.has("terminalCommandFilterMode")) {
+                warnings += "terminalCommandFilters is missing; imported terminal command filter mode as ${TerminalCommandFilterMode.default.name}."
+            }
+            TerminalCommandFilterMode.default.name
+        } else {
+            parseTerminalCommandFilterMode(rootObject, warnings)
+        }
+
+        terminalCommandFilterArray?.forEachIndexed { index, element ->
+            if (index >= TerminalCommandFilterEngine.MAX_RULES) {
+                if (index == TerminalCommandFilterEngine.MAX_RULES) {
+                    warnings += "Skipped terminal command filters after row ${TerminalCommandFilterEngine.MAX_RULES}; only ${TerminalCommandFilterEngine.MAX_RULES} terminal command filters are supported."
+                }
+                skippedCount++
+                return@forEachIndexed
+            }
+
+            val path = "terminalCommandFilters[${index + 1}]"
+            val filter = runCatching { parseTerminalCommandFilter(element, path, warnings) }
+                .getOrElse { error ->
+                    warnings += "Skipped $path: ${error.message ?: "Invalid filter."}"
+                    skippedCount++
+                    null
+                }
+            if (filter != null) terminalCommandFilters += filter
+        }
+
         rootObject.optionalArray("terminalCommandSuppressions", "terminalCommandSuppressions")?.forEachIndexed { index, element ->
             if (index >= TerminalCommandSuppressionEngine.MAX_RULES) {
                 if (index == TerminalCommandSuppressionEngine.MAX_RULES) {
@@ -192,10 +243,79 @@ object RuleImportExportService {
         return RuleImportExportResult(
             customRules = customRules,
             suppressionRules = suppressionRules,
+            terminalCommandFilterMode = terminalCommandFilterMode,
+            terminalCommandFilters = terminalCommandFilters,
             terminalCommandSuppressions = terminalCommandSuppressions,
             exitCodeRules = exitCodeRules,
             warnings = warnings,
             skippedCount = skippedCount,
+        )
+    }
+
+    private fun parseTerminalCommandFilterMode(
+        rootObject: JsonObject,
+        warnings: MutableList<String>,
+    ): String {
+        val rawMode = rootObject.optionalString("terminalCommandFilterMode", "terminalCommandFilterMode")
+            ?.trim()
+            ?.takeIf { it.isNotEmpty() }
+            ?: return TerminalCommandFilterMode.default.name
+        val mode = TerminalCommandFilterMode.fromStored(rawMode)
+        if (mode.name != rawMode) {
+            warnings += "terminalCommandFilterMode '$rawMode' is not supported; imported it as ${TerminalCommandFilterMode.default.name}."
+        }
+        return mode.name
+    }
+
+    private fun parseTerminalCommandFilter(
+        element: JsonElement,
+        path: String,
+        warnings: MutableList<String>,
+    ): AlertSettings.TerminalCommandFilterState {
+        val obj = element.asObject(path)
+        rejectUnknownFields(obj, terminalCommandFilterFields, path)
+
+        val id = obj.optionalString("id", "$path.id")?.trim()
+            ?.takeIf { it.isNotEmpty() }
+            ?: UUID.randomUUID().toString().also {
+                warnings += "$path has no id; generated a new one."
+            }
+        val enabled = obj.optionalBoolean("enabled", "$path.enabled") ?: true
+        val rawMatchType = obj.requiredString("matchType", "$path.matchType")
+        val matchType = normalizeTerminalCommandFilterMatchType(rawMatchType, "$path.matchType", warnings)
+        val rawPattern = obj.requiredString("pattern", "$path.pattern")
+        val pattern = rawPattern.trim().let {
+            if (it.length > TerminalCommandFilterEngine.MAX_PATTERN_LENGTH) {
+                warnings += "$path.pattern was truncated to ${TerminalCommandFilterEngine.MAX_PATTERN_LENGTH} characters."
+                it.take(TerminalCommandFilterEngine.MAX_PATTERN_LENGTH)
+            } else {
+                it
+            }
+        }
+        val description = obj.optionalString("description", "$path.description")
+            ?.trim()
+            ?.let {
+                if (it.length > TerminalCommandFilterEngine.MAX_DESCRIPTION_LENGTH) {
+                    warnings += "$path.description was truncated to ${TerminalCommandFilterEngine.MAX_DESCRIPTION_LENGTH} characters."
+                    it.take(TerminalCommandFilterEngine.MAX_DESCRIPTION_LENGTH)
+                } else {
+                    it
+                }
+            }
+            ?: ""
+
+        if (pattern.isNotBlank() && matchType == TerminalCommandFilterMatchType.COMMAND_REGEX.name) {
+            if (!TerminalCommandFilterEngine.isValidRegex(pattern)) {
+                warnings += "$path.pattern is not a valid regex and will be ignored at runtime until edited."
+            }
+        }
+
+        return AlertSettings.TerminalCommandFilterState(
+            id = id,
+            enabled = enabled,
+            matchType = matchType,
+            pattern = pattern,
+            description = description,
         )
     }
 
@@ -408,6 +528,18 @@ object RuleImportExportService {
         if (kind == null || kind !in CustomRuleEngine.ALLOWED_CUSTOM_RULE_KINDS) {
             throw IllegalArgumentException("$path '$value' is not an allowed error kind.")
         }
+    }
+
+    private fun normalizeTerminalCommandFilterMatchType(
+        value: String,
+        path: String,
+        warnings: MutableList<String>,
+    ): String {
+        val matchType = TerminalCommandFilterMatchType.fromStored(value)
+        if (matchType.name != value) {
+            warnings += "$path '$value' is not supported; imported it as ${TerminalCommandFilterMatchType.default.name}."
+        }
+        return matchType.name
     }
 
     private fun validateTerminalCommandMatchType(value: String, path: String) {

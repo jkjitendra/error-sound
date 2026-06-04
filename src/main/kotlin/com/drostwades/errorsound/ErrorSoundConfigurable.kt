@@ -180,6 +180,10 @@ class ErrorSoundConfigurable : Configurable {
     private val terminalCommandSuppressionTableModel = TerminalCommandSuppressionTableModel()
     private val terminalCommandSuppressionTable = JBTable(terminalCommandSuppressionTableModel)
 
+    private val terminalCommandFilterModeCombo = ComboBox(TerminalCommandFilterMode.entries.toTypedArray())
+    private val terminalCommandFilterTableModel = TerminalCommandFilterTableModel()
+    private val terminalCommandFilterTable = JBTable(terminalCommandFilterTableModel)
+
     private val rulePresetCombo = ComboBox(RulePresetService.bundles.toTypedArray())
     private val rulePresetDescription = JTextArea(2, 60).apply {
         isEditable = false
@@ -438,6 +442,8 @@ class ErrorSoundConfigurable : Configurable {
             .addSeparator(8)
             .addComponent(createRuleTestingSandboxPanel(), 1)
             .addSeparator(8)
+            .addComponent(createTerminalCommandFilterPanel(), 1)
+            .addSeparator(8)
             .addComponent(createTerminalCommandSuppressionsPanel(), 1)
             .addSeparator(8)
             .addComponent(createExitCodeRulesPanel(), 1)
@@ -500,6 +506,8 @@ class ErrorSoundConfigurable : Configurable {
             suppressionRuleTableModel.getRules() != state.suppressionRules ||
             exitCodeRuleTableModel.getRules() != state.exitCodeRules ||
             runConfigurationOverrideTableModel.getRules() != state.runConfigurationOverrides ||
+            (terminalCommandFilterModeCombo.selectedItem as? TerminalCommandFilterMode)?.name != state.terminalCommandFilterMode ||
+            terminalCommandFilterTableModel.getRules() != state.terminalCommandFilters ||
             terminalCommandSuppressionTableModel.getRules() != state.terminalCommandSuppressions
     }
 
@@ -510,6 +518,7 @@ class ErrorSoundConfigurable : Configurable {
         if (suppressionRuleTable.isEditing) suppressionRuleTable.cellEditor?.stopCellEditing()
         if (exitCodeRuleTable.isEditing) exitCodeRuleTable.cellEditor?.stopCellEditing()
         if (runConfigurationOverrideTable.isEditing) runConfigurationOverrideTable.cellEditor?.stopCellEditing()
+        if (terminalCommandFilterTable.isEditing) terminalCommandFilterTable.cellEditor?.stopCellEditing()
         if (terminalCommandSuppressionTable.isEditing) terminalCommandSuppressionTable.cellEditor?.stopCellEditing()
 
         val selectedSource = (sourceCombo.selectedItem as? AlertSettings.SoundSource)?.name
@@ -556,6 +565,9 @@ class ErrorSoundConfigurable : Configurable {
                 suppressionRules = suppressionRuleTableModel.getRules().toMutableList(),
                 exitCodeRules = exitCodeRuleTableModel.getRules().toMutableList(),
                 runConfigurationOverrides = runConfigurationOverrideTableModel.getRules().toMutableList(),
+                terminalCommandFilterMode = (terminalCommandFilterModeCombo.selectedItem as? TerminalCommandFilterMode)?.name
+                    ?: TerminalCommandFilterMode.default.name,
+                terminalCommandFilters = terminalCommandFilterTableModel.getRules().toMutableList(),
                 terminalCommandSuppressions = terminalCommandSuppressionTableModel.getRules().toMutableList(),
             )
         )
@@ -564,6 +576,8 @@ class ErrorSoundConfigurable : Configurable {
         suppressionRuleTableModel.setRules(settings.state.suppressionRules)
         exitCodeRuleTableModel.setRules(settings.state.exitCodeRules)
         runConfigurationOverrideTableModel.setRules(settings.state.runConfigurationOverrides)
+        terminalCommandFilterModeCombo.selectedItem = TerminalCommandFilterMode.fromStored(settings.state.terminalCommandFilterMode)
+        terminalCommandFilterTableModel.setRules(settings.state.terminalCommandFilters)
         terminalCommandSuppressionTableModel.setRules(settings.state.terminalCommandSuppressions)
         refreshDiagnosticsSummary()
     }
@@ -651,6 +665,8 @@ class ErrorSoundConfigurable : Configurable {
             suppressionRuleTableModel.setRules(state.suppressionRules)
             exitCodeRuleTableModel.setRules(state.exitCodeRules)
             runConfigurationOverrideTableModel.setRules(state.runConfigurationOverrides)
+            terminalCommandFilterModeCombo.selectedItem = TerminalCommandFilterMode.fromStored(state.terminalCommandFilterMode)
+            terminalCommandFilterTableModel.setRules(state.terminalCommandFilters)
             terminalCommandSuppressionTableModel.setRules(state.terminalCommandSuppressions)
             refreshDiagnosticsSummary()
         } finally {
@@ -971,7 +987,7 @@ class ErrorSoundConfigurable : Configurable {
         val actions = JPanel(FlowLayout(FlowLayout.LEFT, 8, 0)).apply {
             add(exportRulesButton)
             add(importRulesButton)
-            add(JBLabel("Custom regex, suppression, terminal command suppression, and terminal exit-code rules only.").apply {
+            add(JBLabel("Custom regex, suppression, terminal command filter/suppression, and terminal exit-code rules only.").apply {
                 foreground = JBColor.GRAY
             })
         }
@@ -999,6 +1015,9 @@ class ErrorSoundConfigurable : Configurable {
         val json = RuleImportExportService.exportRules(
             customRules = customRuleTableModel.getRules(),
             suppressionRules = suppressionRuleTableModel.getRules(),
+            terminalCommandFilterMode = (terminalCommandFilterModeCombo.selectedItem as? TerminalCommandFilterMode)?.name
+                ?: TerminalCommandFilterMode.default.name,
+            terminalCommandFilters = terminalCommandFilterTableModel.getRules(),
             terminalCommandSuppressions = terminalCommandSuppressionTableModel.getRules(),
             exitCodeRules = exitCodeRuleTableModel.getRules(),
             pluginVersion = currentPluginVersion(),
@@ -1008,7 +1027,7 @@ class ErrorSoundConfigurable : Configurable {
             Files.writeString(file.toPath(), json, StandardCharsets.UTF_8)
             Messages.showInfoMessage(
                 parent,
-                "Exported ${customRuleTableModel.rowCount} custom rule(s), ${suppressionRuleTableModel.rowCount} suppression rule(s), ${terminalCommandSuppressionTableModel.rowCount} terminal command suppression(s), and ${exitCodeRuleTableModel.rowCount} exit-code rule(s).",
+                "Exported ${customRuleTableModel.rowCount} custom rule(s), ${suppressionRuleTableModel.rowCount} suppression rule(s), ${terminalCommandFilterTableModel.rowCount} terminal command filter(s), ${terminalCommandSuppressionTableModel.rowCount} terminal command suppression(s), and ${exitCodeRuleTableModel.rowCount} exit-code rule(s).",
                 "Export Rules",
             )
         } catch (e: Exception) {
@@ -1053,6 +1072,8 @@ class ErrorSoundConfigurable : Configurable {
 
         customRuleTableModel.setRules(result.customRules)
         suppressionRuleTableModel.setRules(result.suppressionRules)
+        terminalCommandFilterModeCombo.selectedItem = TerminalCommandFilterMode.fromStored(result.terminalCommandFilterMode)
+        terminalCommandFilterTableModel.setRules(result.terminalCommandFilters)
         terminalCommandSuppressionTableModel.setRules(result.terminalCommandSuppressions)
         exitCodeRuleTableModel.setRules(result.exitCodeRules)
     }
@@ -1060,13 +1081,15 @@ class ErrorSoundConfigurable : Configurable {
     private fun stopRuleTableEditing() {
         if (customRuleTable.isEditing) customRuleTable.cellEditor?.stopCellEditing()
         if (suppressionRuleTable.isEditing) suppressionRuleTable.cellEditor?.stopCellEditing()
+        if (terminalCommandFilterTable.isEditing) terminalCommandFilterTable.cellEditor?.stopCellEditing()
         if (terminalCommandSuppressionTable.isEditing) terminalCommandSuppressionTable.cellEditor?.stopCellEditing()
         if (exitCodeRuleTable.isEditing) exitCodeRuleTable.cellEditor?.stopCellEditing()
     }
 
     private fun formatImportSummary(result: RuleImportExportResult): String {
         val lines = mutableListOf(
-            "Import ${result.customRules.size} custom rule(s), ${result.suppressionRules.size} suppression rule(s), ${result.terminalCommandSuppressions.size} terminal command suppression(s), and ${result.exitCodeRules.size} exit-code rule(s)?",
+            "Import ${result.customRules.size} custom rule(s), ${result.suppressionRules.size} suppression rule(s), ${result.terminalCommandFilters.size} terminal command filter(s), ${result.terminalCommandSuppressions.size} terminal command suppression(s), and ${result.exitCodeRules.size} exit-code rule(s)?",
+            "Terminal command filter mode: ${TerminalCommandFilterMode.fromStored(result.terminalCommandFilterMode).displayName}",
             "",
             "This replaces the current rule tables. Changes are not saved until Apply is clicked.",
         )
@@ -1379,6 +1402,99 @@ class ErrorSoundConfigurable : Configurable {
         }
 
         return lines.joinToString("\n")
+    }
+
+    // ── Terminal Command Filter ─────────────────────────────────────────────
+
+    private fun createTerminalCommandFilterPanel(): JPanel {
+        terminalCommandFilterTable.autoResizeMode = JTable.AUTO_RESIZE_SUBSEQUENT_COLUMNS
+        terminalCommandFilterTable.fillsViewportHeight = true
+        terminalCommandFilterTable.rowHeight = 24
+
+        val cm = terminalCommandFilterTable.columnModel
+        cm.getColumn(0).apply {
+            preferredWidth = 55
+            maxWidth = 65
+        }
+        cm.getColumn(1).apply {
+            preferredWidth = 150
+            cellEditor = DefaultCellEditor(
+                javax.swing.JComboBox(TerminalCommandFilterMatchType.entries.toTypedArray())
+            )
+        }
+        cm.getColumn(2).apply {
+            preferredWidth = 260
+            cellRenderer = TerminalCommandPatternRenderer()
+        }
+        cm.getColumn(3).preferredWidth = 210
+
+        val tablePanel = ToolbarDecorator.createDecorator(terminalCommandFilterTable)
+            .disableUpAction()
+            .disableDownAction()
+            .setAddAction {
+                if (terminalCommandFilterTable.isEditing) {
+                    terminalCommandFilterTable.cellEditor?.stopCellEditing()
+                }
+                terminalCommandFilterTableModel.addRule(AlertSettings.TerminalCommandFilterState())
+                val newRow = terminalCommandFilterTableModel.rowCount - 1
+                terminalCommandFilterTable.setRowSelectionInterval(newRow, newRow)
+                terminalCommandFilterTable.scrollRectToVisible(
+                    terminalCommandFilterTable.getCellRect(newRow, 2, true)
+                )
+            }
+            .setRemoveAction {
+                if (terminalCommandFilterTable.isEditing) {
+                    terminalCommandFilterTable.cellEditor?.stopCellEditing()
+                }
+                terminalCommandFilterTable.selectedRows.sortedDescending().forEach {
+                    terminalCommandFilterTableModel.removeRule(it)
+                }
+            }
+            .createPanel().apply {
+                preferredSize = java.awt.Dimension(0, 160)
+            }
+
+        val modeRow = JPanel(FlowLayout(FlowLayout.LEFT, 8, 0)).apply {
+            add(JBLabel("Filter mode:"))
+            add(terminalCommandFilterModeCombo)
+        }
+
+        val helpTop = JBLabel(
+            """
+            <html>
+              Terminal command filters apply only to <b>terminal command completions</b>.
+              Off preserves existing behavior. Allowlist mode alerts only for matching commands.
+              Blocklist mode skips matching commands.
+            </html>
+            """.trimIndent()
+        ).apply {
+            border = BorderFactory.createEmptyBorder(0, 0, 4, 0)
+        }
+
+        val helpBottom = JBLabel(
+            """
+            <html>
+              First matching enabled row wins. Blank patterns and invalid regex rows are preserved
+              for editing but skipped at runtime.
+            </html>
+            """.trimIndent()
+        ).apply {
+            foreground = JBColor.GRAY
+            border = BorderFactory.createEmptyBorder(4, 0, 0, 0)
+        }
+
+        val header = JPanel().apply {
+            layout = javax.swing.BoxLayout(this, javax.swing.BoxLayout.Y_AXIS)
+            add(JBLabel("Terminal Command Filter"))
+            add(modeRow)
+            add(helpTop)
+        }
+
+        return JPanel(BorderLayout(0, 0)).apply {
+            add(header, BorderLayout.NORTH)
+            add(tablePanel, BorderLayout.CENTER)
+            add(helpBottom, BorderLayout.SOUTH)
+        }
     }
 
     // ── Terminal Command Suppression Patterns ───────────────────────────────
@@ -1797,6 +1913,76 @@ class ErrorSoundConfigurable : Configurable {
         }
     }
 
+    private class TerminalCommandFilterTableModel : AbstractTableModel() {
+        private val rules: MutableList<AlertSettings.TerminalCommandFilterState> = mutableListOf()
+
+        fun setRules(newRules: List<AlertSettings.TerminalCommandFilterState>) {
+            rules.clear()
+            rules.addAll(newRules.map { it.copy() })
+            fireTableDataChanged()
+        }
+
+        fun getRules(): List<AlertSettings.TerminalCommandFilterState> = rules.map {
+            it.copy(matchType = TerminalCommandFilterMatchType.fromStored(it.matchType).name)
+        }
+
+        fun addRule(rule: AlertSettings.TerminalCommandFilterState) {
+            rules.add(rule.copy())
+            fireTableRowsInserted(rules.size - 1, rules.size - 1)
+        }
+
+        fun removeRule(index: Int) {
+            if (index in rules.indices) {
+                rules.removeAt(index)
+                fireTableRowsDeleted(index, index)
+            }
+        }
+
+        override fun getRowCount(): Int = rules.size
+        override fun getColumnCount(): Int = 4
+        override fun getColumnName(col: Int): String = when (col) {
+            0 -> "Enabled"
+            1 -> "Match Type"
+            2 -> "Pattern"
+            3 -> "Description"
+            else -> ""
+        }
+
+        override fun getColumnClass(col: Int): Class<*> = when (col) {
+            0 -> Boolean::class.javaObjectType
+            1 -> TerminalCommandFilterMatchType::class.java
+            else -> String::class.java
+        }
+
+        override fun isCellEditable(row: Int, col: Int): Boolean = true
+
+        override fun getValueAt(row: Int, col: Int): Any = rules[row].let { rule ->
+            when (col) {
+                0 -> rule.enabled
+                1 -> TerminalCommandFilterMatchType.fromStored(rule.matchType)
+                2 -> rule.pattern
+                3 -> rule.description
+                else -> ""
+            }
+        }
+
+        override fun setValueAt(value: Any?, row: Int, col: Int) {
+            if (row !in rules.indices) return
+            val rule = rules[row]
+            when (col) {
+                0 -> rule.enabled = value as? Boolean ?: true
+                1 -> rule.matchType = when (value) {
+                    is TerminalCommandFilterMatchType -> value.name
+                    is String -> TerminalCommandFilterMatchType.fromStored(value).name
+                    else -> TerminalCommandFilterMatchType.default.name
+                }
+                2 -> rule.pattern = value as? String ?: ""
+                3 -> rule.description = value as? String ?: ""
+            }
+            fireTableCellUpdated(row, col)
+        }
+    }
+
     private class TerminalCommandSuppressionTableModel : AbstractTableModel() {
         private val rules: MutableList<AlertSettings.TerminalCommandSuppressionState> = mutableListOf()
 
@@ -1938,8 +2124,14 @@ class ErrorSoundConfigurable : Configurable {
             if (pattern.isNotBlank() && !isSelected) {
                 val modelRow = table.convertRowIndexToModel(row)
                 val matchType = table.model.getValueAt(modelRow, 1)
-                val isRegex = matchType == TerminalCommandSuppressionMatchType.COMMAND_REGEX
-                if (isRegex && !TerminalCommandSuppressionEngine.isValidRegex(pattern)) {
+                val isRegex = matchType == TerminalCommandSuppressionMatchType.COMMAND_REGEX ||
+                    matchType == TerminalCommandFilterMatchType.COMMAND_REGEX
+                val isValid = when (matchType) {
+                    TerminalCommandSuppressionMatchType.COMMAND_REGEX -> TerminalCommandSuppressionEngine.isValidRegex(pattern)
+                    TerminalCommandFilterMatchType.COMMAND_REGEX -> TerminalCommandFilterEngine.isValidRegex(pattern)
+                    else -> true
+                }
+                if (isRegex && !isValid) {
                     comp.background = JBColor(Color(255, 185, 185), Color(110, 55, 55))
                     (comp as? JLabel)?.toolTipText = "Invalid command regex pattern"
                 }

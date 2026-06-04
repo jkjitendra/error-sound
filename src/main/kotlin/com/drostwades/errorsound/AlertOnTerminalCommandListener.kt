@@ -530,10 +530,22 @@ class AlertOnTerminalCommandListener : ProjectActivity {
         val settings = AlertSettings.getInstance()
         val engine = settings.getCompiledRuleEngine()
         val suppressionEngine = settings.getCompiledSuppressionRuleEngine()
+        val terminalCommandFilterEngine = settings.getCompiledTerminalCommandFilterEngine()
         val terminalCommandSuppressionEngine = settings.getCompiledTerminalCommandSuppressionEngine()
 
         // Resolve effective profile settings; rule collections remain application-level in this path.
         val resolvedState = ResolvedSettingsResolver.getInstance(project).resolve()
+
+        val terminalCommandFilterDecision = terminalCommandFilterEngine.evaluate(command)
+        if (!terminalCommandFilterDecision.eligible) {
+            val explanation = ClassificationExplanationFactory.terminalCommandFilterSkipped(
+                command = command,
+                exitCode = exitCode,
+                decision = terminalCommandFilterDecision,
+            )
+            log.debug("ErrorSound: [Event] terminal command skipped by filter. ${explanation.summary()}")
+            return
+        }
 
         val terminalCommandSuppressionMatch = terminalCommandSuppressionEngine.firstMatch(command, exitCode)
         if (terminalCommandSuppressionMatch != null) {
