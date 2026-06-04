@@ -284,11 +284,11 @@ Maps specific terminal exit codes to an error kind, an optional built-in sound o
 | Version introduced | 1.1.12 |
 | Relevant classes/files | `RuleImportExportBundle.kt`, `RuleImportExportResult.kt`, `RuleImportExportService.kt`, `ErrorSoundConfigurable.kt` |
 
-Lets users export and import rule presets as local JSON. The schema version 3 bundle covers Custom Regex Rules, Suppression Rules, Terminal Command Suppression Patterns, and Terminal Exit-Code Rules, preserving ordering and ids when present. Schema version 1 and 2 files remain import-compatible for older exports without newer rule sections. It is not a full settings export and deliberately excludes global sound settings, per-kind volume, success settings, project profiles/overrides, alert history, snooze state, and any runtime data.
+Lets users export and import rule presets as local JSON. The schema version 4 bundle covers Custom Regex Rules, Suppression Rules, Terminal Command Allowlist / Blocklist filters, Terminal Command Suppression Patterns, and Terminal Exit-Code Rules, preserving ordering and ids when present. Schema version 1, 2, and 3 files remain import-compatible for older exports without newer rule sections. It is not a full settings export and deliberately excludes global sound settings, per-kind volume, success settings, project profiles/overrides, alert history, snooze state, and any runtime data.
 
 **How to enable/use:** Open Settings / Preferences -> Tools -> Error Sound Alert and use **Export Rules…** or **Import Rules…** near the rule sections.
 
-**Example usage:** Configure custom regex rules for a team linter, suppression rules for harmless noisy messages, terminal command suppressions for expected non-zero commands, and terminal exit-code rules for common shell failures, export them to JSON, then import that file in another IDE. The imported table changes become persistent only after Apply.
+**Example usage:** Configure custom regex rules for a team linter, suppression rules for harmless noisy messages, terminal command filters for command eligibility, terminal command suppressions for expected non-zero commands, and terminal exit-code rules for common shell failures, export them to JSON, then import that file in another IDE. The imported table changes become persistent only after Apply.
 
 **Notes/limitations:** Import validates JSON strictly, shows a confirmation summary, and replaces only the rule table models. Reset discards imported-but-not-applied changes. Import/export uses local files only; no network, telemetry, or execution of imported content is involved.
 
@@ -398,7 +398,25 @@ Lets users silence expected non-zero terminal commands before terminal alerts ar
 
 **Example usage:** Suppress `grep` exit code 1 with **Command contains** = `grep` and **Specific exit code** = `1`; suppress `npm run flaky-local` with **Command contains** and **Any non-zero exit code**; suppress dry-run commands with **Command regex** = `^kubectl .* --dry-run`.
 
-**Notes/limitations:** Applies only to terminal command completions. Suppressed matches skip `AlertDispatcher`, sound, visual notifications, and Alert History. Blank patterns and invalid command regex are preserved in settings and skipped safely at runtime. Rule import/export schema v3 includes `terminalCommandSuppressions` while schema v1/v2 imports remain supported. Run/Debug behavior, console-only behavior, terminal reflection, repo profile schema, Alert History persistence, network/telemetry, and file writes are unchanged.
+**Notes/limitations:** Applies only to terminal command completions. Suppressed matches skip `AlertDispatcher`, sound, visual notifications, and Alert History. Blank patterns and invalid command regex are preserved in settings and skipped safely at runtime. Rule import/export schema v4 still includes `terminalCommandSuppressions` while schema v1/v2/v3 imports remain supported. Run/Debug behavior, console-only behavior, terminal reflection, repo profile schema, Alert History persistence, network/telemetry, and file writes are unchanged.
+
+---
+
+## Terminal Command Allowlist / Blocklist
+
+| Field | Value |
+|---|---|
+| Status | Available |
+| Version introduced | 1.1.24 |
+| Relevant classes/files | `TerminalCommandFilterEngine.kt`, `TerminalCommandFilterMode.kt`, `TerminalCommandFilterMatchType.kt`, `AlertSettings.kt`, `ErrorSoundConfigurable.kt`, `AlertOnTerminalCommandListener.kt`, `RuleImportExportBundle.kt`, `RuleImportExportService.kt`, `ErrorSoundDiagnosticsService.kt` |
+
+Lets users decide which terminal command completions are eligible for terminal alerts before terminal command suppressions and alert dispatch. OFF mode preserves existing terminal behavior. Allowlist mode alerts only for commands matching an enabled row; Blocklist mode skips commands matching an enabled row.
+
+**How to enable/use:** Open Settings / Preferences -> Tools -> Error Sound Alert -> **Terminal Command Filter**, choose **Off / Monitor all terminal commands**, **Allowlist only**, or **Blocklist**, add filter rows if needed, then Apply.
+
+**Example usage:** Keep mode OFF to monitor every terminal command. Use Allowlist only with contains rows for `mvn`, `gradle`, `npm`, `docker`, and `kubectl` when only those commands matter. Use Blocklist with a contains row for `cleanup-local` to ignore a noisy local cleanup command while monitoring everything else.
+
+**Notes/limitations:** Applies only to terminal command completions. Match types are exact command, command contains, and command regex. Skipped commands do not call `AlertDispatcher`, play sound, show visual notifications, or enter Alert History. Blank patterns and invalid command regex are preserved in settings and skipped safely at runtime. Rule import/export schema v4 includes `terminalCommandFilters` while schema v1/v2/v3 imports remain supported. Run/Debug behavior, console-only behavior, terminal reflection, repo profile schema, Alert History persistence, network/telemetry, and file writes are unchanged.
 
 ---
 
@@ -473,4 +491,4 @@ Prevents rapid duplicate alerts when multiple detection paths or repeated output
 **Notes/limitations:** Cooldown values are fixed in code and not currently configurable.
 
 ---
-*Last updated from code scan: 2026-05-29*
+*Last updated from code scan: 2026-06-04*

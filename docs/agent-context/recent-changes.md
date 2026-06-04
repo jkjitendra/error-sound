@@ -4,6 +4,54 @@ Engineering-significant changes to the codebase. Not a full changelog — focuse
 
 ---
 
+## 1.1.24 — Terminal Command Allowlist / Blocklist (Phase 14)
+
+### Scope
+Phase 14 adds shipped user-facing **Terminal Command Allowlist / Blocklist** controls for terminal command completions. Users can decide which terminal commands are eligible for terminal alerts before terminal command suppressions and before alert dispatch.
+
+### User-facing behavior
+- Added **Terminal Command Filter** in **Settings -> Tools -> Error Sound Alert**
+- Filter modes: Off / Monitor all terminal commands, Allowlist only, and Blocklist
+- OFF is the default and preserves existing terminal behavior
+- Command match types: exact command, command contains, and command regex
+- Blank patterns and invalid command regex patterns are preserved in settings and skipped safely at runtime
+
+### Runtime behavior
+- Terminal flow is now: terminal command completion -> command filter eligibility -> terminal command suppressions -> existing classification/rules -> `AlertDispatcher`
+- In Allowlist mode, only commands matching at least one enabled filter row continue through existing terminal alert handling
+- In Blocklist mode, commands matching an enabled filter row are skipped
+- Skipped terminal commands do not call `AlertDispatcher`, play sound, show visual notifications, or enter Alert History
+- Run/Debug behavior, console-only behavior, and terminal reflection behavior are unchanged
+
+### Import/export
+- Rules-only import/export now exports `schemaVersion = 4`
+- Schema v4 includes `customRules`, `suppressionRules`, `terminalCommandFilters`, `terminalCommandSuppressions`, and `exitCodeRules`
+- Schema v1, v2, and v3 imports remain supported for backward compatibility
+
+### Implementation notes
+- Added `TerminalCommandFilterEngine.kt`
+- Added `TerminalCommandFilterMode.kt`
+- Added `TerminalCommandFilterMatchType.kt`
+- Added `AlertSettings.State.terminalCommandFilterMode`
+- Added `AlertSettings.State.terminalCommandFilters`
+- Added debug-only `TERMINAL_COMMAND_FILTER_SKIPPED` explanation cause
+- Diagnostics now reports terminal command filter mode/count and schema v4 import/export support
+
+### Safety Boundaries
+- Terminal command path only
+- No Run/Debug behavior changes
+- No console-only behavior changes
+- No terminal reflection changes
+- No repo profile schema changes
+- No Alert History persistence changes
+- No network, telemetry, or file writes beyond normal application settings persistence and user-selected rule export files
+- Marketplace verifier compatibility fixes remain preserved: no `PluginManagerCore`, `PluginId`, or `FileSaverDescriptor` usage in source/resources
+
+### Version
+- Plugin version is `1.1.24`
+
+---
+
 ## 1.1.23 — Terminal Command Suppression Patterns (Phase 13)
 
 ### Scope
@@ -978,4 +1026,4 @@ projectOverride == false →  effective enabled = false (regardless of global)
 - Improved terminal compatibility with 2025.x reworked terminal engine
 
 ---
-*Last updated from code scan: 2026-05-29*
+*Last updated from code scan: 2026-06-04*
