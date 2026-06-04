@@ -58,6 +58,54 @@ Class-by-class reference for the `com.drostwades.errorsound` package.
 
 ---
 
+## TerminalCommandSuppressionEngine
+
+**File:** `TerminalCommandSuppressionEngine.kt`
+**Purpose:** Pure terminal-only matcher for command suppression patterns from `AlertSettings.State.terminalCommandSuppressions`.
+
+| Method / Type | Description |
+|---|---|
+| `Match(rowNumber, suppression)` | First matching enabled terminal command suppression row |
+| `firstMatch(command, exitCode)` | Returns the first row whose command matcher and exit-code filter both match |
+
+**Command match types:** exact trimmed command, case-insensitive command contains, or command regex.
+
+**Exit-code modes:** any non-zero exit code or one specific exit code.
+
+**Constants:** `MAX_RULES = 100`, `MAX_PATTERN_LENGTH = CustomRuleEngine.MAX_PATTERN_LENGTH`, `MAX_DESCRIPTION_LENGTH = 240`, exit-code clamp range `-9999..9999`.
+
+**Runtime policy:** Disabled rows, blank patterns, invalid regex patterns, and non-matching exit-code filters are skipped safely. Matching rows return before `AlertDispatcher`, so no sound, notification, or Alert History entry is produced.
+
+- **Risk:** LOW-MEDIUM — pure computation, but applies before terminal dispatch; must remain terminal-only and must not alter reflection attachment logic
+
+---
+
+## TerminalCommandSuppressionMatchType
+
+**File:** `TerminalCommandSuppressionMatchType.kt`
+**Purpose:** Stored/display enum for terminal command suppression command matching.
+
+**Values:** `EXACT_COMMAND`, `COMMAND_CONTAINS`, `COMMAND_REGEX`.
+
+**Helpers:** `displayName`, `toString()`, and `fromStored(value)`; unknown values normalize to `COMMAND_CONTAINS`.
+
+- **Risk:** LOW — pure enum
+
+---
+
+## TerminalCommandSuppressionExitCodeMode
+
+**File:** `TerminalCommandSuppressionExitCodeMode.kt`
+**Purpose:** Stored/display enum for terminal command suppression exit-code filtering.
+
+**Values:** `ANY_NON_ZERO`, `SPECIFIC_EXIT_CODE`.
+
+**Helpers:** `displayName`, `toString()`, and `fromStored(value)`; unknown values normalize to `ANY_NON_ZERO`.
+
+- **Risk:** LOW — pure enum
+
+---
+
 ## AlertMatchExplanation
 
 **File:** `AlertMatchExplanation.kt`
@@ -66,7 +114,7 @@ Class-by-class reference for the `com.drostwades.errorsound` package.
 | Field / Type | Description |
 |---|---|
 | `Source` | RUN_DEBUG, CONSOLE, TERMINAL |
-| `Cause` | CUSTOM_REGEX_RULE, BUILT_IN_CLASSIFIER, TERMINAL_EXIT_CODE_RULE, TERMINAL_EXIT_CODE_SUPPRESSED, SUPPRESSION_RULE, SUCCESS_FALLBACK, NO_MATCH, DURATION_THRESHOLD_SUPPRESSED |
+| `Cause` | CUSTOM_REGEX_RULE, BUILT_IN_CLASSIFIER, TERMINAL_EXIT_CODE_RULE, TERMINAL_EXIT_CODE_SUPPRESSED, SUPPRESSION_RULE, RUN_CONFIGURATION_OVERRIDE_SUPPRESSED, TERMINAL_COMMAND_SUPPRESSION, SUCCESS_FALLBACK, NO_MATCH, DURATION_THRESHOLD_SUPPRESSED |
 | `kind` | Final `ErrorKind` associated with the explanation |
 | `ruleId`, `rulePattern`, `matchTarget` | Custom regex rule details when applicable |
 | `exitCode`, `commandOrConfig`, `soundOverride`, `suppressed` | Context for terminal/run config, sound override, or suppression cases |
@@ -93,6 +141,7 @@ Class-by-class reference for the `com.drostwades.errorsound` package.
 | `noMatch(...)` | Explanation for no-alert classification outcomes |
 | `durationThresholdSuppressed(...)` | Explanation for Run/Debug duration-threshold suppression |
 | `runConfigurationOverrideSuppressed(...)` | Debug explanation for Run/Debug suppression by a per-run-configuration override |
+| `terminalCommandSuppressed(...)` | Debug explanation for terminal command suppression matches before dispatch |
 
 - **Risk:** LOW — pure object construction; no dispatch or playback side effects
 
@@ -132,11 +181,13 @@ Class-by-class reference for the `com.drostwades.errorsound` package.
 - `pluginVersion`
 - `customRules`
 - `suppressionRules` (schema version 2)
+- `terminalCommandSuppressions` (schema version 3)
 - `exitCodeRules`
 
 **Nested DTOs:**
 - `CustomRule(id, enabled, pattern, matchTarget, kind)`
 - `SuppressionRule(id, enabled, pattern, matchTarget, description)`
+- `TerminalCommandSuppression(id, enabled, matchType, pattern, exitCodeMode, exitCode, description)`
 - `ExitCodeRule(exitCode, enabled, kind, soundId?, suppress)`
 
 **Scope boundary:** This bundle intentionally excludes full plugin settings, global sound settings, per-kind volume, success settings, project profiles/overrides, alert history, and snooze state.
@@ -154,6 +205,7 @@ Class-by-class reference for the `com.drostwades.errorsound` package.
 |---|---|
 | `customRules` | Valid imported custom regex rules, in JSON order |
 | `suppressionRules` | Valid imported suppression rules, in JSON order |
+| `terminalCommandSuppressions` | Valid imported terminal command suppressions, in JSON order |
 | `exitCodeRules` | Valid imported terminal exit-code rules, in JSON order |
 | `warnings` | User-facing validation notes such as generated ids, invalid regex warnings, truncation, and skipped entries |
 | `skippedCount` | Count of invalid or unsupported entries skipped during import |
@@ -169,18 +221,19 @@ Class-by-class reference for the `com.drostwades.errorsound` package.
 
 | Method | Description |
 |---|---|
-| `exportRules(customRules, suppressionRules, exitCodeRules, pluginVersion)` | Pretty-prints schema version 2 JSON containing custom regex, suppression, and terminal exit-code rules |
+| `exportRules(customRules, suppressionRules, terminalCommandSuppressions, exitCodeRules, pluginVersion)` | Pretty-prints schema version 3 JSON containing custom regex, suppression, terminal command suppression, and terminal exit-code rules |
 | `importRules(json)` | Parses JSON, validates the schema and rule rows, preserves ordering, and returns a `RuleImportExportResult` |
 
 **Validation behavior:**
-- Requires a top-level object with `schemaVersion = 1` or `schemaVersion = 2`
-- Exports `schemaVersion = 2`; schema version 1 imports remain supported for older exports without `suppressionRules`
-- Allows missing `customRules`, `suppressionRules`, or `exitCodeRules` sections; missing sections import as empty lists
+- Requires a top-level object with `schemaVersion = 1`, `schemaVersion = 2`, or `schemaVersion = 3`
+- Exports `schemaVersion = 3`; schema versions 1 and 2 remain import-compatible for older exports without terminal command suppressions
+- Allows missing `customRules`, `suppressionRules`, `terminalCommandSuppressions`, or `exitCodeRules` sections; missing sections import as empty lists
 - Rejects unsupported top-level fields so full settings bundles are not imported accidentally
 - Rejects unsupported `matchTarget`, `kind`, and unknown bundled sound ids
 - Preserves invalid regex text but reports it; runtime will skip the rule until edited
 - Preserves rule ids when present; generates ids only when omitted or blank
 - Clamps custom/suppression rule count and pattern length using existing rule limits; suppression descriptions are trimmed and capped
+- Validates terminal command suppression match types and exit-code modes; invalid command regex text is preserved and reported, and runtime skips it until edited
 
 **Safety:** No network, telemetry, permanent storage, or execution of imported content.
 
@@ -256,7 +309,7 @@ Class-by-class reference for the `com.drostwades.errorsound` package.
 |---|---|
 | `Snapshot(rows, notes)` | Immutable diagnostics summary data rendered by settings UI |
 | `SelfTestResult(success, message)` | User-facing status for sound/notification self-test actions |
-| `buildSnapshot()` | Reads applied `AlertSettings`, `SnoozeState`, `AlertHistoryService`, rule counts, Run/Debug run-configuration override count, preset availability, import/export schema support, terminal integration status, selected profile merge policy, effective precedence, repo/workspace layer status, repo profile status/schema/name/warnings, and active project profile override categories when an active project is available |
+| `buildSnapshot()` | Reads applied `AlertSettings`, `SnoozeState`, `AlertHistoryService`, rule counts, terminal command suppression count, Run/Debug run-configuration override count, preset availability, import/export schema support, terminal integration status, selected profile merge policy, effective precedence, repo/workspace layer status, repo profile status/schema/name/warnings, and active project profile override categories when an active project is available |
 | `testErrorSound()` | Plays a GENERIC error sound through the preview path using current applied settings |
 | `testSuccessSound()` | Plays a SUCCESS sound through the preview path when enabled by current applied settings |
 | `showTestNotification(project?)` | Sends a real IntelliJ Platform balloon notification using `NotificationGroupManager`, group id `Error Sound Alert`, and `NotificationType.INFORMATION` |
@@ -415,7 +468,7 @@ Class-by-class reference for the `com.drostwades.errorsound` package.
 
 ## AlertOnTerminalCommandListener
 
-**File:** `AlertOnTerminalCommandListener.kt` (591 lines)
+**File:** `AlertOnTerminalCommandListener.kt` (669 lines)
 **Purpose:** Monitors terminal command completions via JDK reflection proxies. Supports both Classic/Block and Reworked 2025 terminal engines.
 
 | Method | Scope | Description |
@@ -425,11 +478,11 @@ Class-by-class reference for the `com.drostwades.errorsound` package.
 | `attachBlockTerminal` | private | Block/Classic terminal: `TerminalToolWindowManager` → widgets → session |
 | `attachReworkedTerminal` | private | Reworked terminal: `TerminalToolWindowTabsManager` → tabs → view → shell integration |
 | `buildListenerProxy` | private | Creates JDK `Proxy` implementing 1–2 listener interfaces |
-| `handleCommandFinished` | private | Precedence: (1) suppression EXIT_CODE_AND_TEXT regex returns before dispatch, (2) custom EXIT_CODE_AND_TEXT regex, (3) exit code rules via `classifyTerminal()` with suppression check, (4) built-in fallback. Uses `ResolvedSettingsResolver` for the effective settings state passed to `AlertDispatcher` |
+| `handleCommandFinished` | private | Precedence: (1) terminal command suppression patterns return before dispatch, (2) suppression EXIT_CODE_AND_TEXT regex, (3) custom EXIT_CODE_AND_TEXT regex, (4) exit code rules via `classifyTerminal()` with suppression check, (5) built-in fallback. Uses `ResolvedSettingsResolver` for the effective settings state passed to `AlertDispatcher` |
 | `extractCommandAndExitCode` | private | Reflection-based extraction from event objects |
 | `getShellIntegration` | private | 4-strategy fallback to get shell integration from a view |
 
-- **Risk:** HIGH — 591 lines of reflection. Most likely file to break with IDE updates.
+- **Risk:** HIGH — 669 lines of reflection. Most likely file to break with IDE updates.
 - **See:** `docs/agent-context/terminal-integration.md` for detailed breakdown.
 
 ---
@@ -445,6 +498,7 @@ Class-by-class reference for the `com.drostwades.errorsound` package.
 - `data class SuppressionRuleState(id, enabled, pattern, matchTarget, description)` — a single user-defined suppression rule
 - `data class ExitCodeRuleState(exitCode, enabled, kind, soundId?, suppress)` — a single terminal exit-code rule
 - `data class RunConfigurationOverrideState(...)` — a Run/Debug-only per-run-configuration override row
+- `data class TerminalCommandSuppressionState(id, enabled, matchType, pattern, exitCodeMode, exitCode, description)` — a terminal-only command suppression row
 
 **State fields:**
 - `enabled` — master toggle
@@ -466,12 +520,14 @@ Class-by-class reference for the `com.drostwades.errorsound` package.
 - `suppressionRules: MutableList<SuppressionRuleState> = mutableListOf()` — user-defined regex rules that silence matching contexts before dispatch
 - `exitCodeRules: MutableList<ExitCodeRuleState>` — terminal exit code → kind/sound/suppress mapping (4 defaults: 130 suppress, 127/137/143 GENERIC)
 - `runConfigurationOverrides: MutableList<RunConfigurationOverrideState> = mutableListOf()` — Run/Debug-only per-run-configuration overrides
+- `terminalCommandSuppressions: MutableList<TerminalCommandSuppressionState> = mutableListOf()` — terminal-only command suppressions
 
 **Methods:**
 - `getCompiledRuleEngine(): CustomRuleEngine` — returns cached compiled rule engine; lazily created, invalidated by `loadState()`
 - `getCompiledSuppressionRuleEngine(): SuppressionRuleEngine` — returns cached compiled suppression engine; lazily created, invalidated by `loadState()`
+- `getCompiledTerminalCommandSuppressionEngine(): TerminalCommandSuppressionEngine` — returns cached compiled terminal command suppression engine; lazily created, invalidated by `loadState()`
 
-**Validation:** `loadState()` normalizes sound IDs, clamps numeric values, normalizes custom rules (count, pattern length, matchTarget, kind, IDs), normalizes suppression rules (count, pattern length, matchTarget, IDs, description length), normalizes exit code rules (kind, soundId blank/CUSTOM_FILE → null), and normalizes run-configuration overrides (max 100, IDs, match type, pattern length, duration ranges, description length). Blank/invalid patterns are preserved and skipped safely at runtime.
+**Validation:** `loadState()` normalizes sound IDs, clamps numeric values, normalizes custom rules (count, pattern length, matchTarget, kind, IDs), normalizes suppression rules (count, pattern length, matchTarget, IDs, description length), normalizes exit code rules (kind, soundId blank/CUSTOM_FILE → null), normalizes run-configuration overrides (max 100, IDs, match type, pattern length, duration ranges, description length), and normalizes terminal command suppressions (max 100, IDs, match type, pattern length, exit-code mode, exit-code range, description length). Blank/invalid patterns are preserved and skipped safely at runtime.
 
 - **Risk:** LOW — standard `PersistentStateComponent` pattern
 
@@ -733,7 +789,7 @@ Class-by-class reference for the `com.drostwades.errorsound` package.
 **Rule Import / Export controls (Phase 4 addition):**
 - Adds `Export Rules…` and `Import Rules…` controls near the rule sections
 - Export stops active rule cell editing and serializes the current table-model state, including unsaved edits
-- Import reads a user-selected local JSON file, delegates strict parsing/validation to `RuleImportExportService`, shows a confirmation summary, then replaces only the custom regex, suppression, and terminal exit-code rule table models
+- Import reads a user-selected local JSON file, delegates strict parsing/validation to `RuleImportExportService`, shows a confirmation summary, then replaces only the custom regex, suppression, terminal command suppression, and terminal exit-code rule table models
 - Imported changes follow normal settings semantics: they are not persisted until Apply; Reset reloads persisted settings and discards imported-but-not-applied table state
 - Overwrite protection is explicit for export; import/export is local file based only
 
@@ -780,6 +836,15 @@ Class-by-class reference for the `com.drostwades.errorsound` package.
 - Controls: Source, Match Target, optional Exit Code, sample output, Test Rules button, read-only result area
 - Uses `RuleTestService.evaluate()` against the current table model so unsaved rule edits can be tested before Apply
 - Shows custom rule match status, matched rule row/id/pattern, resulting `ErrorKind`, built-in classifier fallback, regex validation errors, no-match message, and source/target applicability notes
+
+**Terminal Command Suppression Patterns section (Phase 13):**
+- `TerminalCommandSuppressionTableModel` (inner class) — `AbstractTableModel` for `AlertSettings.TerminalCommandSuppressionState`
+- Settings-side table under **Terminal Command Suppression Patterns**
+- Columns: Enabled, Match Type, Pattern, Exit Code Filter, Exit Code, Description
+- Match Type editor uses `TerminalCommandSuppressionMatchType`; Exit Code Filter editor uses `TerminalCommandSuppressionExitCodeMode`
+- `TerminalCommandPatternRenderer` highlights invalid regex only when **Command regex** is selected
+- Applies to terminal command completions only; first matching enabled row wins at runtime
+- Included in rules-only import/export schema v3; not included in repo profiles or Run/Debug overrides
 
 **Run Configuration Overrides section (Phase 12):**
 - `RunConfigurationOverrideTableModel` (inner class) — `AbstractTableModel` for `AlertSettings.RunConfigurationOverrideState`
@@ -865,4 +930,4 @@ Class-by-class reference for the `com.drostwades.errorsound` package.
 **Risk:** LOW — additive, no external dependencies.
 
 ---
-*Last updated from code scan: 2026-05-27*
+*Last updated from code scan: 2026-05-29*

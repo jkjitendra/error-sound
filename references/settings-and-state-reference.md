@@ -63,6 +63,7 @@ Quick lookup for `AlertSettings.State` fields and their usage.
 |---|---|---|---|
 | `customRules` | `MutableList<CustomRuleState>` | Empty list | User-defined regex rules evaluated before built-in classification |
 | `suppressionRules` | `MutableList<SuppressionRuleState>` | Empty list | User-defined regex rules that silence matching contexts before alert dispatch |
+| `terminalCommandSuppressions` | `MutableList<TerminalCommandSuppressionState>` | Empty list | Terminal-only command suppression patterns evaluated before terminal dispatch |
 | `exitCodeRules` | `MutableList<ExitCodeRuleState>` | 130 suppress, 127/137/143 GENERIC | Terminal exit-code mappings, sound overrides, or suppression |
 
 `CustomRuleState` fields:
@@ -292,6 +293,56 @@ Suppressed run-config matches do not call `AlertDispatcher`, play sound, show vi
 
 Run configuration overrides are not part of `.error-sound-alert.json` and are not included in rule import/export.
 
+## Terminal Command Suppression State
+
+**Collection:** `AlertSettings.State.terminalCommandSuppressions`
+**Persistence:** application-level `errorSoundAlert.xml`
+**Scope:** Terminal command completions only
+
+Rows are stored as `AlertSettings.TerminalCommandSuppressionState`. First matching enabled row wins after a terminal command completes and before `AlertDispatcher` is called.
+
+### Fields
+
+| Field | Type | Default | Description |
+|---|---|---|---|
+| `id` | String | UUID | Stable row identifier |
+| `enabled` | Boolean | `true` | Disabled rows are preserved but ignored |
+| `matchType` | String | `COMMAND_CONTAINS` | Stored `TerminalCommandSuppressionMatchType` |
+| `pattern` | String | `""` | Command text or regex pattern |
+| `exitCodeMode` | String | `ANY_NON_ZERO` | Stored `TerminalCommandSuppressionExitCodeMode` |
+| `exitCode` | Int | `1` | Specific exit code used when `exitCodeMode = SPECIFIC_EXIT_CODE` |
+| `description` | String | `""` | Optional note for the user |
+
+### Match Types
+
+| Stored Value | Behavior |
+|---|---|
+| `EXACT_COMMAND` | Exact trimmed command match |
+| `COMMAND_CONTAINS` | Case-insensitive command substring |
+| `COMMAND_REGEX` | Regex applied to the command text |
+
+Unknown stored match types normalize to `COMMAND_CONTAINS`.
+
+### Exit Code Modes
+
+| Stored Value | Behavior |
+|---|---|
+| `ANY_NON_ZERO` | Matches any non-zero terminal exit code |
+| `SPECIFIC_EXIT_CODE` | Matches only the configured `exitCode` |
+
+Unknown stored exit-code modes normalize to `ANY_NON_ZERO`.
+
+### Normalization And Runtime Safety
+
+- Maximum rows: 100
+- Pattern length uses `CustomRuleEngine.MAX_PATTERN_LENGTH`
+- Description length is capped at 240 characters
+- Exit code is clamped to `-9999..9999`
+- Blank patterns are preserved in settings and skipped at runtime
+- Invalid command regex patterns are preserved in settings and skipped safely at runtime
+- Suppressed terminal command matches skip `AlertDispatcher`, sound playback, visual notifications, and Alert History
+- Run/Debug and console-only paths do not evaluate terminal command suppressions
+
 ## Team-Shared Repo Profile File
 
 **File name:** `.error-sound-alert.json`
@@ -401,9 +452,10 @@ Repo profiles do **not** include:
 
 ## Rule Import / Export JSON
 
-Rules-only local JSON import/export is handled by `RuleImportExportBundle` and `RuleImportExportService`. Schema version 2 covers exactly:
+Rules-only local JSON import/export is handled by `RuleImportExportBundle` and `RuleImportExportService`. Schema version 3 covers exactly:
 - `customRules`
 - `suppressionRules`
+- `terminalCommandSuppressions`
 - `exitCodeRules`
 
 It does **not** cover:
@@ -419,9 +471,9 @@ It does **not** cover:
 
 ```json
 {
-  "schemaVersion": 2,
+  "schemaVersion": 3,
   "exportedAt": "2026-05-02T00:00:00Z",
-  "pluginVersion": "1.1.22",
+  "pluginVersion": "1.1.23",
   "customRules": [
     {
       "id": "8e2d8f2f-4d8b-46cc-8f22-82a904f1d6aa",
@@ -438,6 +490,17 @@ It does **not** cover:
       "pattern": "Known harmless lint warning",
       "matchTarget": "LINE_TEXT",
       "description": "Noisy linter warning that should not alert"
+    }
+  ],
+  "terminalCommandSuppressions": [
+    {
+      "id": "grep-no-match",
+      "enabled": true,
+      "matchType": "COMMAND_CONTAINS",
+      "pattern": "grep",
+      "exitCodeMode": "SPECIFIC_EXIT_CODE",
+      "exitCode": 1,
+      "description": "grep returns 1 when no match is found"
     }
   ],
   "exitCodeRules": [
@@ -464,22 +527,24 @@ It does **not** cover:
 
 ### Import Rules
 
-- `schemaVersion` must be `1` or `2`
-- Schema version `1` remains import-compatible and simply imports no suppression rules unless the section is present
+- `schemaVersion` must be `1`, `2`, or `3`
+- Schema version `1` remains import-compatible and simply imports no suppression rules or terminal command suppressions unless those sections are present
+- Schema version `2` remains import-compatible and imports no terminal command suppressions unless the section is present
 - Top-level JSON must be an object
-- `customRules`, `suppressionRules`, and `exitCodeRules` sections may be missing; missing sections import as empty lists
+- `customRules`, `suppressionRules`, `terminalCommandSuppressions`, and `exitCodeRules` sections may be missing; missing sections import as empty lists
 - Unknown top-level fields are rejected to avoid importing full settings bundles accidentally
 - Rule ordering is preserved
 - Rule ids are preserved when present; missing or blank custom rule ids are regenerated with a validation note
 - Unsupported `matchTarget`, `kind`, and bundled sound ids cause that row to be skipped with a user-facing warning
 - Invalid regex text is preserved and reported; runtime continues to skip invalid custom/suppression regex rules until the user edits them
+- Invalid terminal command regex text is preserved and reported; runtime continues to skip invalid command regex rows until the user edits them
 - Imported table changes are not persisted until Apply is clicked
 - Reset discards imported-but-not-applied table changes
 
 ### Export Rules
 
 - Export reads the current settings UI table-model state, including unsaved edits
-- Export writes `schemaVersion = 2`
+- Export writes `schemaVersion = 3`
 - Export writes pretty-printed JSON to a user-selected local file
 - Existing export files are not overwritten silently; the UI asks for confirmation
 - Export does not write any permanent storage outside the selected file
@@ -511,4 +576,4 @@ Preset behavior:
 - Presets are bundled locally; no network, telemetry, remote preset downloads, script execution, or file writes are involved
 
 ---
-*Last updated from code scan: 2026-05-27*
+*Last updated from code scan: 2026-05-29*

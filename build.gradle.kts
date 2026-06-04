@@ -7,7 +7,7 @@ plugins {
 }
 
 group = "com.drostwades"
-version = "1.1.22"
+version = "1.1.23"
 
 repositories {
     mavenCentral()
@@ -58,6 +58,7 @@ intellijPlatform {
               <li><b>Team-shared repo profiles:</b> load safe profile defaults from <code>.error-sound-alert.json</code> in the project root before workspace overrides are applied</li>
               <li><b>Profile merge policy:</b> choose whether workspace overrides, repo defaults, global settings, or local-only settings determine the effective project profile</li>
               <li><b>Run configuration overrides:</b> customize Run/Debug alert behavior for specific configuration names or types</li>
+              <li><b>Terminal command suppressions:</b> silence expected non-zero terminal commands by exact command, contains match, or regex with optional exit-code filtering</li>
               <li><b>Exit-code rules for terminal commands:</b> map specific exit codes to error kinds, optional per-code sound overrides, or suppress alerts entirely (e.g. silence Ctrl+C / exit&nbsp;130)</li>
               <li>Per-kind sounds, or one global sound for all alerts</li>
               <li><b>Success sounds:</b> optional alert on successful process completion (off by default)</li>
@@ -76,6 +77,13 @@ intellijPlatform {
         """.trimIndent()
 
         changeNotes = """
+            <b>1.1.23</b>
+            <ul>
+              <li>Added Terminal Command Suppression Patterns for terminal command completions</li>
+              <li>Suppressions can match exact commands, command substrings, or command regex patterns with any non-zero or specific exit-code filters</li>
+              <li>First matching enabled terminal command suppression skips alert dispatch, sound playback, visual notifications, and Alert History for that terminal command</li>
+              <li>Rules-only import/export now uses schema version 3 with terminal command suppressions while preserving schema version 1 and 2 imports</li>
+            </ul>
             <b>1.1.22</b>
             <ul>
               <li>Added Run Configuration Overrides for Run/Debug executions</li>
