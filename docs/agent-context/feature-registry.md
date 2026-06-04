@@ -284,11 +284,11 @@ Maps specific terminal exit codes to an error kind, an optional built-in sound o
 | Version introduced | 1.1.12 |
 | Relevant classes/files | `RuleImportExportBundle.kt`, `RuleImportExportResult.kt`, `RuleImportExportService.kt`, `ErrorSoundConfigurable.kt` |
 
-Lets users export and import rule presets as local JSON. The schema version 2 bundle covers Custom Regex Rules, Suppression Rules, and Terminal Exit-Code Rules, preserving ordering and ids when present. Schema version 1 files remain import-compatible for older exports without suppression rules. It is not a full settings export and deliberately excludes global sound settings, per-kind volume, success settings, project profiles/overrides, alert history, snooze state, and any runtime data.
+Lets users export and import rule presets as local JSON. The schema version 3 bundle covers Custom Regex Rules, Suppression Rules, Terminal Command Suppression Patterns, and Terminal Exit-Code Rules, preserving ordering and ids when present. Schema version 1 and 2 files remain import-compatible for older exports without newer rule sections. It is not a full settings export and deliberately excludes global sound settings, per-kind volume, success settings, project profiles/overrides, alert history, snooze state, and any runtime data.
 
 **How to enable/use:** Open Settings / Preferences -> Tools -> Error Sound Alert and use **Export Rules…** or **Import Rules…** near the rule sections.
 
-**Example usage:** Configure custom regex rules for a team linter, suppression rules for harmless noisy messages, and terminal exit-code rules for common shell failures, export them to JSON, then import that file in another IDE. The imported table changes become persistent only after Apply.
+**Example usage:** Configure custom regex rules for a team linter, suppression rules for harmless noisy messages, terminal command suppressions for expected non-zero commands, and terminal exit-code rules for common shell failures, export them to JSON, then import that file in another IDE. The imported table changes become persistent only after Apply.
 
 **Notes/limitations:** Import validates JSON strictly, shows a confirmation summary, and replaces only the rule table models. Reset discards imported-but-not-applied changes. Import/export uses local files only; no network, telemetry, or execution of imported content is involved.
 
@@ -384,6 +384,24 @@ Lets users customize alert behavior for specific Run/Debug configurations after 
 
 ---
 
+## Terminal Command Suppression Patterns
+
+| Field | Value |
+|---|---|
+| Status | Available |
+| Version introduced | 1.1.23 |
+| Relevant classes/files | `TerminalCommandSuppressionEngine.kt`, `TerminalCommandSuppressionMatchType.kt`, `TerminalCommandSuppressionExitCodeMode.kt`, `AlertSettings.kt`, `ErrorSoundConfigurable.kt`, `AlertOnTerminalCommandListener.kt`, `RuleImportExportBundle.kt`, `RuleImportExportService.kt`, `ErrorSoundDiagnosticsService.kt` |
+
+Lets users silence expected non-zero terminal commands before terminal alerts are dispatched. Matching supports exact command, command contains, and command regex. Exit-code filters support any non-zero exit code or a specific exit code, and first matching enabled row wins.
+
+**How to enable/use:** Open Settings / Preferences -> Tools -> Error Sound Alert -> **Terminal Command Suppression Patterns**, add a row, choose a command match type, pattern, and exit-code filter, then Apply.
+
+**Example usage:** Suppress `grep` exit code 1 with **Command contains** = `grep` and **Specific exit code** = `1`; suppress `npm run flaky-local` with **Command contains** and **Any non-zero exit code**; suppress dry-run commands with **Command regex** = `^kubectl .* --dry-run`.
+
+**Notes/limitations:** Applies only to terminal command completions. Suppressed matches skip `AlertDispatcher`, sound, visual notifications, and Alert History. Blank patterns and invalid command regex are preserved in settings and skipped safely at runtime. Rule import/export schema v3 includes `terminalCommandSuppressions` while schema v1/v2 imports remain supported. Run/Debug behavior, console-only behavior, terminal reflection, repo profile schema, Alert History persistence, network/telemetry, and file writes are unchanged.
+
+---
+
 ## Per-Kind Volume
 
 | Field | Value |
@@ -455,4 +473,4 @@ Prevents rapid duplicate alerts when multiple detection paths or repeated output
 **Notes/limitations:** Cooldown values are fixed in code and not currently configurable.
 
 ---
-*Last updated from code scan: 2026-05-27*
+*Last updated from code scan: 2026-05-29*
