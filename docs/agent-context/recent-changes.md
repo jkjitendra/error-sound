@@ -4,6 +4,52 @@ Engineering-significant changes to the codebase. Not a full changelog — focuse
 
 ---
 
+## 1.1.23 — Terminal Command Suppression Patterns (Phase 13)
+
+### Scope
+Phase 13 adds shipped user-facing **Terminal Command Suppression Patterns** for terminal command completions. Users can silence known expected non-zero terminal commands without changing Run/Debug, console-only, or terminal reflection behavior.
+
+### User-facing behavior
+- Added **Terminal Command Suppression Patterns** in **Settings -> Tools -> Error Sound Alert**
+- First matching enabled row wins
+- Command match types: exact command, command contains, and command regex
+- Exit-code filters: any non-zero exit code or a specific exit code
+- Blank patterns and invalid command regex patterns are preserved in settings and skipped safely at runtime
+
+### Runtime behavior
+- `AlertOnTerminalCommandListener` evaluates terminal command suppressions after command completion and before `AlertDispatcher`
+- Suppressed terminal command matches skip `AlertDispatcher`, sound playback, visual notifications, and Alert History
+- Existing terminal classification behavior is unchanged when no suppression matches
+- Run/Debug behavior and console-only behavior are unchanged
+
+### Import/export
+- Rules-only import/export now exports `schemaVersion = 3`
+- Schema v3 includes `customRules`, `suppressionRules`, `terminalCommandSuppressions`, and `exitCodeRules`
+- Schema v1 and v2 imports remain supported for backward compatibility
+
+### Implementation notes
+- Added `TerminalCommandSuppressionEngine.kt`
+- Added `TerminalCommandSuppressionMatchType.kt`
+- Added `TerminalCommandSuppressionExitCodeMode.kt`
+- Added `AlertSettings.State.terminalCommandSuppressions`
+- Added debug-only `TERMINAL_COMMAND_SUPPRESSION` explanation cause
+- Diagnostics now reports terminal command suppression count and schema v3 import/export support
+
+### Safety Boundaries
+- Terminal command path only
+- No Run/Debug behavior changes
+- No console-only behavior changes
+- No terminal reflection changes
+- No repo profile schema changes
+- No Alert History persistence changes
+- No network, telemetry, or file writes beyond normal application settings persistence and user-selected rule export files
+- Marketplace verifier compatibility fixes remain preserved: no `PluginManagerCore`, `PluginId`, or `FileSaverDescriptor` usage in source/resources
+
+### Version
+- Plugin version is `1.1.23`
+
+---
+
 ## 1.1.22 — Per-Run-Configuration Overrides (Phase 12)
 
 ### Scope
@@ -932,4 +978,4 @@ projectOverride == false →  effective enabled = false (regardless of global)
 - Improved terminal compatibility with 2025.x reworked terminal engine
 
 ---
-*Last updated from code scan: 2026-05-27*
+*Last updated from code scan: 2026-05-29*
