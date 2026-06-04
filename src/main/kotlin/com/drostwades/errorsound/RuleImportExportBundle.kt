@@ -6,6 +6,8 @@ data class RuleImportExportBundle(
     val pluginVersion: String,
     val customRules: List<CustomRule>,
     val suppressionRules: List<SuppressionRule>,
+    val terminalCommandFilterMode: String,
+    val terminalCommandFilters: List<TerminalCommandFilter>,
     val terminalCommandSuppressions: List<TerminalCommandSuppression>,
     val exitCodeRules: List<ExitCodeRule>,
 ) {
@@ -22,6 +24,14 @@ data class RuleImportExportBundle(
         val enabled: Boolean,
         val pattern: String,
         val matchTarget: String,
+        val description: String,
+    )
+
+    data class TerminalCommandFilter(
+        val id: String,
+        val enabled: Boolean,
+        val matchType: String,
+        val pattern: String,
         val description: String,
     )
 
